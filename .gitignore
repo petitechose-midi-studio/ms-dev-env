@@ -1,0 +1,21 @@
+# Repos séparés (clones indépendants)
+open-control/
+midi-studio/
+
+# Build artifacts
+*.pyc
+__pycache__/
+.pio/
+build/
+target/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
