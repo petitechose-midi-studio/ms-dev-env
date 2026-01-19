@@ -10,6 +10,9 @@ build/
 target/
 node_modules/
 
+# Downloaded tools (platform-specific binaries)
+tools/
+
 # IDE
 .vscode/
 .idea/
