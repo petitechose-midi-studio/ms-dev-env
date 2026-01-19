@@ -23,6 +23,12 @@ else
     RED='' GREEN='' YELLOW='' BLUE='' NC=''
 fi
 
+# Detect CI/non-interactive mode
+INTERACTIVE=1
+if [[ -n "${CI:-}" ]] || [[ ! -t 0 ]]; then
+    INTERACTIVE=0
+fi
+
 log_info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
 log_ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
@@ -434,6 +440,11 @@ configure_path() {
     echo "export PATH=\"${paths_to_add[3]}:\$PATH\""
     echo ""
     
+    if [[ $INTERACTIVE -eq 0 ]]; then
+        log_info "Non-interactive mode, skipping PATH configuration"
+        return 0
+    fi
+    
     read -p "Add automatically? [y/N] " yn
     if [[ "$yn" == "y" || "$yn" == "Y" ]]; then
         {
@@ -458,25 +469,29 @@ setup_optional() {
     # Rust
     if command -v cargo &>/dev/null; then
         log_ok "rust ($(cargo --version | cut -d' ' -f2))"
-    else
+    elif [[ $INTERACTIVE -eq 1 ]]; then
         echo ""
         read -p "Install Rust? (needed for oc-bridge) [y/N] " yn
         if [[ "$yn" == "y" || "$yn" == "Y" ]]; then
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             log_ok "rust installed"
         fi
+    else
+        log_warn "rust not found (install with: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh)"
     fi
     
     # PlatformIO
     if command -v pio &>/dev/null; then
         log_ok "platformio ($(pio --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1))"
-    else
+    elif [[ $INTERACTIVE -eq 1 ]]; then
         echo ""
         read -p "Install PlatformIO? (needed for Teensy) [y/N] " yn
         if [[ "$yn" == "y" || "$yn" == "Y" ]]; then
             pip install platformio
             log_ok "platformio installed"
         fi
+    else
+        log_warn "platformio not found (install with: pip install platformio)"
     fi
 }
 
