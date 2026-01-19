@@ -434,7 +434,7 @@ export SDL2_ROOT=\"\$WORKSPACE_TOOLS/SDL2\"
 export PATH=\"\$WORKSPACE_TOOLS/cmake/bin:\$PATH\"
 export PATH=\"\$WORKSPACE_TOOLS/ninja:\$PATH\"
 export PATH=\"\$WORKSPACE_TOOLS/zig:\$PATH\"
-export PATH=\"\$WORKSPACE_ROOT/midi-studio/commands:\$PATH\"
+export PATH=\"\$WORKSPACE_ROOT/commands:\$PATH\"
 export PATH=\"\$WORKSPACE_ROOT/open-control/cli-tools/bin:\$PATH\"
 
 # Emscripten (source if exists)

@@ -1,0 +1,505 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# MIDI Studio CLI
+# Cross-platform build tool for midi-studio project
+# ==============================================================================
+
+set -euo pipefail
+
+# ==============================================================================
+# Configuration
+# ==============================================================================
+
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly WORKSPACE="$(cd "$SCRIPT_DIR/.." && pwd)"
+readonly ROOT="$WORKSPACE/midi-studio"
+readonly OC_TOOLS="$WORKSPACE/open-control/cli-tools/bin"
+readonly OC_BRIDGE="$WORKSPACE/open-control/bridge/target/release/oc-bridge"
+readonly EMSDK_DIR="$WORKSPACE/tools/emsdk"
+
+# Bridge process management
+BRIDGE_PID=""
+
+cleanup_bridge() {
+    if [[ -n "$BRIDGE_PID" ]] && kill -0 "$BRIDGE_PID" 2>/dev/null; then
+        kill "$BRIDGE_PID" 2>/dev/null
+        wait "$BRIDGE_PID" 2>/dev/null || true
+    fi
+}
+
+start_bridge() {
+    local transport="$1"
+    local port="$2"
+    
+    if [[ ! -x "$OC_BRIDGE" ]]; then
+        log_error "Bridge not found: $OC_BRIDGE"
+        log_error "Run: cd open-control/bridge && cargo build --release"
+        return 1
+    fi
+    
+    trap cleanup_bridge EXIT INT TERM
+    
+    "$OC_BRIDGE" --headless --controller "$transport" --controller-port "$port" &
+    BRIDGE_PID=$!
+    sleep 0.3
+    
+    if ! kill -0 "$BRIDGE_PID" 2>/dev/null; then
+        log_error "Bridge failed to start"
+        return 1
+    fi
+}
+
+# Extract port from C++ source
+get_ws_port() {
+    local main_file="$1"
+    grep -oP 'localhost:\K[0-9]+' "$main_file" 2>/dev/null | head -1 || true
+}
+
+get_udp_port() {
+    local main_file="$1"
+    grep -oP '\.port = \K[0-9]+' "$main_file" 2>/dev/null | head -1 || true
+}
+
+# PID of background bridge process
+BRIDGE_PID=""
+
+# ==============================================================================
+# Platform Detection
+# ==============================================================================
+
+detect_platform() {
+    case "$(uname -s)" in
+        CYGWIN*|MINGW*|MSYS*) echo "windows" ;;
+        Darwin*)              echo "macos" ;;
+        Linux*)               echo "linux" ;;
+        *)                    echo "unknown" ;;
+    esac
+}
+
+readonly PLATFORM="$(detect_platform)"
+
+# ==============================================================================
+# Terminal Output
+# ==============================================================================
+
+setup_colors() {
+    if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]] && [[ "${TERM:-dumb}" != "dumb" ]]; then
+        RED=$'\033[31m'
+        GREEN=$'\033[32m'
+        CYAN=$'\033[36m'
+        BOLD=$'\033[1m'
+        DIM=$'\033[2m'
+        RESET=$'\033[0m'
+    else
+        RED='' GREEN='' CYAN='' BOLD='' DIM='' RESET=''
+    fi
+}
+
+setup_colors
+
+log_info()  { printf '%s\n' "${CYAN}>${RESET} $*"; }
+log_ok()    { printf '%s\n' "${GREEN}>${RESET} $*"; }
+log_error() { printf '%s\n' "${RED}error:${RESET} $*" >&2; }
+log_die()   { log_error "$@"; exit 1; }
+
+# ==============================================================================
+# Emscripten Setup
+#
+# Uses Python to call emscripten tools directly - works on all platforms
+# without relying on .bat/.cmd resolution in PATH
+# ==============================================================================
+
+emscripten_init() {
+    [[ -v EMSCRIPTEN_INITIALIZED ]] && return 0
+    
+    local em_dir="$EMSDK_DIR/upstream/emscripten"
+    
+    if [[ ! -d "$em_dir" ]]; then
+        log_die "Emscripten not installed. Run: ms setup"
+    fi
+    
+    # Source emsdk environment
+    if [[ -f "$EMSDK_DIR/emsdk_env.sh" ]]; then
+        # shellcheck source=/dev/null
+        source "$EMSDK_DIR/emsdk_env.sh" > /dev/null 2>&1 || true
+    fi
+    
+    # Verify python is available
+    if ! command -v python &>/dev/null && ! command -v python3 &>/dev/null; then
+        log_die "Python is required for Emscripten"
+    fi
+    
+    # Set python command
+    if command -v python3 &>/dev/null; then
+        PYTHON_CMD="python3"
+    else
+        PYTHON_CMD="python"
+    fi
+    
+    # Store emscripten directory for tool calls
+    EMSCRIPTEN_DIR="$em_dir"
+    EMSCRIPTEN_INITIALIZED=1
+    
+    export EMSCRIPTEN_DIR EMSCRIPTEN_INITIALIZED PYTHON_CMD
+}
+
+# Wrapper to call emscripten tools via Python (portable)
+emtool() {
+    local tool="$1"
+    shift
+    emscripten_init
+    "$PYTHON_CMD" "$EMSCRIPTEN_DIR/${tool}.py" "$@"
+}
+
+# ==============================================================================
+# Codebase Resolution
+# ==============================================================================
+
+resolve_codebase() {
+    local name="${1:-}"
+    
+    [[ -z "$name" ]] && log_die "Codebase required (core, bitwig, ...)"
+    
+    if [[ "$name" == "core" ]]; then
+        echo "$ROOT/core"
+    elif [[ -d "$ROOT/plugin-$name" ]]; then
+        echo "$ROOT/plugin-$name"
+    else
+        log_die "Unknown codebase: $name (use 'ms list' to see available)"
+    fi
+}
+
+list_codebases() {
+    local codebases=("core")
+    for dir in "$ROOT"/plugin-*/; do
+        [[ -d "$dir" ]] && codebases+=("$(basename "$dir" | sed 's/plugin-//')")
+    done
+    printf '%s\n' "${codebases[@]}"
+}
+
+# ==============================================================================
+# Build Commands - Teensy
+# ==============================================================================
+
+cmd_teensy_build() {
+    local codebase="$1"
+    local env="${2:-dev}"
+    local codebase_path
+    codebase_path="$(resolve_codebase "$codebase")"
+    
+    log_info "Building $codebase (teensy $env)"
+    cd "$codebase_path"
+    "$OC_TOOLS/oc-build" "$env"
+}
+
+cmd_teensy_upload() {
+    local codebase="$1"
+    local env="${2:-dev}"
+    local codebase_path
+    codebase_path="$(resolve_codebase "$codebase")"
+    
+    log_info "Uploading $codebase (teensy $env)"
+    cd "$codebase_path"
+    "$OC_TOOLS/oc-upload" "$env"
+}
+
+cmd_teensy_monitor() {
+    local codebase="$1"
+    local env="${2:-dev}"
+    local codebase_path
+    codebase_path="$(resolve_codebase "$codebase")"
+    
+    log_info "Monitoring $codebase (teensy $env)"
+    cd "$codebase_path"
+    "$OC_TOOLS/oc-monitor" "$env"
+}
+
+# ==============================================================================
+# Build Commands - Native (SDL Desktop)
+# ==============================================================================
+
+cmd_native_build() {
+    local codebase="$1"
+    local codebase_path build_dir app_path
+    codebase_path="$(resolve_codebase "$codebase")"
+    build_dir="$ROOT/.build/$codebase/native"
+    app_path="$codebase_path/sdl"
+    
+    log_info "Building $codebase (native)"
+    
+    if [[ ! -f "$build_dir/build.ninja" ]]; then
+        cmake -G Ninja -S "$ROOT/core/sdl" -B "$build_dir" \
+            -DAPP_PATH="$app_path" \
+            -DSDL2_ROOT="$ROOT/core/sdl/tools/SDL2" \
+            -DBIN_OUTPUT_DIR="$ROOT/bin" \
+            -DCMAKE_BUILD_TYPE=Release
+    fi
+    
+    cmake --build "$build_dir"
+}
+
+cmd_native_run() {
+    local codebase="$1"
+    local codebase_path
+    codebase_path="$(resolve_codebase "$codebase")"
+    local bin_dir="$ROOT/bin/$codebase/native"
+    local exe
+    
+    # Extract bridge port from C++ source and start bridge
+    local main_native="$codebase_path/sdl/main-native.cpp"
+    if [[ -f "$main_native" ]]; then
+        local bridge_port
+        bridge_port="$(get_udp_port "$main_native")"
+        if [[ -n "$bridge_port" ]]; then
+            start_bridge "udp" "$bridge_port" || return 1
+        fi
+    fi
+    
+    cmd_native_build "$codebase"
+    
+    # Find executable (Windows .exe or Unix binary)
+    if [[ "$PLATFORM" == "windows" ]]; then
+        exe="$(find "$bin_dir" -maxdepth 1 -name '*.exe' -type f 2>/dev/null | head -1)"
+    else
+        exe="$bin_dir/midi_studio_$codebase"
+    fi
+    
+    [[ -x "$exe" ]] || [[ -f "$exe" ]] || log_die "Executable not found in $bin_dir"
+    
+    log_info "Running $codebase"
+    "$exe"
+}
+
+# ==============================================================================
+# Build Commands - Web (WASM)
+# ==============================================================================
+
+cmd_wasm_build() {
+    local codebase="$1"
+    local codebase_path build_dir app_path
+    codebase_path="$(resolve_codebase "$codebase")"
+    build_dir="$ROOT/.build/$codebase/wasm"
+    app_path="$codebase_path/sdl"
+    
+    emscripten_init
+    
+    log_info "Building $codebase (wasm)"
+    
+    if [[ ! -f "$build_dir/build.ninja" ]]; then
+        mkdir -p "$build_dir"
+        cd "$build_dir"
+        emtool emcmake cmake -G Ninja "$ROOT/core/sdl" \
+            -DAPP_PATH="$app_path" \
+            -DBIN_OUTPUT_DIR="$ROOT/bin" \
+            -DCMAKE_BUILD_TYPE=Release
+    fi
+    
+    cmake --build "$build_dir"
+}
+
+cmd_wasm_serve() {
+    local codebase="$1"
+    local watch="${2:-true}"
+    local codebase_path
+    codebase_path="$(resolve_codebase "$codebase")"
+    local bin_dir="$ROOT/bin/$codebase/wasm"
+    local http_port=8080
+    
+    # Extract bridge port from C++ source and start bridge
+    local main_wasm="$codebase_path/sdl/main-wasm.cpp"
+    if [[ -f "$main_wasm" ]]; then
+        local bridge_port
+        bridge_port="$(get_ws_port "$main_wasm")"
+        if [[ -n "$bridge_port" ]]; then
+            start_bridge "ws" "$bridge_port" || return 1
+        fi
+    fi
+    
+    cmd_wasm_build "$codebase"
+    
+    local html html_name
+    html="$(find "$bin_dir" -maxdepth 1 -name '*.html' -type f 2>/dev/null | head -1)"
+    html_name="$(basename "$html")"
+    
+    log_info "Serving at ${BOLD}http://localhost:$http_port/$html_name${RESET}"
+    
+    if [[ "$watch" == "true" ]]; then
+        log_info "Watching for changes... ${DIM}(Ctrl+C to stop)${RESET}"
+    fi
+    
+    python -m http.server "$http_port" -d "$bin_dir"
+}
+
+# ==============================================================================
+# Utility Commands
+# ==============================================================================
+
+cmd_setup() {
+    log_info "Setting up development environment..."
+    
+    # Check dependencies
+    command -v git &>/dev/null || log_die "git is required"
+    command -v python &>/dev/null || command -v python3 &>/dev/null || log_die "python3 is required"
+    
+    # Clone emsdk if needed
+    if [[ ! -d "$EMSDK_DIR" ]]; then
+        log_info "Cloning Emscripten SDK..."
+        mkdir -p "$(dirname "$EMSDK_DIR")"
+        git clone https://github.com/emscripten-core/emsdk.git "$EMSDK_DIR"
+    fi
+    
+    cd "$EMSDK_DIR"
+    
+    log_info "Updating emsdk..."
+    git pull 2>/dev/null || true
+    
+    log_info "Installing latest Emscripten..."
+    ./emsdk install latest
+    ./emsdk activate latest
+    
+    log_ok "Emscripten installed successfully"
+    echo
+    echo "To activate in current shell:"
+    echo "  source \"$EMSDK_DIR/emsdk_env.sh\""
+    echo
+    echo "Then run:"
+    echo "  ms web bitwig"
+}
+
+cmd_icons() {
+    local codebase="${1:-}"
+    [[ -z "$codebase" ]] && log_die "Usage: ms icons <codebase>"
+    
+    log_info "Generating icons for $codebase"
+    python "$ROOT/script/icon/builder.py" "$codebase"
+}
+
+cmd_clean() {
+    local codebase="${1:-}"
+    
+    if [[ -z "$codebase" ]]; then
+        log_info "Cleaning all builds..."
+        rm -rf "$ROOT/.build" "$ROOT/bin"
+        rm -rf "$ROOT/core/.pio/build"
+        rm -rf "$ROOT"/plugin-*/.pio/build
+    else
+        log_info "Cleaning $codebase..."
+        rm -rf "$ROOT/.build/$codebase" "$ROOT/bin/$codebase"
+        rm -rf "$(resolve_codebase "$codebase")/.pio/build"
+    fi
+    
+    log_ok "Clean complete"
+}
+
+cmd_list() {
+    echo "Available codebases:"
+    list_codebases | while read -r cb; do
+        echo "  $cb"
+    done
+}
+
+cmd_help() {
+    cat <<EOF
+${BOLD}MIDI Studio CLI${RESET}
+
+${BOLD}Usage:${RESET} ms <command> [codebase] [options]
+
+${BOLD}Quick commands:${RESET}
+  ms core                Build + upload core (teensy)
+  ms bitwig              Build + upload bitwig (teensy)
+  ms run <codebase>      Build + run native desktop
+  ms web <codebase>      Build + serve wasm
+  ms monitor <codebase>  Build + upload + serial monitor
+
+${BOLD}Build commands:${RESET}
+  ms build <codebase>              Teensy build only
+  ms build <codebase> native       Native desktop build
+  ms build <codebase> wasm         WebAssembly build
+
+${BOLD}Options:${RESET}
+  --release              Use release environment (teensy)
+  --no-watch             Disable watch mode (web)
+
+${BOLD}Utilities:${RESET}
+  ms setup               Install Emscripten SDK
+  ms icons <codebase>    Generate icons
+  ms clean [codebase]    Clean builds
+  ms list                List codebases
+
+${BOLD}Codebases:${RESET}
+$(list_codebases | sed 's/^/  /')
+EOF
+}
+
+# ==============================================================================
+# Main Entry Point
+# ==============================================================================
+
+main() {
+    local cmd="${1:-help}"
+    local arg="${2:-}"
+    local arg2="${3:-}"
+    
+    # Parse global flags
+    local env="dev"
+    local watch="true"
+    for a in "$@"; do
+        case "$a" in
+            --release)  env="release" ;;
+            --no-watch) watch="false" ;;
+        esac
+    done
+    
+    case "$cmd" in
+        # Quick commands
+        core|bitwig)
+            cmd_teensy_upload "$cmd" "$env"
+            ;;
+        run)
+            [[ -z "$arg" ]] && log_die "Usage: ms run <codebase>"
+            cmd_native_run "$arg"
+            ;;
+        web)
+            [[ -z "$arg" ]] && log_die "Usage: ms web <codebase>"
+            cmd_wasm_serve "$arg" "$watch"
+            ;;
+        monitor)
+            [[ -z "$arg" ]] && log_die "Usage: ms monitor <codebase>"
+            cmd_teensy_monitor "$arg" "$env"
+            ;;
+        
+        # Explicit build commands
+        build)
+            [[ -z "$arg" ]] && log_die "Usage: ms build <codebase> [native|wasm]"
+            case "$arg2" in
+                native) cmd_native_build "$arg" ;;
+                wasm)   cmd_wasm_build "$arg" ;;
+                "")     cmd_teensy_build "$arg" "$env" ;;
+                *)      log_die "Unknown build target: $arg2" ;;
+            esac
+            ;;
+        upload)
+            [[ -z "$arg" ]] && log_die "Usage: ms upload <codebase>"
+            cmd_teensy_upload "$arg" "$env"
+            ;;
+        serve)
+            [[ -z "$arg" ]] && log_die "Usage: ms serve <codebase>"
+            cmd_wasm_serve "$arg" "false"
+            ;;
+        
+        # Utilities
+        setup)  cmd_setup ;;
+        icons)  cmd_icons "$arg" ;;
+        clean)  cmd_clean "$arg" ;;
+        list)   cmd_list ;;
+        help|--help|-h)
+            cmd_help
+            ;;
+        
+        *)
+            log_die "Unknown command: $cmd (try: ms help)"
+            ;;
+    esac
+}
+
+main "$@"

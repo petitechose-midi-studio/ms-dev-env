@@ -67,7 +67,7 @@ jobs:
       - name: Verify ms command
         shell: bash
         run: |
-          export PATH="$PWD/midi-studio/core/commands:$PATH"
+          export PATH="$PWD/commands:$PATH"
           ms help
 
   # Full test: install tools (cmake, ninja, zig, SDL2 - skip emsdk for speed)
