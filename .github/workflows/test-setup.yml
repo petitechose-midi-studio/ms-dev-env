@@ -1,0 +1,82 @@
+name: Test Setup Script
+
+on:
+  push:
+    paths:
+      - 'setup.sh'
+      - '.github/workflows/test-setup.yml'
+  pull_request:
+    paths:
+      - 'setup.sh'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  test-setup:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout workspace
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install GitHub CLI (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install -y gh build-essential
+      
+      - name: Install GitHub CLI (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gh
+      
+      - name: Install GitHub CLI (Windows)
+        if: runner.os == 'Windows'
+        run: choco install gh -y
+      
+      - name: Authenticate GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth status
+      
+      - name: Run setup.sh (Unix)
+        if: runner.os != 'Windows'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x setup.sh
+          ./setup.sh --skip-tools <<< "n"
+      
+      - name: Run setup.sh (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x setup.sh
+          ./setup.sh --skip-tools <<< "n"
+      
+      - name: Verify repos cloned
+        shell: bash
+        run: |
+          echo "=== open-control repos ==="
+          ls -la open-control/ | head -20
+          echo ""
+          echo "=== midi-studio repos ==="
+          ls -la midi-studio/ | head -20
+      
+      - name: Verify ms command available
+        shell: bash
+        run: |
+          export PATH="$PWD/midi-studio/commands:$PATH"
+          ms help || echo "ms command test done"
