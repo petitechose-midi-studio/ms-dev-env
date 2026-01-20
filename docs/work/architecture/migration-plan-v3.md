@@ -756,4 +756,43 @@ git push origin refactor/architecture-cleanup
 
 ---
 
+## État d'Avancement - 2026-01-20
+
+### Commits sur `refactor/architecture-cleanup`:
+
+1. **b4169f7** - Phase 1-4: `oc/types/` module + migration des includes
+   - Création de `oc/types/Result.hpp`, `Ids.hpp`, `Callbacks.hpp`, `Event.hpp`
+   - Migration de toutes les interfaces vers `oc/types/`
+   - 252 tests passent
+
+2. **d70f34f** - Phase 5-6: IContext + namespaces
+   - IContext devient interface pure
+   - Création de `ContextBase.hpp` avec API fluente
+   - Correction `Config.hpp`: `oc::config` → `oc`
+   - Correction `InputConfig.hpp`: `oc::core` → `oc::core::input`
+   - `Time.hpp` utilise `TimeProvider` depuis `types/Callbacks.hpp`
+   - 252 tests passent
+
+3. **8fe3a43** - Nettoyage legacy complet
+   - Suppression des fichiers de redirection:
+     - `oc/interface/Types.hpp`
+     - `oc/core/Result.hpp`
+     - `oc/core/event/Event.hpp`
+   - Correction `BindingHandle`: `oc::core` → `oc::core::input`
+   - Migration de tous les usages vers les nouveaux chemins
+   - Suppression des alias de compatibilité arrière
+   - 252 tests passent
+
+### Validation finale:
+- [x] 252/252 tests passent
+- [x] Aucun ancien include (`oc/interface/Types.hpp`, `oc/core/Result.hpp`)
+- [x] Aucun ancien namespace (`oc::config`)
+- [x] Namespaces = chemins de fichiers
+- [x] Fichiers legacy supprimés
+- [ ] Compiler les exemples (HALs, ui-lvgl) - à vérifier manuellement
+
+### Prêt pour merge sur main.
+
+---
+
 *Document de migration - v3*

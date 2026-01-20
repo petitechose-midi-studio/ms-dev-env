@@ -2,6 +2,7 @@
 
 **Status**: Draft - À valider
 **Created**: 2026-01-20
+**Updated**: 2026-01-20
 **Context**: Clarification de l'architecture open-control pour supporter multi-plateforme
 
 ---
@@ -12,8 +13,23 @@ Le dossier `hal/` mélange :
 - Interfaces abstraites (`IStorage`, `IDisplay`...)
 - Types communs
 - Implémentations nulles (`NullMidiTransport`)
+- Implémentations desktop-only (`FileStorageBackend`)
 
-Pas de place claire pour les implémentations portables (standard C++ comme `FileStorage`).
+**Problème** : `FileStorageBackend` utilise `fopen()` qui n'existe pas sur Teensy bare-metal.
+Si inclus dans du code Teensy → erreur de compilation.
+
+---
+
+## Définitions rigoureuses
+
+| Catégorie | Définition | Teensy | Desktop | WASM |
+|-----------|------------|--------|---------|------|
+| **Interface** | Classe abstraite pure, 0 code | ✅ | ✅ | ✅ |
+| **Universel** | C++ standard sans dépendance OS (`vector`, `array`, `cstring`) | ✅ | ✅ | ✅ |
+| **Desktop** | C++ standard + POSIX (`fopen`, `threads`) | ❌ | ✅ | ✅* |
+| **Platform** | APIs hardware (Arduino, Teensy, SDL) | selon | selon | selon |
+
+*WASM via Emscripten émule POSIX filesystem
 
 ---
 
@@ -91,18 +107,39 @@ interface/
 
 ### Détail `portable/`
 
-Implémentations utilisant **uniquement** le standard C++ (fopen, vector, etc.).
-Fonctionne sur toutes les plateformes (Native, WASM, et même embedded si stdlib dispo).
+Implémentations utilisant **uniquement** du C++ standard **universel** (compile sur TOUTES les cibles, y compris Teensy).
+
+**Règle** : Si ça utilise `fopen`, `threads`, `filesystem` → ce n'est PAS portable, ça va dans `hal-desktop/`.
 
 ```cpp
-// portable/FileStorage.hpp
+// portable/MemoryStorage.hpp
+class MemoryStorage : public IStorage {
+public:
+    explicit MemoryStorage(size_t capacity = 4096);
+    // ... utilise std::vector<uint8_t> = OK partout
+};
+```
+
+**Fichiers :**
+```
+portable/
+├── MemoryStorage.hpp   ← Stockage RAM (std::vector = universel)
+└── NullMidi.hpp        ← MIDI no-op (aucune dépendance)
+```
+
+### Détail `hal-desktop/`
+
+Implémentations desktop-only utilisant POSIX/filesystem. Compile sur Linux/macOS/Windows/WASM mais **PAS sur Teensy bare-metal**.
+
+```cpp
+// hal-desktop/src/oc/hal/desktop/FileStorage.hpp
 class FileStorage : public IStorage {
 public:
     explicit FileStorage(const char* path);
-    bool begin() override;
-    size_t read(...) override;  // fseek + fread
-    size_t write(...) override; // fseek + fwrite
-    bool commit() override;     // fflush
+    bool begin() override;       // fopen
+    size_t read(...) override;   // fseek + fread
+    size_t write(...) override;  // fseek + fwrite
+    bool commit() override;      // fflush
 private:
     FILE* file_;
 };
@@ -110,10 +147,8 @@ private:
 
 **Fichiers :**
 ```
-portable/
-├── FileStorage.hpp     ← Stockage fichier (fopen/fwrite)
-├── MemoryStorage.hpp   ← Stockage RAM (pour tests)
-└── NullMidi.hpp        ← MIDI no-op
+hal-desktop/src/oc/hal/desktop/
+└── FileStorage.hpp     ← Stockage fichier (POSIX fopen/fwrite)
 ```
 
 ### Détail `hal-teensy/`
@@ -262,11 +297,25 @@ hal-midi/src/oc/hal/midi/
 
 ---
 
+## Tableau récapitulatif : Placement des classes
+
+| Classe | Dépendances | Teensy | Desktop | WASM | Placement |
+|--------|-------------|--------|---------|------|-----------|
+| `IStorageBackend` | aucune | ✅ | ✅ | ✅ | `framework/interface/` |
+| `MemoryStorage` | `std::vector` | ✅ | ✅ | ✅ | `framework/portable/` |
+| `NullMidiTransport` | aucune | ✅ | ✅ | ✅ | `framework/portable/` |
+| `FileStorageBackend` | `fopen/fwrite` | ❌ | ✅ | ✅ | `hal-desktop/` |
+| `SDCardBackend` | Arduino SD | ✅ | ❌ | ❌ | `hal-teensy/` |
+| `LittleFSBackend` | LittleFS | ✅ | ❌ | ❌ | `hal-teensy/` |
+
+---
+
 ## Questions ouvertes
 
-1. **Nommage `interface/` vs `api/`** - Conflit avec `api/` existant (EncoderAPI...) ?
-2. **hal-midi reste séparé ?** - Ou intégrer dans `portable/` ?
+1. **Nommage `interface/` vs `traits/`** - Conflit avec `api/` existant (EncoderAPI...) ?
+2. **hal-midi reste séparé ?** - Dépend libremidi (externe), probablement oui
 3. **Rétrocompatibilité** - Fournir des includes de compatibilité temporaires ?
+4. **Créer hal-desktop/ maintenant ?** - Ou attendre d'avoir plus de classes desktop-only ?
 
 ---
 
@@ -275,3 +324,12 @@ hal-midi/src/oc/hal/midi/
 - [ ] Approuvé - Implémenter
 - [ ] Modifié - Voir commentaires
 - [ ] Reporté - Pas prioritaire maintenant
+
+---
+
+## Actions immédiates (si approuvé)
+
+1. Créer `hal-desktop/` avec `FileStorage.hpp` (move depuis framework)
+2. Déplacer `MemoryStorage.hpp` de `midi-studio/core/sdl/` vers `framework/portable/`
+3. Renommer `hal/` → `interface/` dans framework
+4. Mettre à jour tous les includes
