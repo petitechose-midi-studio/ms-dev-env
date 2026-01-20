@@ -303,18 +303,18 @@ check_deps() {
         esac
         
         if [[ "$found" == false ]]; then
-            # Select package name for current platform
+            # Select package name for current platform (- means use default name)
             local pkg_name="$name"
             case "$PLATFORM" in
                 linux)
                     case "$distro" in
-                        fedora) pkg_name="$fedora" ;;
-                        debian) pkg_name="$debian" ;;
-                        arch)   pkg_name="$arch" ;;
-                        *)      pkg_name="$fedora" ;;
+                        fedora) [[ "$fedora" != "-" ]] && pkg_name="$fedora" ;;
+                        debian) [[ "$debian" != "-" ]] && pkg_name="$debian" ;;
+                        arch)   [[ "$arch" != "-" ]] && pkg_name="$arch" ;;
+                        *)      [[ "$fedora" != "-" ]] && pkg_name="$fedora" ;;
                     esac
                     ;;
-                macos) pkg_name="$macos" ;;
+                macos) [[ "$macos" != "-" ]] && pkg_name="$macos" ;;
             esac
             
             if [[ "$required" == "required" ]]; then
@@ -370,21 +370,44 @@ check_deps() {
 
 # Check native build dependencies for current platform
 check_native_deps() {
-    case "$PLATFORM" in
-        linux)
-            check_deps \
-                "pkg=sdl2:SDL2:SDL2-devel:libsdl2-dev:sdl2:sdl2:required:Graphics and input" \
-                "pkg=alsa:ALSA:alsa-lib-devel:libasound2-dev:alsa-lib:n/a:optional:MIDI hardware support"
-            ;;
-        windows)
-            check_deps \
-                "file=tools/windows/SDL2/x86_64-w64-mingw32/include:SDL2:n/a:n/a:n/a:n/a:required:Graphics and input (bundled)"
-            ;;
-        macos)
-            check_deps \
-                "pkg=sdl2:SDL2:n/a:n/a:n/a:sdl2:required:Graphics and input"
-            ;;
-    esac
+    local missing=()
+
+    # Build tools
+    command -v cmake &>/dev/null || missing+=("cmake")
+    command -v ninja &>/dev/null || missing+=("ninja")
+
+    # C++ compiler
+    if [[ "$PLATFORM" == "macos" ]]; then
+        command -v clang++ &>/dev/null || missing+=("clang++ (xcode-select --install)")
+    else
+        command -v g++ &>/dev/null || missing+=("g++")
+    fi
+
+    # SDL2
+    if [[ "$PLATFORM" == "windows" ]]; then
+        [[ -d "$TOOLS_DIR/windows/SDL2" ]] || missing+=("SDL2 (bundled)")
+    else
+        pkg-config --exists sdl2 2>/dev/null || missing+=("SDL2")
+    fi
+
+    # Report missing
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_error "Missing: ${missing[*]}"
+        echo ""
+        case "$PLATFORM" in
+            linux)
+                case "$(detect_distro)" in
+                    fedora) echo "  sudo dnf install cmake ninja-build gcc-c++ SDL2-devel" ;;
+                    debian) echo "  sudo apt install cmake ninja-build g++ libsdl2-dev" ;;
+                    arch)   echo "  sudo pacman -S cmake ninja gcc sdl2" ;;
+                    *)      echo "  Install: cmake, ninja, g++, SDL2-devel" ;;
+                esac
+                ;;
+            macos)  echo "  brew install cmake ninja sdl2" ;;
+        esac
+        echo ""
+        return 1
+    fi
 }
 
 # ==============================================================================

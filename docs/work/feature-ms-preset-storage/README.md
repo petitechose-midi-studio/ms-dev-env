@@ -1,103 +1,80 @@
 # Feature: Preset Storage System
 
-**Scope**: midi-studio, open-control  
-**Status**: planned  
-**Created**: 2026-01-19  
-**Updated**: 2026-01-19 - v1.1: Ajout CRC32, migration legacy, clarifications async WASM  
+**Scope**: midi-studio, open-control
+**Status**: in progress - SDCardBackend implémenté
+**Created**: 2026-01-19
+**Updated**: 2026-01-20 - SDCardBackend remplace LittleFS (non-bloquant)
 
 ## Objectif
 
-Implémenter un système de persistence complet pour midi-studio avec :
+Implémenter la persistence des presets sur toutes les plateformes.
 
-1. **Presets** : Configurations sauvegardées avec nombre de pages variable
-2. **Settings globaux** : Juste le nom/slot du preset actif
-3. **Parité plateforme** : Comportement identique sur Teensy, Native, WASM
-4. **Échange Teensy/Desktop** : Sync des presets via protocole dédié
+## Approche
 
-## Vue d'ensemble
+**V1** : Persistence simple et fonctionnelle
+**V2** : Extensions (multi-presets, LittleFS, sync, GUI)
+
+V2 étend V1 sans breaking changes.
+
+## Scope
+
+### V1 (priorité haute)
+
+| Feature | Description |
+|---------|-------------|
+| Persistence Native | FileStorageBackend → fichier local |
+| Persistence WASM | FileStorageBackend → IndexedDB (IDBFS) |
+| Persistence Teensy | SDCardBackend → SD card (✅ implémenté, non-bloquant) |
+| Zero-boilerplate | `Persistent<T>` avec dirty auto-detection |
+| Migration legacy | CoreSettings 8 pages → PresetData |
+| Pages variables | 1-8 pages par preset |
+
+**Estimation V1** : ~16h
+
+### V2 (après V1 stable)
+
+| Feature | Description |
+|---------|-------------|
+| Multi-presets | IPresetBank, slots 1-99 |
+| Multi-fichiers SD | Presets sur SD card |
+| Bridge HTTP | Routes REST pour WASM |
+| Sync Teensy↔Desktop | Protocole serial |
+| Noms personnalisés | Metadata presets |
+| GUI Manager | Interface web |
+
+**Estimation V2** : ~30-45h
+
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                      CODE APPLICATIF                                 │
-│                      (midi-studio)                                   │
-│                                                                      │
-│   PresetManager ────► IStorageBackend (settings)                    │
-│        │                                                             │
-│        └────────────► IPresetStorage (presets)                      │
-└───────────────────────────────────────────────────────────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-        ▼                   ▼                   ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│    TEENSY     │   │    NATIVE     │   │     WASM      │
-├───────────────┤   ├───────────────┤   ├───────────────┤
-│ EEPROM        │   │ File          │   │ HTTP →        │
-│ (settings)    │   │ (settings)    │   │ Bridge →      │
-│               │   │               │   │ File          │
-│ LittleFS      │   │ Files         │   │               │
-│ (presets)     │   │ (presets)     │   │               │
-└───────────────┘   └───────────────┘   └───────────────┘
+V1:
+  CoreState → PresetManager → Persistent<PresetData> → IStorageBackend
+                                                            │
+                          ┌─────────────────────────────────┤
+                          ▼               ▼                 ▼
+                   SDCardBackend    FileStorageBackend  FileStorageBackend
+                     (Teensy)          (Native)          (WASM+IDBFS)
+
+V2 (extension):
+  PresetManager → IPresetBank (multi-presets)
+                       │
+         ┌─────────────┼─────────────┐
+         ▼             ▼             ▼
+    FilePresetBank  SDCardBank   HttpPresetBank
 ```
-
-## Comportement
-
-### Démarrage
-1. Lit `activePresetSlot` depuis EEPROM/settings
-2. Si aucun preset n'existe → **Migration données legacy** (CoreSettings 8 pages)
-3. Tente de charger le preset correspondant depuis Flash/dossier
-4. Échec ou checksum invalide → Crée preset fallback (1 page, routing défaut)
-
-### Runtime
-- Modifications → dirty flag → auto-save après timeout (3s)
-- Écrase le preset actif sur Flash/dossier
-
-### Opérations
-- **Créer preset** : 1 page défaut, devient actif
-- **Charger preset** : Remplace preset actif
-- **Supprimer preset** : Supprime fichier, fallback si actif
-- **Ajouter page** : Ajoute au preset actif
-- **Supprimer page** : Retire du preset actif (min 1 page)
-
-## Phases
-
-### Phase 1 : Fondations (Priorité haute)
-- [ ] Interface `IPresetStorage` dans framework
-- [ ] `FileStorageBackend` pour Native
-- [ ] `FilePresetStorage` pour Native
-- [ ] `PresetManager` dans midi-studio (avec CRC32)
-- [ ] **Migration données legacy** (CoreSettings → Preset)
-- [ ] Intégration main-native.cpp
-
-### Phase 2 : Bridge HTTP (Priorité haute)
-- [ ] Routes HTTP storage dans bridge (axum)
-- [ ] `HttpStorageBackend` pour WASM
-- [ ] `HttpPresetStorage` pour WASM
-- [ ] Intégration main-wasm.cpp
-
-### Phase 3 : Teensy (Priorité haute)
-- [ ] `LittleFSPresetStorage` dans hal-teensy
-- [ ] Intégration main.cpp (Teensy)
-- [ ] Tests sur hardware
-
-### Phase 4 : Échange Teensy/Desktop (Priorité moyenne)
-- [ ] Protocole sync (messages dédiés)
-- [ ] ArduinoJson pour conversion binaire ↔ JSON
-- [ ] Handler Teensy
-- [ ] Client Desktop (UI ou CLI)
-
-### Phase 5 : Nommage avancé (Priorité basse)
-- [ ] Noms libres (actuellement slots numérotés)
-- [ ] Système de tags
-- [ ] Auto-increment avec date
 
 ## Fichiers
 
 | Fichier | Description |
 |---------|-------------|
 | `README.md` | Ce fichier - overview |
-| `tech-spec.md` | Spécifications techniques détaillées |
+| `v1-tech-spec.md` | Spec technique V1 (à implémenter) |
+| `v1-optimizations.md` | Optimisations V1 (Persistent<T>, etc.) |
+| `v2-roadmap.md` | Roadmap V2 (futur) |
+| `draft-generic-preset-system.md` | **Draft** - Architecture générique presets |
 
 ## Liens
 
-- [Tech Spec](./tech-spec.md) - Architecture, interfaces, formats
+- [V1 Tech Spec](./v1-tech-spec.md) - Architecture et implémentation V1
+- [V2 Roadmap](./v2-roadmap.md) - Extensions futures
+- [Draft Generic System](./draft-generic-preset-system.md) - Réflexion sur système générique
