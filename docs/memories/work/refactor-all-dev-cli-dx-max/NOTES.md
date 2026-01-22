@@ -1,7 +1,7 @@
 # Notes - Dev CLI DX Max
 
 **Created**: 2026-01-22
-**Updated**: 2026-01-22
+**Updated**: 2026-01-22 (session 2)
 
 ## 2026-01-22
 
@@ -174,3 +174,92 @@ Validation (Linux):
 - Added `core-dev` and `bitwig-dev` wrappers (supports `bitwig-dev monitor`, and `--release` before subcommand).
 
 Status: Step 11/12 completed on Linux.
+
+## 2026-01-22 (session 2)
+
+### WASM + Native communication fixes
+
+#### Problem
+- WASM bitwig worked but native bitwig didn't communicate with bridge/Bitwig
+- Root cause: Bitwig extension "Bridge Port" preference wasn't persisting correctly
+- Number slider with `.getRaw()` returns default (9000) during init before value loads
+
+#### Solution: Enum dropdown instead of number slider
+
+Changed `MidiStudioExtension.java`:
+```java
+// Before (broken persistence)
+final SettableRangedValue bridgePortSetting = host.getPreferences()
+   .getNumberSetting("Bridge Port", "Connection", 9000, 9002, 1, "", 9000);
+final int bridgePort = (int) bridgePortSetting.getRaw();
+
+// After (works correctly)
+private static final String[] BRIDGE_MODES = {
+    "Hardware (9000)",
+    "Native Sim (9001)",
+    "WASM Sim (9002)"
+};
+final SettableEnumValue bridgeModeSetting = host.getPreferences()
+   .getEnumSetting("Bridge Mode", "Connection", BRIDGE_MODES, "Hardware (9000)");
+bridgeModeSetting.markInterested();
+final int bridgePort = switch(bridgeModeSetting.get()) { ... };
+```
+
+Source: Official Bitwig extensions use `getEnumSetting()` pattern (verified in `bitwig/bitwig-extensions` repo).
+
+Note: `scheduleTask()` doesn't work for this because `markInterested()` must be called during `init()`, not in a deferred callback.
+
+#### Config fix
+
+Fixed `workspace/config.toml`:
+```toml
+# Before
+wasm = 9001  # Wrong!
+
+# After
+wasm = 9002  # Correct (matches project convention)
+```
+
+Port convention:
+- 9000 = hardware (Teensy)
+- 9001 = native simulator
+- 9002 = WASM simulator
+
+### SDL entrypoint refactor
+
+#### New helpers in `midi-studio/core/sdl/entry/`
+
+| File | Purpose |
+|------|---------|
+| `MidiDefaults.hpp` | `make_native_config()` / `make_wasm_config()` with OS-specific defaults |
+| `SdlRunLoop.hpp` | `run_native()` / `run_wasm()` - factored main loop |
+| `WasmArgs.hpp` | Parser for `--midi-in` / `--midi-out` CLI args |
+
+#### WASM MIDI selector
+
+Added to `midi-studio/core/sdl/wasm/shell.html`:
+- Dropdown selectors for MIDI In/Out ports
+- localStorage persistence (per-page key)
+- "Apply" button reloads with selected ports as CLI args
+- Patch for `Module.HEAPU8` (libremidi compatibility)
+- Exports: `_libremidi_devices_poll`, `_libremidi_devices_input`
+
+### Commits created
+
+| Repo | Hash | Message |
+|------|------|---------|
+| `open-control/hal-midi` | `a2d7a68` | fix(hal-midi): reduce MIDI RX log verbosity (INFO -> DEBUG) |
+| `midi-studio/core` | `d60b222` | refactor(core): factor SDL entrypoints + add WASM MIDI selector |
+| `midi-studio/plugin-bitwig` | `691a60d` | refactor(bitwig): enum Bridge Mode + factor SDL entrypoints |
+
+### Current divergence (unpushed)
+
+| Repo | Ahead |
+|------|-------|
+| workspace | +6 |
+| midi-studio/core | +4 |
+| midi-studio/plugin-bitwig | +3 |
+| open-control/.github | +1 |
+| open-control/bridge | +2 |
+| open-control/hal-midi | +3 |
+| open-control/ui-lvgl-cli-tools | +1 |

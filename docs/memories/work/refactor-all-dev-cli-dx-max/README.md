@@ -3,7 +3,7 @@
 **Scope**: workspace tooling + open-control + midi-studio
 **Status**: started
 **Created**: 2026-01-22
-**Updated**: 2026-01-22
+**Updated**: 2026-01-22 (session 2)
 
 ## Objective
 
@@ -221,3 +221,31 @@ Validation:
 Status:
 
 - Added `commands/bitwig-dev` and `commands/core-dev`.
+
+### Step 13 - SDL entrypoint refactor + WASM MIDI (done)
+
+- Factor SDL main loop boilerplate into shared helpers
+- Add WASM MIDI port selector UI (In/Out dropdowns)
+- Fix Bitwig extension Bridge Mode preference persistence
+
+Validation:
+
+- `ms web bitwig` shows MIDI selector, persists selection across reloads
+- `ms run bitwig` communicates with Bitwig (native) after selecting "Native Sim (9001)" in Bitwig prefs
+- Firefox WASM works with VirMIDI ports
+
+Status:
+
+- Added `midi-studio/core/sdl/entry/` helpers (MidiDefaults, SdlRunLoop, WasmArgs)
+- Refactored core + bitwig entrypoints to use shared helpers
+- Added MIDI selector UI in WASM shell.html with localStorage persistence
+- Changed Bitwig extension from number slider to enum dropdown (fixes persistence)
+- Fixed `workspace/config.toml` port convention (wasm = 9002)
+
+### Step 14 - Push all repos (pending)
+
+- Push all diverged repos to origin
+
+Validation:
+
+- `ms status` shows 0 diverged repos
