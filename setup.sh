@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # =============================================================================
-# MIDI Studio / Open Control - Development Environment Setup
+# MIDI Studio / Open Control - Development Environment Bootstrap
 # =============================================================================
-# Clone all repos + install all build tools (100% portable, no sudo required)
+# Clone repos + install workspace-managed tools (safe, idempotent)
 #
-# Usage: ./setup.sh [--skip-tools] [--skip-repos]
+# Usage: ./setup.sh [--skip-tools] [--skip-repos] [--skip-shell]
 #
 # Prerequisites:
-#   All OS:   git, gh (GitHub CLI authenticated), python3
+#   All OS:   git, gh (GitHub CLI authenticated), curl, tar, unzip
 #   Linux:    SDL2 + ALSA dev packages (see check_system_deps for commands)
 #   macOS:    Homebrew + SDL2 (brew install sdl2)
 #   Windows:  Git for Windows (provides Git Bash to run this script)
+#
+# Notes:
+# - This script installs missing tools only (no upgrades).
+# - Repo updates and tool upgrades are handled by `ms update`.
 # =============================================================================
 
 set -euo pipefail
@@ -63,7 +67,7 @@ detect_platform() {
 }
 
 # =============================================================================
-# Prerequisites Check (minimal - just git, gh, python)
+# Prerequisites Check (minimal)
 # =============================================================================
 check_prerequisites() {
     log_info "Checking prerequisites..."
@@ -96,12 +100,30 @@ check_prerequisites() {
         failed=1
     fi
 
-    # Python (needed for emsdk)
-    if ! command -v python3 &>/dev/null && ! command -v python &>/dev/null; then
-        log_error "python not found"
-        echo "  Linux:   sudo apt install python3"
-        echo "  macOS:   brew install python3"
-        echo "  Windows: winget install Python.Python.3.11"
+    # curl
+    if ! command -v curl &>/dev/null; then
+        log_error "curl not found"
+        echo "  Linux:   sudo apt install curl"
+        echo "  macOS:   brew install curl"
+        echo "  Windows: bundled with Git for Windows (Git Bash)"
+        failed=1
+    fi
+
+    # tar
+    if ! command -v tar &>/dev/null; then
+        log_error "tar not found"
+        echo "  Linux:   sudo apt install tar"
+        echo "  macOS:   built-in"
+        echo "  Windows: bundled with Git for Windows (Git Bash)"
+        failed=1
+    fi
+
+    # unzip
+    if ! command -v unzip &>/dev/null; then
+        log_error "unzip not found"
+        echo "  Linux:   sudo apt install unzip"
+        echo "  macOS:   brew install unzip"
+        echo "  Windows: bundled with Git for Windows (Git Bash)"
         failed=1
     fi
 
@@ -269,13 +291,385 @@ download_and_extract() {
 }
 
 # =============================================================================
-# Install Tools (100% Portable)
+# Install Tools (workspace-managed)
 # =============================================================================
+
+setup_tools_bin() {
+    mkdir -p "$TOOLS_DIR/bin"
+}
+
+write_tools_wrapper() {
+    local name="$1"
+    local target_rel="$2"
+
+    local wrapper="$TOOLS_DIR/bin/$name"
+    cat >"$wrapper" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="\$(cd "\$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+TOOLS_DIR="\$(cd "\$SCRIPT_DIR/.." && pwd)"
+exec "\$TOOLS_DIR/$target_rel" "\$@"
+EOF
+    chmod +x "$wrapper" 2>/dev/null || true
+}
+
+write_bunx_wrapper() {
+    local wrapper="$TOOLS_DIR/bin/bunx"
+    cat >"$wrapper" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOOLS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+BUN="$TOOLS_DIR/bun/bun"
+if [[ -x "$TOOLS_DIR/bun/bun.exe" ]]; then
+  BUN="$TOOLS_DIR/bun/bun.exe"
+fi
+
+exec "$BUN" x "$@"
+EOF
+    chmod +x "$wrapper" 2>/dev/null || true
+}
+
+setup_uv() {
+    local uv_dir="$TOOLS_DIR/uv"
+    local uv_bin="$uv_dir/uv"
+    [[ "$OS" == "windows" ]] && uv_bin="$uv_dir/uv.exe"
+
+    if [[ -x "$uv_bin" ]]; then
+        local ver
+        ver=$("$uv_bin" --version 2>/dev/null | awk '{print $2}')
+        log_ok "uv $ver"
+        return 0
+    fi
+
+    local version
+    version=$(gh api "repos/astral-sh/uv/releases/latest" --jq '.tag_name')
+    log_info "Installing uv $version..."
+
+    local asset
+    case "$OS-$ARCH" in
+        linux-x64)   asset="uv-x86_64-unknown-linux-gnu.tar.gz" ;;
+        linux-arm64) asset="uv-aarch64-unknown-linux-gnu.tar.gz" ;;
+        macos-x64)   asset="uv-x86_64-apple-darwin.tar.gz" ;;
+        macos-arm64) asset="uv-aarch64-apple-darwin.tar.gz" ;;
+        windows-x64) asset="uv-x86_64-pc-windows-msvc.zip" ;;
+        windows-arm64) asset="uv-aarch64-pc-windows-msvc.zip" ;;
+        *)
+            log_error "No uv build for $OS-$ARCH"
+            return 1
+            ;;
+    esac
+
+    local url="https://github.com/astral-sh/uv/releases/download/${version}/${asset}"
+    download_and_extract "$url" "$uv_dir" 1
+
+    chmod +x "$uv_dir/uv" "$uv_dir/uvx" 2>/dev/null || true
+
+    # Expose via tools/bin
+    if [[ "$OS" == "windows" ]]; then
+        write_tools_wrapper "uv" "uv/uv.exe"
+        write_tools_wrapper "uvx" "uv/uvx.exe"
+    else
+        write_tools_wrapper "uv" "uv/uv"
+        write_tools_wrapper "uvx" "uv/uvx"
+    fi
+
+    log_ok "uv $version"
+}
+
+setup_python_venv() {
+    # Unified workspace venv (Python 3.13+) managed by uv
+    local venv_dir="$WORKSPACE/.venv"
+
+    local python_bin="$venv_dir/bin/python"
+    [[ "$OS" == "windows" ]] && python_bin="$venv_dir/Scripts/python.exe"
+
+    if [[ -x "$python_bin" ]]; then
+        local ver
+        ver=$("$python_bin" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null || true)
+        [[ -n "$ver" ]] && log_ok "python $ver (.venv)"
+        return 0
+    fi
+
+    local uv_bin="$TOOLS_DIR/uv/uv"
+    [[ "$OS" == "windows" ]] && uv_bin="$TOOLS_DIR/uv/uv.exe"
+
+    if [[ ! -x "$uv_bin" ]]; then
+        log_error "uv not installed (cannot create .venv)"
+        return 1
+    fi
+
+    local uv_python_dir="$TOOLS_DIR/python"
+
+    log_info "Installing uv-managed Python 3.13 (if needed)..."
+    UV_PYTHON_INSTALL_DIR="$uv_python_dir" "$uv_bin" python install 3.13 --managed-python
+
+    log_info "Creating Python 3.13+ virtualenv (.venv)..."
+    UV_PYTHON_INSTALL_DIR="$uv_python_dir" "$uv_bin" venv --managed-python --python 3.13 "$venv_dir"
+
+    log_ok "python venv created"
+}
+
+setup_python_deps() {
+    local uv_bin="$TOOLS_DIR/uv/uv"
+    [[ "$OS" == "windows" ]] && uv_bin="$TOOLS_DIR/uv/uv.exe"
+
+    if [[ ! -x "$uv_bin" ]]; then
+        log_error "uv not installed (cannot sync python deps)"
+        return 1
+    fi
+
+    if [[ ! -f "$WORKSPACE/pyproject.toml" ]]; then
+        log_warn "pyproject.toml not found (skipping python deps)"
+        return 0
+    fi
+
+    if [[ ! -f "$WORKSPACE/uv.lock" ]]; then
+        log_warn "uv.lock not found (skipping python deps)"
+        return 0
+    fi
+
+    log_info "Syncing Python deps (.venv)..."
+
+    local uv_python_dir="$TOOLS_DIR/python"
+    (
+        cd "$WORKSPACE"
+        UV_PYTHON_INSTALL_DIR="$uv_python_dir" "$uv_bin" sync --frozen
+    )
+
+    log_ok "python deps synced"
+}
+
+setup_bun() {
+    local bun_dir="$TOOLS_DIR/bun"
+    local bun_bin="$bun_dir/bun"
+    [[ "$OS" == "windows" ]] && bun_bin="$bun_dir/bun.exe"
+
+    if [[ -x "$bun_bin" ]]; then
+        local ver
+        ver=$("$bun_bin" --version 2>/dev/null || true)
+        log_ok "bun $ver"
+        return 0
+    fi
+
+    local tag
+    tag=$(gh api "repos/oven-sh/bun/releases/latest" --jq '.tag_name')
+    log_info "Installing bun $tag..."
+
+    local asset
+    case "$OS-$ARCH" in
+        linux-x64)   asset="bun-linux-x64.zip" ;;
+        linux-arm64) asset="bun-linux-aarch64.zip" ;;
+        macos-x64)   asset="bun-darwin-x64.zip" ;;
+        macos-arm64) asset="bun-darwin-aarch64.zip" ;;
+        windows-x64) asset="bun-windows-x64.zip" ;;
+        *)
+            log_error "No bun build for $OS-$ARCH"
+            return 1
+            ;;
+    esac
+
+    local url="https://github.com/oven-sh/bun/releases/download/${tag}/${asset}"
+    download_and_extract "$url" "$bun_dir" 0
+    chmod +x "$bun_dir/bun" 2>/dev/null || true
+
+    # Expose via tools/bin
+    if [[ "$OS" == "windows" ]]; then
+        write_tools_wrapper "bun" "bun/bun.exe"
+    else
+        write_tools_wrapper "bun" "bun/bun"
+    fi
+    write_bunx_wrapper
+
+    log_ok "bun installed"
+}
+
+setup_jdk() {
+    local jdk_dir="$TOOLS_DIR/jdk"
+
+    local java_bin="$jdk_dir/bin/java"
+    if [[ -x "$jdk_dir/Contents/Home/bin/java" ]]; then
+        java_bin="$jdk_dir/Contents/Home/bin/java"
+    fi
+
+    if [[ -x "$java_bin" ]]; then
+        local ver
+        ver=$("$java_bin" -version 2>&1 | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+        log_ok "jdk ${ver:-installed}"
+        return 0
+    fi
+
+    log_info "Installing Temurin JDK 25 (LTS)..."
+
+    local venv_python="$WORKSPACE/.venv/bin/python"
+    [[ "$OS" == "windows" ]] && venv_python="$WORKSPACE/.venv/Scripts/python.exe"
+
+    if [[ ! -x "$venv_python" ]]; then
+        log_error "Python venv not found (cannot resolve JDK download)"
+        log_error "Run: ./setup.sh"
+        return 1
+    fi
+
+    local adoptium_os
+    local adoptium_arch
+    case "$OS" in
+        linux) adoptium_os="linux" ;;
+        macos) adoptium_os="mac" ;;
+        windows) adoptium_os="windows" ;;
+        *) log_error "Unsupported OS for JDK: $OS"; return 1 ;;
+    esac
+
+    case "$ARCH" in
+        x64) adoptium_arch="x64" ;;
+        arm64) adoptium_arch="aarch64" ;;
+        *) log_error "Unsupported arch for JDK: $ARCH"; return 1 ;;
+    esac
+
+    local api_url="https://api.adoptium.net/v3/assets/latest/25/hotspot?architecture=${adoptium_arch}&image_type=jdk&os=${adoptium_os}"
+    local final_url
+    final_url=$(curl -fsSL "$api_url" | "$venv_python" -c 'import json,sys; d=json.load(sys.stdin); print(d[0]["binary"]["package"]["link"])')
+
+    if [[ -z "$final_url" ]]; then
+        log_error "Could not resolve JDK download URL"
+        return 1
+    fi
+
+    download_and_extract "$final_url" "$jdk_dir" 1
+
+    # Expose via tools/bin (java + javac)
+    cat >"$TOOLS_DIR/bin/java" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOOLS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+JAVA_HOME="$TOOLS_DIR/jdk"
+if [[ -x "$JAVA_HOME/Contents/Home/bin/java" ]]; then
+  JAVA_HOME="$JAVA_HOME/Contents/Home"
+fi
+
+exec "$JAVA_HOME/bin/java" "$@"
+EOF
+    chmod +x "$TOOLS_DIR/bin/java" 2>/dev/null || true
+
+    cat >"$TOOLS_DIR/bin/javac" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TOOLS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+JAVA_HOME="$TOOLS_DIR/jdk"
+if [[ -x "$JAVA_HOME/Contents/Home/bin/javac" ]]; then
+  JAVA_HOME="$JAVA_HOME/Contents/Home"
+fi
+
+exec "$JAVA_HOME/bin/javac" "$@"
+EOF
+    chmod +x "$TOOLS_DIR/bin/javac" 2>/dev/null || true
+
+    log_ok "jdk installed"
+}
+
+setup_maven() {
+    local maven_dir="$TOOLS_DIR/maven"
+
+    if [[ -x "$maven_dir/bin/mvn" ]]; then
+        log_ok "maven installed"
+        return 0
+    fi
+
+    log_info "Resolving latest Maven 3.9.x..."
+    local meta
+    meta=$(curl -fsSL "https://repo1.maven.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml")
+
+    local version
+    version=$(echo "$meta" | grep -oE '<version>3\.9\.[0-9]+</version>' | sed 's/[^0-9.]//g' | sort -V | tail -1)
+
+    if [[ -z "$version" ]]; then
+        log_error "Could not determine Maven 3.9.x version"
+        return 1
+    fi
+
+    log_info "Installing Maven $version..."
+
+    local url_primary="https://dlcdn.apache.org/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz"
+    local url_fallback="https://archive.apache.org/dist/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz"
+
+    if curl -fsSL -o /dev/null "$url_primary"; then
+        download_and_extract "$url_primary" "$maven_dir" 1
+    else
+        download_and_extract "$url_fallback" "$maven_dir" 1
+    fi
+
+    write_tools_wrapper "mvn" "maven/bin/mvn"
+    log_ok "maven $version"
+}
+
+setup_platformio() {
+    # PlatformIO installer script (recommended by PlatformIO).
+    # Installs into ~/.platformio/penv and provides `pio` there.
+    local pio_home="$HOME/.platformio"
+    local pio_bin_unix="$pio_home/penv/bin/pio"
+    local pio_bin_win="$pio_home/penv/Scripts/pio.exe"
+
+    # Always provide a stable wrapper via tools/bin, even if PlatformIO was
+    # installed previously.
+    mkdir -p "$TOOLS_DIR/bin"
+    cat >"$TOOLS_DIR/bin/pio" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+PIO_UNIX="$HOME/.platformio/penv/bin/pio"
+PIO_WIN="$HOME/.platformio/penv/Scripts/pio.exe"
+
+if [[ -x "$PIO_UNIX" ]]; then
+  exec "$PIO_UNIX" "$@"
+fi
+if [[ -x "$PIO_WIN" ]]; then
+  exec "$PIO_WIN" "$@"
+fi
+
+echo "error: platformio is not installed" >&2
+echo "install: run ./setup.sh or see PlatformIO docs" >&2
+exit 1
+EOF
+    chmod +x "$TOOLS_DIR/bin/pio" 2>/dev/null || true
+
+    if [[ -x "$pio_bin_unix" ]] || [[ -x "$pio_bin_win" ]]; then
+        log_ok "platformio $("$TOOLS_DIR/bin/pio" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+        return 0
+    fi
+
+    local venv_python="$WORKSPACE/.venv/bin/python"
+    [[ "$OS" == "windows" ]] && venv_python="$WORKSPACE/.venv/Scripts/python.exe"
+
+    if [[ ! -x "$venv_python" ]]; then
+        log_error "Python venv not found (cannot install PlatformIO)"
+        log_error "Run: ./setup.sh"
+        return 1
+    fi
+
+    log_info "Installing PlatformIO Core (installer script)..."
+
+    local tmp
+    tmp=$(mktemp)
+    curl -fsSL "https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py" -o "$tmp"
+    "$venv_python" "$tmp"
+    rm -f "$tmp"
+
+    log_ok "platformio $("$TOOLS_DIR/bin/pio" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+}
 setup_cmake() {
     local cmake_dir="$TOOLS_DIR/cmake"
     
     if [[ -x "$cmake_dir/bin/cmake" ]] || [[ -x "$cmake_dir/bin/cmake.exe" ]]; then
         local ver=$("$cmake_dir/bin/cmake" --version 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+        if [[ "$OS" == "windows" ]]; then
+            write_tools_wrapper "cmake" "cmake/bin/cmake.exe"
+        else
+            write_tools_wrapper "cmake" "cmake/bin/cmake"
+        fi
         log_ok "cmake $ver"
         return 0
     fi
@@ -299,6 +693,12 @@ setup_cmake() {
         mv "$cmake_dir/CMake.app/Contents"/* "$cmake_dir"/
         rm -rf "$cmake_dir/CMake.app"
     fi
+
+    if [[ "$OS" == "windows" ]]; then
+        write_tools_wrapper "cmake" "cmake/bin/cmake.exe"
+    else
+        write_tools_wrapper "cmake" "cmake/bin/cmake"
+    fi
     
     log_ok "cmake $version"
 }
@@ -309,6 +709,11 @@ setup_ninja() {
     [[ "$OS" == "windows" ]] && ninja_bin="$ninja_dir/ninja.exe"
     
     if [[ -x "$ninja_bin" ]]; then
+        if [[ "$OS" == "windows" ]]; then
+            write_tools_wrapper "ninja" "ninja/ninja.exe"
+        else
+            write_tools_wrapper "ninja" "ninja/ninja"
+        fi
         log_ok "ninja"
         return 0
     fi
@@ -327,6 +732,12 @@ setup_ninja() {
     
     download_and_extract "$url" "$ninja_dir" 0
     chmod +x "$ninja_dir/ninja" 2>/dev/null || true
+
+    if [[ "$OS" == "windows" ]]; then
+        write_tools_wrapper "ninja" "ninja/ninja.exe"
+    else
+        write_tools_wrapper "ninja" "ninja/ninja"
+    fi
     
     log_ok "ninja $version"
 }
@@ -338,35 +749,65 @@ setup_zig() {
     
     if [[ -x "$zig_bin" ]]; then
         local ver=$("$zig_bin" version 2>/dev/null)
-        log_ok "zig $ver"
-        return 0
+        if [[ "$ver" == *"-dev."* || "$ver" == *"-dev"* ]]; then
+            log_warn "zig $ver detected (dev build) - reinstalling latest stable"
+            rm -rf "$zig_dir"
+        else
+            if [[ "$OS" == "windows" ]]; then
+                write_tools_wrapper "zig" "zig/zig.exe"
+            else
+                write_tools_wrapper "zig" "zig/zig"
+            fi
+            log_ok "zig $ver"
+            return 0
+        fi
     fi
     
-    # Get latest Zig version from ziglang.org
-    log_info "Installing zig..."
-    
-    local index_json
-    index_json=$(curl -fsSL "https://ziglang.org/download/index.json")
-    
-    local version
-    version=$(echo "$index_json" | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' | head -1 | tr -d '"')
-    
-    local url
-    case "$OS-$ARCH" in
-        linux-x64)   url=$(echo "$index_json" | grep -oE 'https://[^"]+x86_64-linux[^"]+\.tar\.xz' | head -1) ;;
-        linux-arm64) url=$(echo "$index_json" | grep -oE 'https://[^"]+aarch64-linux[^"]+\.tar\.xz' | head -1) ;;
-        macos-x64)   url=$(echo "$index_json" | grep -oE 'https://[^"]+x86_64-macos[^"]+\.tar\.xz' | head -1) ;;
-        macos-arm64) url=$(echo "$index_json" | grep -oE 'https://[^"]+aarch64-macos[^"]+\.tar\.xz' | head -1) ;;
-        windows-*)   url=$(echo "$index_json" | grep -oE 'https://[^"]+x86_64-windows[^"]+\.zip' | head -1) ;;
-    esac
-    
-    if [[ -z "$url" ]]; then
-        log_error "Could not find Zig download for $OS-$ARCH"
+    log_info "Installing zig (latest stable)..."
+
+    local venv_python="$WORKSPACE/.venv/bin/python"
+    [[ "$OS" == "windows" ]] && venv_python="$WORKSPACE/.venv/Scripts/python.exe"
+
+    if [[ ! -x "$venv_python" ]]; then
+        log_error "Python venv not found (cannot resolve Zig download)"
+        log_error "Run: ./setup.sh"
         return 1
     fi
-    
+
+    local zig_platform=""
+    case "$OS-$ARCH" in
+        linux-x64)    zig_platform="x86_64-linux" ;;
+        linux-arm64)  zig_platform="aarch64-linux" ;;
+        macos-x64)    zig_platform="x86_64-macos" ;;
+        macos-arm64)  zig_platform="aarch64-macos" ;;
+        windows-x64)  zig_platform="x86_64-windows" ;;
+        windows-arm64) zig_platform="aarch64-windows" ;;
+    esac
+
+    if [[ -z "$zig_platform" ]]; then
+        log_error "Unsupported platform for Zig: $OS-$ARCH"
+        return 1
+    fi
+
+    local resolved
+    resolved=$(curl -fsSL "https://ziglang.org/download/index.json" | "$venv_python" -c 'import json,re,sys; data=json.load(sys.stdin); platform=sys.argv[1]; stable=[k for k in data.keys() if re.fullmatch(r"\d+\.\d+\.\d+", k)]; stable.sort(key=lambda s: tuple(map(int, s.split(".")))); assert stable, "no stable Zig versions found"; v=stable[-1]; print(v + "|" + data[v][platform]["tarball"])' "$zig_platform")
+
+    local version="${resolved%%|*}"
+    local url="${resolved#*|}"
+
+    if [[ -z "$version" || -z "$url" ]]; then
+        log_error "Could not resolve Zig download URL"
+        return 1
+    fi
+
     download_and_extract "$url" "$zig_dir"
-    
+
+    if [[ "$OS" == "windows" ]]; then
+        write_tools_wrapper "zig" "zig/zig.exe"
+    else
+        write_tools_wrapper "zig" "zig/zig"
+    fi
+
     log_ok "zig $version"
 }
 
@@ -422,10 +863,20 @@ setup_emscripten() {
         git clone --quiet https://github.com/emscripten-core/emsdk.git "$emsdk_dir"
     fi
     
-    cd "$emsdk_dir"
-    ./emsdk install latest
-    ./emsdk activate latest
-    cd "$WORKSPACE"
+    local venv_python="$WORKSPACE/.venv/bin/python"
+    [[ "$OS" == "windows" ]] && venv_python="$WORKSPACE/.venv/Scripts/python.exe"
+
+    if [[ ! -x "$venv_python" ]]; then
+        log_error "Python venv not found (cannot install emsdk)"
+        log_error "Run: ./setup.sh"
+        return 1
+    fi
+
+    (
+        cd "$emsdk_dir"
+        "$venv_python" "$emsdk_dir/emsdk.py" install latest
+        "$venv_python" "$emsdk_dir/emsdk.py" activate latest
+    )
     
     log_ok "emscripten (latest)"
 }
@@ -435,11 +886,22 @@ install_tools() {
 
     mkdir -p "$TOOLS_DIR"
 
+    setup_tools_bin
+
+    setup_uv
+    setup_python_venv
+    setup_python_deps
+
     setup_cmake
     setup_ninja
     setup_zig
+    setup_bun
+    setup_jdk
+    setup_maven
     setup_sdl2_windows  # Windows only - Linux/macOS use system packages
     setup_emscripten
+
+    setup_platformio
 
     log_ok "All tools installed in $TOOLS_DIR"
 }
@@ -464,30 +926,44 @@ configure_shell() {
         *)    shell_config="$HOME/.profile" ;;
     esac
     
-    # Check if already configured
-    if grep -q "WORKSPACE_TOOLS" "$shell_config" 2>/dev/null; then
+    local marker_start="# >>> petitechose-audio workspace >>>"
+    local marker_end="# <<< petitechose-audio workspace <<<"
+
+    if grep -qF "$marker_start" "$shell_config" 2>/dev/null; then
         log_ok "Shell already configured in $shell_config"
         return 0
     fi
-    
+
     local config_block="
-# =============================================================================
-# petitechose-audio development environment
-# =============================================================================
+$marker_start
 export WORKSPACE_ROOT=\"$WORKSPACE\"
 export WORKSPACE_TOOLS=\"\$WORKSPACE_ROOT/tools\"
 export ZIG_DIR=\"\$WORKSPACE_TOOLS/zig\"
 export SDL2_ROOT=\"\$WORKSPACE_TOOLS/windows/SDL2\"  # Windows only, Linux/macOS use system SDL2
 
+# Java
+if [[ -d \"\$WORKSPACE_TOOLS/jdk/Contents/Home\" ]]; then
+  export JAVA_HOME=\"\$WORKSPACE_TOOLS/jdk/Contents/Home\"
+else
+  export JAVA_HOME=\"\$WORKSPACE_TOOLS/jdk\"
+fi
+
 # Add tools to PATH
-export PATH=\"\$WORKSPACE_TOOLS/cmake/bin:\$PATH\"
-export PATH=\"\$WORKSPACE_TOOLS/ninja:\$PATH\"
-export PATH=\"\$WORKSPACE_TOOLS/zig:\$PATH\"
+export PATH=\"\$WORKSPACE_TOOLS/bin:\$PATH\"
 export PATH=\"\$WORKSPACE_ROOT/commands:\$PATH\"
 export PATH=\"\$WORKSPACE_ROOT/open-control/cli-tools/bin:\$PATH\"
+export PATH=\"\$JAVA_HOME/bin:\$PATH\"
 
 # Emscripten (source if exists)
 [[ -f \"\$WORKSPACE_TOOLS/emsdk/emsdk_env.sh\" ]] && source \"\$WORKSPACE_TOOLS/emsdk/emsdk_env.sh\" 2>/dev/null
+
+# ms completions
+if [[ -n "${ZSH_VERSION:-}" && -f \"\$WORKSPACE_ROOT/commands/_ms_completions.zsh\" ]]; then
+  source \"\$WORKSPACE_ROOT/commands/_ms_completions.zsh\" 2>/dev/null
+else
+  [[ -f \"\$WORKSPACE_ROOT/commands/_ms_completions.bash\" ]] && source \"\$WORKSPACE_ROOT/commands/_ms_completions.bash\" 2>/dev/null
+fi
+$marker_end
 "
 
     if [[ $INTERACTIVE -eq 1 ]]; then
@@ -507,103 +983,23 @@ export PATH=\"\$WORKSPACE_ROOT/open-control/cli-tools/bin:\$PATH\"
     log_warn "Run: source $shell_config (or restart terminal)"
 }
 
-# =============================================================================
-# Linux: snd-virmidi (Virtual MIDI ports for Bitwig)
-# =============================================================================
-setup_virmidi() {
-    [[ "$OS" != "linux" ]] && return 0
+verify_installation() {
+    log_info "=== Verifying installation ==="
 
-    log_info "=== Configuring Virtual MIDI (snd-virmidi) ==="
+    local missing=0
+    local check_path="$TOOLS_DIR/bin:$PATH"
 
-    # Check if module is available
-    if ! modinfo snd-virmidi &>/dev/null; then
-        log_warn "snd-virmidi module not found (may need kernel headers)"
-        return 0
-    fi
-
-    local modprobe_file="/etc/modprobe.d/midi-studio-virmidi.conf"
-    local modules_file="/etc/modules-load.d/midi-studio-virmidi.conf"
-
-    # Check if already configured
-    if [[ -f "$modprobe_file" ]]; then
-        log_ok "snd-virmidi already configured"
-        # Check if loaded
-        if lsmod | grep -q snd_virmidi; then
-            log_ok "snd-virmidi module loaded"
-        else
-            log_warn "snd-virmidi not loaded. Run: sudo modprobe snd-virmidi"
+    for tool in cmake ninja zig uv bun java javac mvn pio; do
+        if ! PATH="$check_path" command -v "$tool" &>/dev/null; then
+            log_warn "missing: $tool"
+            missing=1
         fi
-        return 0
-    fi
+    done
 
-    echo ""
-    echo "Virtual MIDI ports are needed for Bitwig to see our app's MIDI."
-    echo "This requires sudo to create system config files."
-    echo ""
-    echo "Files to create:"
-    echo "  $modprobe_file  (module options)"
-    echo "  $modules_file   (auto-load at boot)"
-    echo ""
-
-    if [[ $INTERACTIVE -eq 1 ]]; then
-        read -p "Configure snd-virmidi? [Y/n] " yn
-        if [[ "$yn" == "n" || "$yn" == "N" ]]; then
-            log_warn "Skipped. You can configure manually later:"
-            echo "  echo 'options snd-virmidi midi_devs=2' | sudo tee $modprobe_file"
-            echo "  echo 'snd-virmidi' | sudo tee $modules_file"
-            echo "  sudo modprobe snd-virmidi"
-            return 0
-        fi
+    if [[ $missing -eq 0 ]]; then
+        log_ok "Tooling looks OK"
     else
-        log_warn "Non-interactive mode: skipping snd-virmidi setup"
-        return 0
-    fi
-
-    # Create modprobe config (1 virtual MIDI device = 1 bidirectional port)
-    echo 'options snd-virmidi midi_devs=1' | sudo tee "$modprobe_file" > /dev/null
-
-    # Auto-load at boot
-    echo 'snd-virmidi' | sudo tee "$modules_file" > /dev/null
-
-    # Load module now
-    sudo modprobe snd-virmidi
-
-    log_ok "snd-virmidi configured and loaded"
-    log_info "Virtual MIDI port 'Virtual Raw MIDI' is now available in Bitwig"
-}
-
-# =============================================================================
-# Optional: PlatformIO, Rust
-# =============================================================================
-setup_optional() {
-    log_info "=== Optional tools ==="
-    
-    # Rust
-    if command -v cargo &>/dev/null; then
-        log_ok "rust $(cargo --version | cut -d' ' -f2)"
-    elif [[ $INTERACTIVE -eq 1 ]]; then
-        echo ""
-        read -p "Install Rust? (needed for oc-bridge) [y/N] " yn
-        if [[ "$yn" == "y" || "$yn" == "Y" ]]; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-            log_ok "rust installed"
-        fi
-    else
-        log_warn "rust not found (install: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh)"
-    fi
-    
-    # PlatformIO
-    if command -v pio &>/dev/null; then
-        log_ok "platformio $(pio --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-    elif [[ $INTERACTIVE -eq 1 ]]; then
-        echo ""
-        read -p "Install PlatformIO? (needed for Teensy builds) [y/N] " yn
-        if [[ "$yn" == "y" || "$yn" == "Y" ]]; then
-            pip3 install platformio || pip install platformio
-            log_ok "platformio installed"
-        fi
-    else
-        log_warn "platformio not found (install: pip install platformio)"
+        log_warn "Some tools are missing from PATH (restart shell after setup)"
     fi
 }
 
@@ -620,13 +1016,15 @@ main() {
     
     local skip_tools=0
     local skip_repos=0
+    local skip_shell=0
     
     for arg in "$@"; do
         case "$arg" in
             --skip-tools) skip_tools=1 ;;
             --skip-repos) skip_repos=1 ;;
+            --skip-shell) skip_shell=1 ;;
             --help|-h)
-                echo "Usage: ./setup.sh [--skip-tools] [--skip-repos]"
+                echo "Usage: ./setup.sh [--skip-tools] [--skip-repos] [--skip-shell]"
                 echo ""
                 echo "Installs all build tools in workspace/tools/ (portable, no sudo needed)"
                 exit 0
@@ -650,13 +1048,14 @@ main() {
         echo ""
     fi
     
-    configure_shell
-    echo ""
+    if [[ $skip_shell -eq 0 ]]; then
+        configure_shell
+        echo ""
+    else
+        log_warn "Skipping shell configuration (--skip-shell)"
+    fi
 
-    setup_virmidi
-    echo ""
-
-    setup_optional
+    verify_installation
     
     echo ""
     echo "============================================"
@@ -664,8 +1063,8 @@ main() {
     echo ""
     echo "Next steps:"
     echo "  1. Restart terminal (or: source ~/.bashrc)"
-    echo "  2. Test: ms help"
-    echo "  3. Build: ms run core"
+    echo "  2. Doctor: ms doctor"
+    echo "  3. Verify: ms verify"
     echo "============================================"
 }
 
