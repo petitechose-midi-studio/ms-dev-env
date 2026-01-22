@@ -14,7 +14,8 @@ readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly WORKSPACE="$(cd "$SCRIPT_DIR/.." && pwd)"
 readonly ROOT="$WORKSPACE/midi-studio"
 readonly OC_TOOLS="$WORKSPACE/open-control/cli-tools/bin"
-readonly OC_BRIDGE="$WORKSPACE/open-control/bridge/target/release/oc-bridge"
+readonly BIN_ROOT="$WORKSPACE/bin"
+readonly BUILD_ROOT="$WORKSPACE/.build"
 readonly EMSDK_DIR="$WORKSPACE/tools/emsdk"
 readonly TOOLS_DIR="$WORKSPACE/tools"
 
@@ -33,15 +34,25 @@ start_bridge() {
     local ctrl_port="$2"
     local host_port="$3"
 
-    if [[ ! -x "$OC_BRIDGE" ]]; then
-        log_error "Bridge not found: $OC_BRIDGE"
-        log_error "Run: cd open-control/bridge && cargo build --release"
+    local exe_name="oc-bridge"
+    if [[ "$PLATFORM" == "windows" ]]; then
+        exe_name="oc-bridge.exe"
+    fi
+
+    local bridge_exe="$BIN_ROOT/bridge/$exe_name"
+    if [[ ! -x "$bridge_exe" ]]; then
+        bridge_exe="$WORKSPACE/open-control/bridge/target/release/$exe_name"
+    fi
+
+    if [[ ! -x "$bridge_exe" ]]; then
+        log_error "Bridge not found: $BIN_ROOT/bridge/$exe_name"
+        log_error "Run: ms setup"
         return 1
     fi
 
     trap cleanup_bridge EXIT INT TERM
 
-    "$OC_BRIDGE" --headless --controller "$transport" --controller-port "$ctrl_port" --udp-port "$host_port" &
+    "$bridge_exe" --headless --controller "$transport" --controller-port "$ctrl_port" --udp-port "$host_port" &
     BRIDGE_PID=$!
     sleep 0.3
 
@@ -183,6 +194,28 @@ list_codebases() {
 # Build Commands - Teensy
 # ==============================================================================
 
+copy_teensy_artifacts() {
+    local project_dir="$1"
+    local codebase="$2"
+    local env="$3"
+
+    local build_dir="$project_dir/.pio/build/$env"
+    [[ -d "$build_dir" ]] || return 0
+
+    local out_dir="$BIN_ROOT/$codebase/teensy/$env"
+    mkdir -p "$out_dir"
+
+    local copied=false
+    for f in firmware.hex firmware.bin firmware.elf firmware.uf2 firmware.map; do
+        if [[ -f "$build_dir/$f" ]]; then
+            cp -f "$build_dir/$f" "$out_dir/"
+            copied=true
+        fi
+    done
+
+    [[ "$copied" == true ]] && log_ok "Artifacts: $out_dir"
+}
+
 cmd_teensy_build() {
     local codebase="$1"
     local env="${2:-dev}"
@@ -192,6 +225,7 @@ cmd_teensy_build() {
     log_info "Building $codebase (teensy $env)"
     cd "$codebase_path"
     "$OC_TOOLS/oc-build" "$env"
+    copy_teensy_artifacts "$codebase_path" "$codebase" "$env"
 }
 
 cmd_teensy_upload() {
@@ -203,6 +237,7 @@ cmd_teensy_upload() {
     log_info "Uploading $codebase (teensy $env)"
     cd "$codebase_path"
     "$OC_TOOLS/oc-upload" "$env"
+    copy_teensy_artifacts "$codebase_path" "$codebase" "$env"
 }
 
 cmd_teensy_monitor() {
@@ -419,7 +454,7 @@ cmd_native_build() {
     local codebase="$1"
     local codebase_path build_dir app_path
     codebase_path="$(resolve_codebase "$codebase")"
-    build_dir="$ROOT/.build/$codebase/native"
+    build_dir="$BUILD_ROOT/$codebase/native"
     app_path="$codebase_path/sdl"
     
     log_info "Building $codebase (native)"
@@ -432,7 +467,7 @@ cmd_native_build() {
             -S "$ROOT/core/sdl"
             -B "$build_dir"
             -DAPP_PATH="$app_path"
-            -DBIN_OUTPUT_DIR="$ROOT/bin"
+            -DBIN_OUTPUT_DIR="$BIN_ROOT"
             -DCMAKE_BUILD_TYPE=Release
         )
         
@@ -452,7 +487,7 @@ cmd_native_run() {
     local codebase="$1"
     local codebase_path
     codebase_path="$(resolve_codebase "$codebase")"
-    local bin_dir="$ROOT/bin/$codebase/native"
+    local bin_dir="$BIN_ROOT/$codebase/native"
     local exe
     
     # Extract controller port from C++ source and start bridge
@@ -477,8 +512,11 @@ cmd_native_run() {
     
     [[ -x "$exe" ]] || [[ -f "$exe" ]] || log_die "Executable not found in $bin_dir"
     
+    local data_dir="$BIN_ROOT/$codebase/data"
+    mkdir -p "$data_dir"
+
     log_info "Running $codebase"
-    "$exe"
+    (cd "$data_dir" && "$exe")
 }
 
 # ==============================================================================
@@ -489,7 +527,7 @@ cmd_wasm_build() {
     local codebase="$1"
     local codebase_path build_dir app_path
     codebase_path="$(resolve_codebase "$codebase")"
-    build_dir="$ROOT/.build/$codebase/wasm"
+    build_dir="$BUILD_ROOT/$codebase/wasm"
     app_path="$codebase_path/sdl"
     
     emscripten_init
@@ -501,7 +539,7 @@ cmd_wasm_build() {
         cd "$build_dir"
         emtool emcmake cmake -G Ninja "$ROOT/core/sdl" \
             -DAPP_PATH="$app_path" \
-            -DBIN_OUTPUT_DIR="$ROOT/bin" \
+            -DBIN_OUTPUT_DIR="$BIN_ROOT" \
             -DCMAKE_BUILD_TYPE=Release
     fi
     
@@ -513,7 +551,7 @@ cmd_wasm_serve() {
     local watch="${2:-true}"
     local codebase_path
     codebase_path="$(resolve_codebase "$codebase")"
-    local bin_dir="$ROOT/bin/$codebase/wasm"
+    local bin_dir="$BIN_ROOT/$codebase/wasm"
     local http_port=8080
     
     # Extract controller port from C++ source and start bridge
@@ -614,12 +652,20 @@ cmd_clean() {
     
     if [[ -z "$codebase" ]]; then
         log_info "Cleaning all builds..."
-        rm -rf "$ROOT/.build" "$ROOT/bin"
+        rm -rf "$BUILD_ROOT"
+        if [[ -d "$BIN_ROOT" ]]; then
+            for cb_dir in "$BIN_ROOT"/*; do
+                [[ -d "$cb_dir" ]] || continue
+                [[ "$(basename "$cb_dir")" == "bridge" ]] && continue
+                rm -rf "$cb_dir/native" "$cb_dir/wasm" "$cb_dir/teensy"
+            done
+        fi
         rm -rf "$ROOT/core/.pio/build"
         rm -rf "$ROOT"/plugin-*/.pio/build
     else
         log_info "Cleaning $codebase..."
-        rm -rf "$ROOT/.build/$codebase" "$ROOT/bin/$codebase"
+        rm -rf "$BUILD_ROOT/$codebase"
+        rm -rf "$BIN_ROOT/$codebase/native" "$BIN_ROOT/$codebase/wasm" "$BIN_ROOT/$codebase/teensy"
         rm -rf "$(resolve_codebase "$codebase")/.pio/build"
     fi
     

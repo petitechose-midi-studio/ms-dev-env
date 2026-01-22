@@ -972,9 +972,12 @@ def bridge(ctx: typer.Context) -> None:
     bridge_dir_rel = str(cfg.raw.get("paths", {}).get("bridge", "open-control/bridge"))
     bridge_dir = root / bridge_dir_rel
 
-    exe = bridge_dir / "target" / "release" / "oc-bridge"
-    if detect_platform() == "windows":
-        exe = exe.with_suffix(".exe")
+    exe_name = "oc-bridge.exe" if detect_platform() == "windows" else "oc-bridge"
+
+    # Prefer workspace-installed binary (stable path for services).
+    exe = root / "bin" / "bridge" / exe_name
+    if not exe.exists():
+        exe = bridge_dir / "target" / "release" / exe_name
 
     if not exe.exists():
         console.print(f"error: oc-bridge not found: {exe}", style="red")
@@ -1034,7 +1037,25 @@ def setup() -> None:
             console.print(f"bridge binary missing: {bridge_bin}", style="red")
             failed = True
         else:
-            console.print(f"oc-bridge: {bridge_bin}", style="green")
+            # Install into workspace/bin/bridge (stable runtime location)
+            bin_bridge_dir = root / "bin" / "bridge"
+            bin_bridge_dir.mkdir(parents=True, exist_ok=True)
+            dst_bridge_bin = bin_bridge_dir / bridge_bin.name
+            shutil.copy2(bridge_bin, dst_bridge_bin)
+            try:
+                dst_bridge_bin.chmod(0o755)
+            except Exception:
+                pass
+
+            src_config_dir = bridge_dir / "config"
+            if src_config_dir.is_dir():
+                shutil.copytree(
+                    src_config_dir,
+                    bin_bridge_dir / "config",
+                    dirs_exist_ok=True,
+                )
+
+            console.print(f"oc-bridge: {dst_bridge_bin}", style="green")
 
     console.print("\n[bold]Bitwig Host[/]")
     host_dir_rel = str(
@@ -1092,6 +1113,14 @@ def setup() -> None:
                 failed = True
             else:
                 console.print(f"extension: {deployed}", style="green")
+
+                # Keep a copy in workspace/bin/bitwig for convenience.
+                bin_bitwig_dir = root / "bin" / "bitwig"
+                bin_bitwig_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    shutil.copy2(deployed, bin_bitwig_dir / deployed.name)
+                except Exception:
+                    pass
 
     console.print("")
     if failed:
