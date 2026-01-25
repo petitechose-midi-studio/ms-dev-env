@@ -1,6 +1,9 @@
 # Docs
 
-This repository has two documentation spaces:
+This repository has one documentation space:
 
-- `docs/ms-cli/` - User/dev documentation for the MIDI Studio CLI (setup, update, run, troubleshooting).
-- `docs/memories/` - Internal memories and work notes (historical docs moved here).
+- `docs/memories/` - Internal memories and work notes (historical docs and planning).
+
+CLI usage is self-documented via:
+
+- `uv run ms --help`

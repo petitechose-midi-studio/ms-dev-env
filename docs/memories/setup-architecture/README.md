@@ -74,9 +74,7 @@ pc/
 │   ├── jdk/
 │   ├── maven/
 │   ├── bun/
-│   ├── platformio/               # (a deplacer depuis ~/.platformio)
-│   ├── python/
-│   ├── uv/
+│   ├── platformio/               # tools/platformio/venv
 │   ├── windows/SDL2/             # Windows uniquement
 │   ├── linux/SDL2/               # A implementer
 │   └── macos/SDL2/               # A implementer
@@ -102,10 +100,8 @@ pc/
 | java (JDK) | `tools/jdk/` | Oui |
 | maven | `tools/maven/` | Oui |
 | emscripten | `tools/emsdk/` | Oui |
-| python | `tools/python/` | Oui |
-| uv | `tools/uv/` | Oui |
 | SDL2 | `tools/{platform}/SDL2/` | A completer (Linux/macOS) |
-| platformio | `tools/platformio/` | A deplacer |
+| platformio | `tools/platformio/venv/` | Oui |
 
 ### Outils systeme (non bundles)
 
@@ -113,6 +109,7 @@ pc/
 |-------|--------|--------------|
 | git | Requis pour clone | Pre-installe ou `winget`/`apt`/`brew` |
 | gh | Optionnel (GitHub CLI) | `winget`/`apt`/`brew` |
+| uv | Bootstrap Python deps | https://docs.astral.sh/uv/ |
 | cargo/rust | Bridge build (dev only) | rustup.rs |
 
 ### Pourquoi ne pas bundler Rust ?
