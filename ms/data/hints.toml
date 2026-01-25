@@ -1,0 +1,188 @@
+# Install hints per platform/distro
+# Used by CheckerService to provide helpful error messages
+#
+# Structure:
+#   [tools.<tool_id>]
+#   fedora = "command"
+#   debian = "command"
+#   arch = "command"
+#   macos = "command"
+#   windows = "command or message"
+#
+#   [system.<requirement>]
+#   ...
+
+# =============================================================================
+# Build Tools
+# =============================================================================
+
+[tools.cmake]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+[tools.ninja]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+[tools.zig]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+[tools.bun]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+[tools.uv]
+fedora = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+debian = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+arch = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+macos = "curl -LsSf https://astral.sh/uv/install.sh | sh"
+windows = "powershell -c \"irm https://astral.sh/uv/install.ps1 | iex\""
+
+# =============================================================================
+# Java Tools
+# =============================================================================
+
+[tools.jdk]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+[tools.maven]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+# =============================================================================
+# System Tools
+# =============================================================================
+
+[tools.git]
+fedora = "sudo dnf install git"
+debian = "sudo apt install git"
+arch = "sudo pacman -S git"
+macos = "xcode-select --install"
+windows = "Install Git for Windows: https://git-scm.com/"
+
+[tools.gh]
+fedora = "sudo dnf install gh"
+debian = "sudo apt install gh"
+arch = "sudo pacman -S github-cli"
+macos = "brew install gh"
+windows = "winget install GitHub.cli"
+
+[tools.cargo]
+fedora = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+debian = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+arch = "sudo pacman -S rust"
+macos = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+windows = "Download from https://rustup.rs"
+
+[tools."g++"]
+fedora = "sudo dnf install gcc-c++"
+debian = "sudo apt install g++"
+arch = "sudo pacman -S gcc"
+macos = "xcode-select --install"
+windows = "Install MinGW-w64: https://www.mingw-w64.org/"
+
+# =============================================================================
+# Embedded/Platform Tools
+# =============================================================================
+
+[tools.platformio]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+[tools.emscripten]
+fedora = "Run: uv run ms tools sync"
+debian = "Run: uv run ms tools sync"
+arch = "Run: uv run ms tools sync"
+macos = "Run: uv run ms tools sync"
+windows = "Run: uv run ms tools sync"
+
+# =============================================================================
+# System Dependencies
+# =============================================================================
+
+[system.sdl2]
+fedora = "sudo dnf install SDL2-devel"
+debian = "sudo apt install libsdl2-dev"
+arch = "sudo pacman -S sdl2"
+macos = "brew install sdl2"
+windows = "Run: uv run ms tools sync"
+
+[system.alsa]
+fedora = "sudo dnf install alsa-lib-devel"
+debian = "sudo apt install libasound2-dev"
+arch = "sudo pacman -S alsa-lib"
+macos = "N/A (uses CoreMIDI)"
+windows = "N/A (uses WinMM)"
+
+[system.pkg-config]
+fedora = "sudo dnf install pkgconf-pkg-config"
+debian = "sudo apt install pkg-config"
+arch = "sudo pacman -S pkgconf"
+macos = "brew install pkg-config"
+windows = "N/A"
+
+# =============================================================================
+# Optional/Asset Tools
+# =============================================================================
+
+[tools.inkscape]
+fedora = "sudo dnf install inkscape"
+debian = "sudo apt install inkscape"
+arch = "sudo pacman -S inkscape"
+macos = "brew install --cask inkscape"
+windows = "https://inkscape.org/release/1.4.3/platforms/"
+
+[tools.fontforge]
+fedora = "sudo dnf install fontforge"
+debian = "sudo apt install fontforge"
+arch = "sudo pacman -S fontforge"
+macos = "brew install --cask fontforge"
+windows = "https://fontforge.org/en-US/downloads/"
+
+# =============================================================================
+# Runtime Configuration
+# =============================================================================
+
+[runtime.virmidi]
+linux = "sudo modprobe snd-virmidi"
+linux_persistent = "echo 'snd-virmidi' | sudo tee /etc/modules-load.d/virmidi.conf"
+
+[runtime.serial_permissions]
+linux_dialout = "sudo usermod -a -G dialout $USER"
+linux_uucp = "sudo usermod -a -G uucp $USER"
+
+[runtime.udev_teensy]
+linux = "curl -fsSL https://www.pjrc.com/teensy/00-teensy.rules | sudo tee /etc/udev/rules.d/00-teensy.rules >/dev/null"
+
+[runtime.udev_platformio]
+linux = "curl -fsSL https://raw.githubusercontent.com/platformio/platformio-core/develop/scripts/99-platformio-udev.rules | sudo tee /etc/udev/rules.d/99-platformio-udev.rules >/dev/null"
+
+[runtime.udev_reload]
+linux = "sudo udevadm control --reload-rules && sudo udevadm trigger"
+
+[runtime.midi]
+macos = "Enable IAC Driver in Audio MIDI Setup"
+windows = "Install loopMIDI for virtual MIDI ports: https://www.tobias-erichsen.de/software/loopmidi.html"

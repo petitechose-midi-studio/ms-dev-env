@@ -1,0 +1,23 @@
+[tools]
+# Use explicit versions for reproducibility.
+# Use "latest" only if pinning is not feasible yet.
+
+cmake = "4.2.2"
+ninja = "1.13.2"
+zig = "0.15.2"
+bun = "1.3.6"
+
+# JDK/Maven are used for Bitwig extension build.
+# JDK version resolution comes from Adoptium; we track what was installed in tools/state.json.
+jdk = "latest"
+maven = "3.9.6"
+
+# Emscripten/emsdk currently uses "install latest" internally.
+emscripten = "latest"
+
+# SDL2 is auto-installed only on Windows.
+sdl2 = "2.30.0"
+
+[platformio]
+# Installed into tools/platformio/venv and configured with PLATFORMIO_* env vars.
+version = "6.1.18"

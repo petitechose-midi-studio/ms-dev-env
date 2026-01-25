@@ -7,3 +7,41 @@ dependencies = [
   "rich>=13.0.0",
   "typer>=0.12.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-mock>=3.12.0",
+  "pyright>=1.1.350",
+]
+
+[project.scripts]
+ms = "ms.cli.app:main"
+
+[tool.uv]
+package = true
+
+[tool.setuptools.packages.find]
+include = ["ms", "ms.*"]
+
+[tool.pytest.ini_options]
+testpaths = ["ms/test"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
+]
+
+[tool.pyright]
+include = ["ms"]
+exclude = ["ms/test"]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
