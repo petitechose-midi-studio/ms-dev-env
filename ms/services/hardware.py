@@ -81,7 +81,7 @@ class HardwareService(BaseService):
         self._console.print(f"{bash} {script}", Style.DIM)
 
         # oc-monitor takes over the terminal and doesn't return
-        env = self._workspace.platformio_env_vars()
+        env = self._build_env()
         try:
             result = subprocess.run(
                 [bash, str(script)],
@@ -105,6 +105,19 @@ class HardwareService(BaseService):
             return str(_GIT_BASH)
         return "bash"
 
+    def _build_env(self) -> dict[str, str]:
+        """Build environment with PIO path and platformio directories."""
+        env = self._workspace.platformio_env_vars()
+        # Set PIO to workspace platformio if installed
+        pio_venv = self._workspace.tools_dir / "platformio" / "venv"
+        if self._platform.platform.is_windows:
+            pio_bin = pio_venv / "Scripts" / "pio.exe"
+        else:
+            pio_bin = pio_venv / "bin" / "pio"
+        if pio_bin.exists():
+            env["PIO"] = str(pio_bin)
+        return env
+
     def _run_script(
         self, script: Path, cwd: Path, action: str, *, dry_run: bool
     ) -> Result[None, HardwareError]:
@@ -115,7 +128,7 @@ class HardwareService(BaseService):
         if dry_run:
             return Ok(None)
 
-        env = self._workspace.platformio_env_vars()
+        env = self._build_env()
         try:
             result = subprocess.run(
                 [bash, str(script)],
