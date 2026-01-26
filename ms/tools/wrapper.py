@@ -2,9 +2,8 @@
 
 This module generates wrapper scripts (bash/cmd) that invoke tool binaries.
 Used for:
-- Creating zig-cc and zig-cxx wrappers (zig cc, zig c++)
 - Creating unified bin/ directory with all tool wrappers
-- Setting up environment variables before invoking tools
+- Setting up environment variables before invoking tools (e.g., emscripten)
 
 Wrappers ensure:
 - Bash scripts use LF line endings
@@ -21,7 +20,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ms.platform.detection import Platform
 
-__all__ = ["WrapperGenerator", "WrapperSpec"]
+__all__ = ["WrapperGenerator", "WrapperSpec", "create_emscripten_wrappers"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,9 +28,9 @@ class WrapperSpec:
     """Specification for a wrapper script.
 
     Attributes:
-        name: Wrapper name (e.g., "zig-cc")
+        name: Wrapper name (e.g., "emcc")
         target: Path to the actual binary
-        args: Additional arguments to pass (e.g., ["cc"] for zig cc)
+        args: Additional arguments to pass
         env: Environment variables to set before running
     """
 
@@ -152,35 +151,6 @@ class WrapperGenerator:
         script_path.write_bytes(content.encode("utf-8"))
 
         return script_path
-
-
-def create_zig_wrappers(
-    zig_path: Path,
-    bin_dir: Path,
-    platform: Platform,
-) -> list[Path]:
-    """Create zig-cc and zig-cxx wrappers.
-
-    These wrappers allow using Zig as a C/C++ cross-compiler:
-    - zig-cc: zig cc (C compiler)
-    - zig-cxx: zig c++ (C++ compiler)
-
-    Args:
-        zig_path: Path to zig binary
-        bin_dir: Directory to write wrappers to
-        platform: Target platform
-
-    Returns:
-        List of paths to generated wrappers
-    """
-    generator = WrapperGenerator(bin_dir)
-
-    specs = [
-        WrapperSpec(name="zig-cc", target=zig_path, args=("cc",)),
-        WrapperSpec(name="zig-cxx", target=zig_path, args=("c++",)),
-    ]
-
-    return generator.generate_all(specs, platform)
 
 
 def create_emscripten_wrappers(

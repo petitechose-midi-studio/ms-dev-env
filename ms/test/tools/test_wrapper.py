@@ -10,7 +10,6 @@ from ms.tools.wrapper import (
     WrapperGenerator,
     WrapperSpec,
     create_emscripten_wrappers,
-    create_zig_wrappers,
 )
 
 
@@ -128,15 +127,15 @@ class TestBashGeneration:
     def test_bash_with_args(self, generator: WrapperGenerator) -> None:
         """Bash script includes additional arguments."""
         spec = WrapperSpec(
-            name="zig-cc",
-            target=Path("/tools/zig/zig"),
-            args=("cc",),
+            name="my-tool",
+            target=Path("/tools/my-tool/bin"),
+            args=("subcommand",),
         )
 
         path = generator.generate(spec, Platform.LINUX)
         content = path.read_text()
 
-        assert '"cc"' in content
+        assert '"subcommand"' in content
         assert '"$@"' in content
 
     def test_bash_with_env(self, generator: WrapperGenerator) -> None:
@@ -205,15 +204,15 @@ class TestCmdGeneration:
     def test_cmd_with_args(self, generator: WrapperGenerator) -> None:
         """Cmd script includes additional arguments."""
         spec = WrapperSpec(
-            name="zig-cc",
-            target=Path("C:/tools/zig/zig.exe"),
-            args=("cc",),
+            name="my-tool",
+            target=Path("C:/tools/my-tool.exe"),
+            args=("subcommand",),
         )
 
         path = generator.generate(spec, Platform.WINDOWS)
         content = path.read_text()
 
-        assert '"cc"' in content
+        assert '"subcommand"' in content
         assert "%*" in content
 
     def test_cmd_with_env(self, generator: WrapperGenerator) -> None:
@@ -244,44 +243,6 @@ class TestGenerateAll:
 
         assert len(paths) == 2
         assert all(p.exists() for p in paths)
-
-
-class TestCreateZigWrappers:
-    """Tests for create_zig_wrappers helper."""
-
-    def test_creates_zig_cc_and_cxx(self, tmp_path: Path) -> None:
-        """Creates zig-cc and zig-cxx wrappers."""
-        zig_path = Path("/tools/zig/zig")
-        bin_dir = tmp_path / "bin"
-
-        paths = create_zig_wrappers(zig_path, bin_dir, Platform.LINUX)
-
-        assert len(paths) == 2
-        names = {p.name for p in paths}
-        assert "zig-cc" in names
-        assert "zig-cxx" in names
-
-    def test_zig_cc_calls_zig_cc(self, tmp_path: Path) -> None:
-        """zig-cc wrapper calls 'zig cc'."""
-        zig_path = Path("/tools/zig/zig")
-        bin_dir = tmp_path / "bin"
-
-        paths = create_zig_wrappers(zig_path, bin_dir, Platform.LINUX)
-        zig_cc = next(p for p in paths if p.name == "zig-cc")
-
-        content = zig_cc.read_text()
-        assert '"cc"' in content
-
-    def test_zig_cxx_calls_zig_cpp(self, tmp_path: Path) -> None:
-        """zig-cxx wrapper calls 'zig c++'."""
-        zig_path = Path("/tools/zig/zig")
-        bin_dir = tmp_path / "bin"
-
-        paths = create_zig_wrappers(zig_path, bin_dir, Platform.LINUX)
-        zig_cxx = next(p for p in paths if p.name == "zig-cxx")
-
-        content = zig_cxx.read_text()
-        assert '"c++"' in content
 
 
 class TestCreateEmscriptenWrappers:

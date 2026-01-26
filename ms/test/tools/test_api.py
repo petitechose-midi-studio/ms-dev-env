@@ -7,7 +7,6 @@ from ms.tools.api import (
     adoptium_jdk_url,
     github_latest_release,
     maven_latest_version,
-    zig_latest_stable,
 )
 from ms.tools.http import HttpError, MockHttpClient
 
@@ -189,109 +188,6 @@ class TestAdoptiumJdkUrl:
 
 
 # =============================================================================
-# zig_latest_stable tests
-# =============================================================================
-
-
-class TestZigLatestStable:
-    """Tests for zig_latest_stable()."""
-
-    @pytest.fixture
-    def mock_zig_index(self) -> dict[str, object]:
-        """Sample Zig download index."""
-        return {
-            "master": {
-                "version": "0.14.0-dev.1234+abc",
-                "x86_64-linux": {
-                    "tarball": "https://ziglang.org/builds/zig-linux-x86_64-0.14.0-dev.tar.xz"
-                },
-            },
-            "0.13.0": {
-                "x86_64-linux": {
-                    "tarball": "https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz"
-                },
-                "x86_64-macos": {
-                    "tarball": "https://ziglang.org/download/0.13.0/zig-macos-x86_64-0.13.0.tar.xz"
-                },
-                "x86_64-windows": {
-                    "tarball": "https://ziglang.org/download/0.13.0/zig-windows-x86_64-0.13.0.zip"
-                },
-                "aarch64-linux": {
-                    "tarball": "https://ziglang.org/download/0.13.0/zig-linux-aarch64-0.13.0.tar.xz"
-                },
-                "aarch64-macos": {
-                    "tarball": "https://ziglang.org/download/0.13.0/zig-macos-aarch64-0.13.0.tar.xz"
-                },
-            },
-            "0.12.0": {
-                "x86_64-linux": {
-                    "tarball": "https://ziglang.org/download/0.12.0/zig-linux-x86_64-0.12.0.tar.xz"
-                },
-            },
-        }
-
-    def test_success(self, mock_zig_index: dict[str, object]) -> None:
-        """Fetch latest stable version."""
-        client = MockHttpClient()
-        client.set_json("https://ziglang.org/download/index.json", mock_zig_index)  # type: ignore[arg-type]
-
-        result = zig_latest_stable(client)
-
-        assert isinstance(result, Ok)
-        version, urls = result.value
-        assert version == "0.13.0"  # Latest stable, not master
-        assert "x86_64-linux" in urls
-
-    def test_excludes_master(self, mock_zig_index: dict[str, object]) -> None:
-        """Master branch is excluded from stable versions."""
-        client = MockHttpClient()
-        client.set_json("https://ziglang.org/download/index.json", mock_zig_index)  # type: ignore[arg-type]
-
-        result = zig_latest_stable(client)
-
-        assert isinstance(result, Ok)
-        version, _ = result.value
-        assert "dev" not in version
-        assert "master" != version
-
-    def test_platform_urls(self, mock_zig_index: dict[str, object]) -> None:
-        """Platform URLs are returned correctly."""
-        client = MockHttpClient()
-        client.set_json("https://ziglang.org/download/index.json", mock_zig_index)  # type: ignore[arg-type]
-
-        result = zig_latest_stable(client)
-
-        assert isinstance(result, Ok)
-        _, urls = result.value
-        assert "x86_64-linux" in urls
-        assert "x86_64-macos" in urls
-        assert "x86_64-windows" in urls
-        assert "aarch64-linux" in urls
-        assert "aarch64-macos" in urls
-
-    def test_network_error(self) -> None:
-        """Handle network error."""
-        client = MockHttpClient()
-
-        result = zig_latest_stable(client)
-
-        assert isinstance(result, Err)
-
-    def test_no_stable_versions(self) -> None:
-        """Handle index with only master."""
-        client = MockHttpClient()
-        client.set_json(
-            "https://ziglang.org/download/index.json",
-            {"master": {"version": "0.14.0-dev"}},
-        )
-
-        result = zig_latest_stable(client)
-
-        assert isinstance(result, Err)
-        assert "No stable versions" in result.error.message
-
-
-# =============================================================================
 # maven_latest_version tests
 # =============================================================================
 
@@ -406,18 +302,6 @@ class TestApiIntegration:
         assert isinstance(result, Ok)
         # Version should be like "1.12.1"
         assert result.value[0].isdigit()
-
-    def test_zig_latest(self) -> None:
-        """Real Zig download index."""
-        from ms.tools.http import RealHttpClient
-
-        client = RealHttpClient()
-        result = zig_latest_stable(client)
-
-        assert isinstance(result, Ok)
-        version, urls = result.value
-        assert version[0].isdigit()
-        assert "x86_64-linux" in urls
 
     def test_maven_latest(self) -> None:
         """Real Maven Central metadata."""

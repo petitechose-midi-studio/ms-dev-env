@@ -3,7 +3,6 @@
 This module provides pure functions for querying external APIs:
 - GitHub Releases API
 - Adoptium JDK API
-- Zig download index
 - Maven Central metadata
 
 All functions take an HttpClient parameter for testability.
@@ -23,7 +22,6 @@ if TYPE_CHECKING:
 __all__ = [
     "github_latest_release",
     "adoptium_jdk_url",
-    "zig_latest_stable",
     "maven_latest_version",
 ]
 
@@ -133,57 +131,6 @@ def adoptium_jdk_url(
     # Fallback: extract version from release name
     release_name: str = release.get("release_name", f"jdk-{major}")
     return Ok((download_link, release_name))
-
-
-def zig_latest_stable(http: HttpClient) -> Result[tuple[str, dict[str, Any]], HttpError]:
-    """Fetch latest stable Zig version and download URLs.
-
-    Args:
-        http: HTTP client to use
-
-    Returns:
-        Ok with (version, platform_urls), or Err with HttpError
-        platform_urls is a dict mapping platform keys to URL info
-
-    Example:
-        >>> client = RealHttpClient()
-        >>> result = zig_latest_stable(client)
-        >>> if is_ok(result):
-        ...     version, urls = result.value
-        ...     print(f"Zig {version}")
-        ...     linux_url = urls.get("x86_64-linux", {}).get("tarball")
-    """
-    url = "https://ziglang.org/download/index.json"
-    result = http.get_json(url)
-
-    if isinstance(result, Err):
-        return result
-
-    data: dict[str, Any] = result.value
-
-    # Find latest stable version (not "master")
-    # The JSON has version keys like "0.13.0", "0.12.0", "master"
-    stable_versions: list[tuple[str, dict[str, Any]]] = [
-        (k, v) for k, v in data.items() if k != "master" and isinstance(v, dict)
-    ]
-
-    if not stable_versions:
-        return Err(HttpError(url=url, status=0, message="No stable versions found"))
-
-    # Sort by version (semantic versioning)
-    def version_key(item: tuple[str, dict[str, Any]]) -> tuple[int, ...]:
-        try:
-            parts = item[0].split(".")
-            return tuple(int(p) for p in parts)
-        except ValueError:
-            return (0,)
-
-    stable_versions.sort(key=version_key, reverse=True)
-    latest_version: str
-    platform_urls: dict[str, Any]
-    latest_version, platform_urls = stable_versions[0]
-
-    return Ok((latest_version, platform_urls))
 
 
 def maven_latest_version(

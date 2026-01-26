@@ -50,7 +50,7 @@ class TestToolRegistryAllTools:
         tools = registry.all_tools()
 
         assert tools == ALL_TOOLS
-        assert len(tools) == 11
+        assert len(tools) == 10
 
     def test_returns_tuple(self, registry: ToolRegistry) -> None:
         """all_tools returns a tuple (immutable)."""
@@ -174,7 +174,7 @@ class TestToolRegistryGetAllStatus:
         """get_all_status returns status for all tools."""
         status = registry.get_all_status()
 
-        assert len(status) == 11
+        assert len(status) == 10
         assert "ninja" in status
         assert "cmake" in status
 
@@ -196,7 +196,7 @@ class TestToolRegistryGetMissingTools:
 
         # Most dev tools should be missing, but cargo checks system PATH
         # so it might be installed if rust is on the system
-        assert len(missing) >= 9  # At least 9 tools missing
+        assert len(missing) >= 8  # At least 8 tools missing (10 total minus cargo/uv)
 
     def test_installed_tool_not_in_missing(self, registry: ToolRegistry) -> None:
         """Installed tools are not in missing list."""

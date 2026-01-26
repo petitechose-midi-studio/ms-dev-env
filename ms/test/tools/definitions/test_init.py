@@ -13,7 +13,6 @@ from ms.tools.definitions import (
     PlatformioTool,
     Sdl2Tool,
     UvTool,
-    ZigTool,
     get_tool,
     get_tools_by_mode,
 )
@@ -23,8 +22,8 @@ class TestAllTools:
     """Tests for ALL_TOOLS registry."""
 
     def test_all_tools_count(self) -> None:
-        """ALL_TOOLS contains all 11 tools."""
-        assert len(ALL_TOOLS) == 11
+        """ALL_TOOLS contains all 10 tools."""
+        assert len(ALL_TOOLS) == 10
 
     def test_all_tools_unique_ids(self) -> None:
         """All tools have unique IDs."""
@@ -44,7 +43,6 @@ class TestAllTools:
         expected = {
             "ninja",
             "cmake",
-            "zig",
             "bun",
             "uv",
             "jdk",
@@ -130,7 +128,6 @@ class TestToolClassExports:
         # These should not raise
         assert NinjaTool is not None
         assert CMakeTool is not None
-        assert ZigTool is not None
         assert BunTool is not None
         assert UvTool is not None
         assert JdkTool is not None
@@ -145,7 +142,6 @@ class TestToolClassExports:
         tools = [
             NinjaTool(),
             CMakeTool(),
-            ZigTool(),
             BunTool(),
             UvTool(),
             JdkTool(),
@@ -155,4 +151,4 @@ class TestToolClassExports:
             CargoTool(),
             Sdl2Tool(),
         ]
-        assert len(tools) == 11
+        assert len(tools) == 10

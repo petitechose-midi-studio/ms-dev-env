@@ -6,8 +6,8 @@ It's used for audio output in the native build.
 Website: https://www.libsdl.org/
 GitHub: https://github.com/libsdl-org/SDL
 
-Note: SDL2 is only auto-installed on Windows. On Linux/macOS, it should
-be installed via the system package manager (apt, brew, etc.).
+Note: SDL2 is only auto-installed on Windows (using the VC/MSVC package).
+On Linux/macOS, it should be installed via the system package manager.
 """
 
 from __future__ import annotations
@@ -36,7 +36,8 @@ class Sdl2Tool(GitHubTool):
     - On Linux/macOS, installed via system package manager
     - Archives have a nested structure to navigate
 
-    On Windows, we download the prebuilt MinGW development library.
+    On Windows, we download the prebuilt VC (MSVC) development library.
+    This works with Visual Studio Build Tools without requiring MinGW.
     """
 
     spec = ToolSpec(
@@ -59,16 +60,16 @@ class Sdl2Tool(GitHubTool):
         return super().latest_version(http)
 
     def download_url(self, version: str, platform: Platform, arch: Arch) -> str:
-        """Get download URL for Windows MinGW SDL2.
+        """Get download URL for Windows VC (MSVC) SDL2.
 
         Only Windows x64 is supported for auto-download.
         """
-        # SDL2 uses "release-X.Y.Z" tags and "SDL2-devel-X.Y.Z-mingw.zip" assets
-        return f"https://github.com/{self.repo}/releases/download/release-{version}/SDL2-devel-{version}-mingw.zip"
+        # SDL2 uses "release-X.Y.Z" tags and "SDL2-devel-X.Y.Z-VC.zip" assets
+        return f"https://github.com/{self.repo}/releases/download/release-{version}/SDL2-devel-{version}-VC.zip"
 
     def asset_name(self, version: str, platform: Platform, arch: Arch) -> str:
         """Get asset name for SDL2 download."""
-        return f"SDL2-devel-{version}-mingw.zip"
+        return f"SDL2-devel-{version}-VC.zip"
 
     def strip_components(self) -> int:
         """SDL2 archive has a root directory to strip."""
@@ -80,28 +81,37 @@ class Sdl2Tool(GitHubTool):
         Returns the DLL path on Windows, None on other platforms.
         """
         if str(platform).lower() == "windows":
-            return tools_dir / "sdl2" / "x86_64-w64-mingw32" / "bin" / "SDL2.dll"
+            # VC package structure: lib/x64/SDL2.dll
+            return tools_dir / "sdl2" / "lib" / "x64" / "SDL2.dll"
         return None
 
     def include_path(self, tools_dir: Path) -> Path:
         """Get the include path for SDL2 headers."""
-        return tools_dir / "sdl2" / "x86_64-w64-mingw32" / "include" / "SDL2"
+        # VC package structure: include/
+        return tools_dir / "sdl2" / "include"
 
     def lib_path(self, tools_dir: Path) -> Path:
-        """Get the library path for SDL2."""
-        return tools_dir / "sdl2" / "x86_64-w64-mingw32" / "lib"
+        """Get the library path for SDL2 (x64)."""
+        # VC package structure: lib/x64/
+        return tools_dir / "sdl2" / "lib" / "x64"
+
+    def cmake_dir(self, tools_dir: Path) -> Path:
+        """Get the CMake config directory for SDL2."""
+        # VC package provides cmake config at cmake/
+        return tools_dir / "sdl2" / "cmake"
 
     def is_installed(self, tools_dir: Path, platform: Platform) -> bool:
         """Check if SDL2 is installed.
 
-        On Windows: check if DLL exists in tools dir.
+        On Windows: check if SDL2.lib exists in tools dir (VC package).
         On Linux/macOS: check if sdl2-config is in PATH (from system install).
         """
         platform_str = str(platform).lower()
 
         if platform_str == "windows":
-            dll_path = self.bin_path(tools_dir, platform)
-            return dll_path is not None and dll_path.exists()
+            # Check for VC package: lib/x64/SDL2.lib
+            lib_path = tools_dir / "sdl2" / "lib" / "x64" / "SDL2.lib"
+            return lib_path.exists()
         else:
             # On Unix, check for system install via sdl2-config
             import shutil
