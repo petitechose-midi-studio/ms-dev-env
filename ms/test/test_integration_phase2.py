@@ -81,7 +81,7 @@ class TestToolRegistryIntegration:
     def test_registry_lists_all_tools(self, registry: ToolRegistry) -> None:
         """Registry returns all tools."""
         tools = registry.all_tools()
-        assert len(tools) == 10  # Without Zig
+        assert len(tools) == 11  # Including Zig
 
     def test_registry_tracks_installation_status(
         self, registry: ToolRegistry, tmp_path: Path

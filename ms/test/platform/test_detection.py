@@ -11,8 +11,8 @@ from ms.platform.detection import (
     LinuxDistro,
     Platform,
     PlatformInfo,
-    _detect_arch,
-    _detect_platform,
+    detect_arch,
+    detect_platform,
     detect,
     detect_linux_distro,
     is_linux,
@@ -179,33 +179,33 @@ class TestPlatformDetection:
 
     def test_detect_linux(self) -> None:
         with patch("sys.platform", "linux"):
-            _detect_platform.cache_clear()
-            assert _detect_platform() == Platform.LINUX
+            detect_platform.cache_clear()
+            assert detect_platform() == Platform.LINUX
 
     def test_detect_darwin_as_macos(self) -> None:
         with patch("sys.platform", "darwin"):
-            _detect_platform.cache_clear()
-            assert _detect_platform() == Platform.MACOS
+            detect_platform.cache_clear()
+            assert detect_platform() == Platform.MACOS
 
     def test_detect_windows(self) -> None:
         with patch("sys.platform", "win32"):
-            _detect_platform.cache_clear()
-            assert _detect_platform() == Platform.WINDOWS
+            detect_platform.cache_clear()
+            assert detect_platform() == Platform.WINDOWS
 
     def test_detect_cygwin_as_windows(self) -> None:
         with patch("sys.platform", "cygwin"):
-            _detect_platform.cache_clear()
-            assert _detect_platform() == Platform.WINDOWS
+            detect_platform.cache_clear()
+            assert detect_platform() == Platform.WINDOWS
 
     def test_detect_msys_as_windows(self) -> None:
         with patch("sys.platform", "msys"):
-            _detect_platform.cache_clear()
-            assert _detect_platform() == Platform.WINDOWS
+            detect_platform.cache_clear()
+            assert detect_platform() == Platform.WINDOWS
 
     def test_detect_unknown(self) -> None:
         with patch("sys.platform", "freebsd"):
-            _detect_platform.cache_clear()
-            assert _detect_platform() == Platform.UNKNOWN
+            detect_platform.cache_clear()
+            assert detect_platform() == Platform.UNKNOWN
 
 
 class TestArchDetection:
@@ -213,28 +213,28 @@ class TestArchDetection:
 
     def test_detect_x86_64(self) -> None:
         with patch("sys.platform", "linux"), patch("platform.machine", return_value="x86_64"):
-            _detect_arch.cache_clear()
-            assert _detect_arch() == Arch.X64
+            detect_arch.cache_clear()
+            assert detect_arch() == Arch.X64
 
     def test_detect_amd64(self) -> None:
         with patch("sys.platform", "linux"), patch("platform.machine", return_value="AMD64"):
-            _detect_arch.cache_clear()
-            assert _detect_arch() == Arch.X64
+            detect_arch.cache_clear()
+            assert detect_arch() == Arch.X64
 
     def test_detect_aarch64(self) -> None:
         with patch("sys.platform", "linux"), patch("platform.machine", return_value="aarch64"):
-            _detect_arch.cache_clear()
-            assert _detect_arch() == Arch.ARM64
+            detect_arch.cache_clear()
+            assert detect_arch() == Arch.ARM64
 
     def test_detect_arm64(self) -> None:
         with patch("sys.platform", "linux"), patch("platform.machine", return_value="arm64"):
-            _detect_arch.cache_clear()
-            assert _detect_arch() == Arch.ARM64
+            detect_arch.cache_clear()
+            assert detect_arch() == Arch.ARM64
 
     def test_detect_unknown_arch(self) -> None:
         with patch("sys.platform", "linux"), patch("platform.machine", return_value="riscv64"):
-            _detect_arch.cache_clear()
-            assert _detect_arch() == Arch.UNKNOWN
+            detect_arch.cache_clear()
+            assert detect_arch() == Arch.UNKNOWN
 
     def test_windows_env_arch_fallback(self) -> None:
         with (
@@ -245,10 +245,10 @@ class TestArchDetection:
                 clear=False,
             ),
         ):
-            _detect_platform.cache_clear()
-            _detect_arch.cache_clear()
-            assert _detect_platform() == Platform.WINDOWS
-            assert _detect_arch() == Arch.X64
+            detect_platform.cache_clear()
+            detect_arch.cache_clear()
+            assert detect_platform() == Platform.WINDOWS
+            assert detect_arch() == Arch.X64
 
 
 class TestLinuxDistroDetection:
@@ -256,7 +256,7 @@ class TestLinuxDistroDetection:
 
     def test_not_linux_returns_unknown(self) -> None:
         with patch("sys.platform", "win32"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             detect_linux_distro.cache_clear()
             assert detect_linux_distro() == LinuxDistro.UNKNOWN
 
@@ -265,7 +265,7 @@ class TestLinuxDistroDetection:
         from ms.platform import detection
 
         with patch("sys.platform", "linux"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             detect_linux_distro.cache_clear()
             with patch.object(detection, "_read_os_release", return_value=os_release.lower()):
                 detect_linux_distro.cache_clear()
@@ -276,17 +276,17 @@ class TestLinuxDistroDetection:
         from ms.platform import detection
 
         with patch("sys.platform", "linux"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             with patch.object(detection, "_read_os_release", return_value=os_release.lower()):
                 detect_linux_distro.cache_clear()
                 assert detect_linux_distro() == LinuxDistro.FEDORA
 
-    def test_detect_arch(self) -> None:
+    def testdetect_arch(self) -> None:
         os_release = 'NAME="Arch Linux"\nID=arch'
         from ms.platform import detection
 
         with patch("sys.platform", "linux"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             with patch.object(detection, "_read_os_release", return_value=os_release.lower()):
                 detect_linux_distro.cache_clear()
                 assert detect_linux_distro() == LinuxDistro.ARCH
@@ -296,7 +296,7 @@ class TestLinuxDistroDetection:
         from ms.platform import detection
 
         with patch("sys.platform", "linux"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             with patch.object(detection, "_read_os_release", return_value=os_release.lower()):
                 detect_linux_distro.cache_clear()
                 assert detect_linux_distro() == LinuxDistro.SUSE
@@ -305,7 +305,7 @@ class TestLinuxDistroDetection:
         from ms.platform import detection
 
         with patch("sys.platform", "linux"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             with patch.object(detection, "_read_os_release", return_value=None):
                 detect_linux_distro.cache_clear()
                 assert detect_linux_distro() == LinuxDistro.UNKNOWN
@@ -316,21 +316,21 @@ class TestConvenienceFunctions:
 
     def test_is_windows_on_windows(self) -> None:
         with patch("sys.platform", "win32"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             assert is_windows() is True
             assert is_linux() is False
             assert is_macos() is False
 
     def test_is_linux_on_linux(self) -> None:
         with patch("sys.platform", "linux"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             assert is_linux() is True
             assert is_windows() is False
             assert is_macos() is False
 
     def test_is_macos_on_macos(self) -> None:
         with patch("sys.platform", "darwin"):
-            _detect_platform.cache_clear()
+            detect_platform.cache_clear()
             assert is_macos() is True
             assert is_windows() is False
             assert is_linux() is False
@@ -353,8 +353,8 @@ class TestDetectFunction:
     def test_current_platform_is_known(self) -> None:
         """We should detect the current platform correctly."""
         # Clear all caches to get fresh detection
-        _detect_platform.cache_clear()
-        _detect_arch.cache_clear()
+        detect_platform.cache_clear()
+        detect_arch.cache_clear()
         detect_linux_distro.cache_clear()
         detect.cache_clear()
 

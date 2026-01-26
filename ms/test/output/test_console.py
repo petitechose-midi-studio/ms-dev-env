@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from ms.output.console import (
     ConsoleProtocol,
     MockConsole,

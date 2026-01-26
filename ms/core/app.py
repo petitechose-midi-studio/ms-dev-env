@@ -1,26 +1,26 @@
-"""Codebase resolution and management.
+"""App resolution and management.
 
-A codebase represents a buildable project within the workspace, typically
-located in midi-studio/. Each codebase can have:
+A app represents a buildable project within the workspace, typically
+located in midi-studio/. Each app can have:
 - Teensy firmware (platformio.ini)
 - Native SDL desktop simulator (sdl/)
 - WASM web simulator (sdl/ with emscripten)
 
 Usage:
-    from ms.core.codebase import resolve, list_all, Codebase
+    from ms.core.app import resolve, list_all, App
 
-    # Resolve a codebase by name
+    # Resolve a app by name
     match resolve("core", workspace):
-        case Ok(codebase):
-            print(f"Path: {codebase.path}")
-            if codebase.has_teensy:
+        case Ok(app):
+            print(f"Path: {app.path}")
+            if app.has_teensy:
                 print("Has Teensy firmware")
         case Err(error):
             print(f"Not found: {error.message}")
 
-    # List all available codebases
-    codebases = list_all(workspace)
-    print(f"Available: {', '.join(codebases)}")
+    # List all available apps
+    apps = list_all(workspace)
+    print(f"Available: {', '.join(apps)}")
 """
 
 from __future__ import annotations
@@ -32,24 +32,25 @@ from typing import TYPE_CHECKING
 from ms.core.result import Err, Ok, Result
 
 if TYPE_CHECKING:
-    pass
+    from ms.output.console import ConsoleProtocol
 
 __all__ = [
-    "Codebase",
-    "CodebaseError",
+    "App",
+    "AppError",
     "list_all",
     "resolve",
+    "resolve_or_none",
 ]
 
 
 @dataclass(frozen=True, slots=True)
-class CodebaseError:
-    """Error resolving a codebase.
+class AppError:
+    """Error resolving a app.
 
     Attributes:
-        name: Attempted codebase name
+        name: Attempted app name
         message: Error description
-        available: List of available codebases
+        available: List of available apps
     """
 
     name: str
@@ -58,14 +59,14 @@ class CodebaseError:
 
 
 @dataclass(frozen=True, slots=True)
-class Codebase:
-    """Resolved codebase information.
+class App:
+    """Resolved app information.
 
     Represents a buildable project with its capabilities.
 
     Attributes:
-        name: Codebase identifier (e.g., "core", "bitwig")
-        path: Absolute path to codebase root
+        name: App identifier (e.g., "core", "bitwig")
+        path: Absolute path to app root
         sdl_path: Path to SDL sources if available
         has_teensy: True if platformio.ini exists
         has_sdl: True if SDL sources exist
@@ -78,20 +79,20 @@ class Codebase:
     has_sdl: bool = False
 
 
-def resolve(name: str, workspace: Path) -> Result[Codebase, CodebaseError]:
-    """Resolve a codebase by name.
+def resolve(name: str, workspace: Path) -> Result[App, AppError]:
+    """Resolve a app by name.
 
     Mapping:
     - "core" -> midi-studio/core
     - Other names -> midi-studio/plugin-{name}
 
     Args:
-        name: Codebase identifier
+        name: App identifier
         workspace: Workspace root directory
 
     Returns:
-        Ok(Codebase) if found
-        Err(CodebaseError) if not found
+        Ok(App) if found
+        Err(AppError) if not found
     """
     midi_studio = workspace / "midi-studio"
 
@@ -105,9 +106,9 @@ def resolve(name: str, workspace: Path) -> Result[Codebase, CodebaseError]:
     if not path.is_dir():
         available = list_all(workspace)
         return Err(
-            CodebaseError(
+            AppError(
                 name=name,
-                message=f"Unknown codebase: {name}",
+                message=f"Unknown app: {name}",
                 available=tuple(available),
             )
         )
@@ -116,7 +117,7 @@ def resolve(name: str, workspace: Path) -> Result[Codebase, CodebaseError]:
     sdl_path = _find_sdl_path(path, midi_studio)
 
     return Ok(
-        Codebase(
+        App(
             name=name,
             path=path,
             sdl_path=sdl_path,
@@ -127,7 +128,7 @@ def resolve(name: str, workspace: Path) -> Result[Codebase, CodebaseError]:
 
 
 def list_all(workspace: Path) -> list[str]:
-    """List all available codebases.
+    """List all available apps.
 
     Scans midi-studio/ for:
     - core/
@@ -137,40 +138,40 @@ def list_all(workspace: Path) -> list[str]:
         workspace: Workspace root directory
 
     Returns:
-        Sorted list of codebase names
+        Sorted list of app names
     """
     midi_studio = workspace / "midi-studio"
-    codebases: list[str] = []
+    apps: list[str] = []
 
     # Check for core
     if (midi_studio / "core").is_dir():
-        codebases.append("core")
+        apps.append("core")
 
     # Check for plugins
     if midi_studio.is_dir():
         for child in sorted(midi_studio.iterdir()):
             if child.is_dir() and child.name.startswith("plugin-"):
-                codebases.append(child.name.removeprefix("plugin-"))
+                apps.append(child.name.removeprefix("plugin-"))
 
-    return codebases
+    return apps
 
 
-def _find_sdl_path(codebase_path: Path, midi_studio: Path) -> Path | None:
-    """Find SDL sources for a codebase.
+def _find_sdl_path(app_path: Path, midi_studio: Path) -> Path | None:
+    """Find SDL sources for a app.
 
     Checks:
-    1. codebase/sdl/app.cmake (codebase-specific SDL)
+    1. app/sdl/app.cmake (app-specific SDL)
     2. midi-studio/core/sdl/app.cmake (shared SDL from core)
 
     Args:
-        codebase_path: Path to codebase
+        app_path: Path to app
         midi_studio: Path to midi-studio/
 
     Returns:
         Path to SDL directory, or None if not found
     """
-    # Check codebase-specific SDL
-    sdl_path = codebase_path / "sdl"
+    # Check app-specific SDL
+    sdl_path = app_path / "sdl"
     if (sdl_path / "app.cmake").exists():
         return sdl_path
 
@@ -180,3 +181,40 @@ def _find_sdl_path(codebase_path: Path, midi_studio: Path) -> Path | None:
         return core_sdl
 
     return None
+
+
+def resolve_or_none(
+    name: str,
+    workspace: Path,
+    console: ConsoleProtocol,
+) -> App | None:
+    """Resolve a app, printing error if not found.
+
+    Convenience function for CLI commands that combines resolve()
+    with error printing.
+
+    Args:
+        name: App identifier
+        workspace: Workspace root directory
+        console: Console for error output
+
+    Returns:
+        App if found, None if not found (error already printed)
+
+    Example:
+        app = resolve_or_none("core", workspace, console)
+        if app is None:
+            return False  # Error already printed
+    """
+    from ms.output.console import Style
+
+    result = resolve(name, workspace)
+
+    match result:
+        case Ok(app):
+            return app
+        case Err(error):
+            console.error(error.message)
+            if error.available:
+                console.print(f"Available: {', '.join(error.available)}", Style.DIM)
+            return None

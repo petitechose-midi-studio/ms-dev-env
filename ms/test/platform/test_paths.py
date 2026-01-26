@@ -111,9 +111,9 @@ class TestClearCaches:
 
     def test_clears_all_caches(self) -> None:
         """After clearing, new calls should return new objects."""
-        # Populate caches
-        h1 = home()
-        c1 = user_config_dir()
+        # Populate caches (call functions to fill cache)
+        home()
+        user_config_dir()
 
         # Clear
         clear_caches()
@@ -137,8 +137,6 @@ class TestPathConsistency:
 
     def test_config_is_under_home(self) -> None:
         """Config directory should typically be under home."""
-        h = home()
-        c = user_config_dir()
         # On most systems, config is somewhere under home
         # This might not be true if XDG vars are set, so we just check it's valid
-        assert c.is_absolute()
+        assert user_config_dir().is_absolute()

@@ -1,6 +1,6 @@
-"""Integration tests for Phase 3: Git & Codebase.
+"""Integration tests for Phase 3: Git & App.
 
-These tests verify that the git and codebase modules work together correctly.
+These tests verify that the git and app modules work together correctly.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from ms.core.codebase import Codebase, list_all, resolve
+from ms.core.app import App, list_all, resolve
 from ms.core.result import Ok
 from ms.git import (
     GitStatus,
@@ -39,7 +39,7 @@ def create_workspace(tmp_path: Path) -> Path:
     (oc / "bridge" / ".git").mkdir(parents=True)
     (oc / "ui-lvgl" / ".git").mkdir(parents=True)
 
-    # Create midi-studio repos with codebases
+    # Create midi-studio repos with apps
     ms = workspace / "midi-studio"
 
     # Core with Teensy and SDL
@@ -65,7 +65,7 @@ def create_workspace(tmp_path: Path) -> Path:
 
 
 class TestWorkspaceDiscovery:
-    """Test discovering repos and codebases in a workspace."""
+    """Test discovering repos and apps in a workspace."""
 
     def test_find_all_repos_in_workspace(self, tmp_path: Path) -> None:
         """Test finding all git repos in workspace."""
@@ -82,26 +82,26 @@ class TestWorkspaceDiscovery:
         assert "core" in names
         assert "plugin-bitwig" in names
 
-    def test_list_all_codebases(self, tmp_path: Path) -> None:
-        """Test listing all codebases."""
+    def test_list_all_apps(self, tmp_path: Path) -> None:
+        """Test listing all apps."""
         workspace = create_workspace(tmp_path)
 
-        codebases = list_all(workspace)
+        apps = list_all(workspace)
 
-        assert codebases == ["core", "bitwig"]
+        assert apps == ["core", "bitwig"]
 
-    def test_resolve_core_codebase(self, tmp_path: Path) -> None:
-        """Test resolving core codebase."""
+    def test_resolve_core_app(self, tmp_path: Path) -> None:
+        """Test resolving core app."""
         workspace = create_workspace(tmp_path)
 
         result = resolve("core", workspace)
 
         assert isinstance(result, Ok)
-        codebase = result.unwrap()
-        assert codebase.name == "core"
-        assert codebase.has_teensy is True
-        assert codebase.has_sdl is True
-        assert codebase.sdl_path == workspace / "midi-studio" / "core" / "sdl"
+        app = result.unwrap()
+        assert app.name == "core"
+        assert app.has_teensy is True
+        assert app.has_sdl is True
+        assert app.sdl_path == workspace / "midi-studio" / "core" / "sdl"
 
     def test_resolve_bitwig_uses_core_sdl(self, tmp_path: Path) -> None:
         """Test that bitwig plugin uses core SDL."""
@@ -110,12 +110,12 @@ class TestWorkspaceDiscovery:
         result = resolve("bitwig", workspace)
 
         assert isinstance(result, Ok)
-        codebase = result.unwrap()
-        assert codebase.name == "bitwig"
-        assert codebase.has_teensy is True
-        assert codebase.has_sdl is True
+        app = result.unwrap()
+        assert app.name == "bitwig"
+        assert app.has_teensy is True
+        assert app.has_sdl is True
         # Uses shared SDL from core
-        assert codebase.sdl_path == workspace / "midi-studio" / "core" / "sdl"
+        assert app.sdl_path == workspace / "midi-studio" / "core" / "sdl"
 
 
 def make_git_output(
@@ -198,20 +198,20 @@ class TestStatusWorkflow:
         assert len(dirty) == 1
 
 
-class TestCodebaseGitIntegration:
-    """Test integration between codebase and git modules."""
+class TestAppGitIntegration:
+    """Test integration between app and git modules."""
 
     @patch("subprocess.run")
-    def test_codebase_repo_status(self, mock_run: MagicMock, tmp_path: Path) -> None:
-        """Test getting git status for a codebase repo."""
+    def test_app_repo_status(self, mock_run: MagicMock, tmp_path: Path) -> None:
+        """Test getting git status for a app repo."""
         workspace = create_workspace(tmp_path)
 
-        # Resolve codebase
+        # Resolve app
         result = resolve("core", workspace)
         assert isinstance(result, Ok)
-        codebase = result.unwrap()
+        app = result.unwrap()
 
-        # Get git status for codebase
+        # Get git status for app
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git"],
             returncode=0,
@@ -224,7 +224,7 @@ class TestCodebaseGitIntegration:
             stderr="",
         )
 
-        repo = Repository(codebase.path)
+        repo = Repository(app.path)
         status_result = repo.status()
 
         assert isinstance(status_result, Ok)
@@ -289,13 +289,13 @@ class TestPhase3Summary:
         assert hasattr(git_module, "pull_all")
         assert hasattr(git_module, "status_all")
 
-        # Codebase module - verify imports work
-        import ms.core.codebase as codebase_module
+        # App module (app resolution) - verify imports work
+        import ms.core.app as app_module
 
-        assert hasattr(codebase_module, "Codebase")
-        assert hasattr(codebase_module, "CodebaseError")
-        assert hasattr(codebase_module, "list_all")
-        assert hasattr(codebase_module, "resolve")
+        assert hasattr(app_module, "App")
+        assert hasattr(app_module, "AppError")
+        assert hasattr(app_module, "list_all")
+        assert hasattr(app_module, "resolve")
 
     def test_git_status_dataclasses(self) -> None:
         """Test that git dataclasses work correctly."""
@@ -310,9 +310,9 @@ class TestPhase3Summary:
         assert not status.is_clean
         assert status.staged_count == 1
 
-    def test_codebase_dataclasses(self, tmp_path: Path) -> None:
-        """Test that codebase dataclasses work correctly."""
-        codebase = Codebase(
+    def test_app_dataclasses(self, tmp_path: Path) -> None:
+        """Test that app dataclasses work correctly."""
+        app = App(
             name="test",
             path=tmp_path,
             has_teensy=True,
@@ -320,6 +320,6 @@ class TestPhase3Summary:
             sdl_path=tmp_path / "sdl",
         )
 
-        assert codebase.name == "test"
-        assert codebase.has_teensy
-        assert codebase.has_sdl
+        assert app.name == "test"
+        assert app.has_teensy
+        assert app.has_sdl

@@ -50,7 +50,7 @@ class TestToolRegistryAllTools:
         tools = registry.all_tools()
 
         assert tools == ALL_TOOLS
-        assert len(tools) == 10
+        assert len(tools) == 11
 
     def test_returns_tuple(self, registry: ToolRegistry) -> None:
         """all_tools returns a tuple (immutable)."""
@@ -174,7 +174,7 @@ class TestToolRegistryGetAllStatus:
         """get_all_status returns status for all tools."""
         status = registry.get_all_status()
 
-        assert len(status) == 10
+        assert len(status) == 11
         assert "ninja" in status
         assert "cmake" in status
 

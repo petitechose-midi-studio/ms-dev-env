@@ -69,7 +69,7 @@ class Downloader:
         """Get cache directory path."""
         return self._cache_dir
 
-    def _cache_key(self, url: str) -> str:
+    def cache_key(self, url: str) -> str:
         """Generate cache key for URL.
 
         Uses URL hash + filename to create unique but recognizable names.
@@ -86,7 +86,7 @@ class Downloader:
 
     def _cache_path(self, url: str) -> Path:
         """Get cache file path for URL."""
-        return self._cache_dir / self._cache_key(url)
+        return self._cache_dir / self.cache_key(url)
 
     def is_cached(self, url: str) -> bool:
         """Check if URL is already cached.

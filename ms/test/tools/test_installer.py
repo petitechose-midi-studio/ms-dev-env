@@ -5,8 +5,6 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-import pytest
-
 from ms.core.result import Err, Ok
 from ms.tools.installer import InstallError, InstallResult, Installer
 

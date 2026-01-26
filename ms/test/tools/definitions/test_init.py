@@ -22,8 +22,8 @@ class TestAllTools:
     """Tests for ALL_TOOLS registry."""
 
     def test_all_tools_count(self) -> None:
-        """ALL_TOOLS contains all 10 tools."""
-        assert len(ALL_TOOLS) == 10
+        """ALL_TOOLS contains all 11 tools."""
+        assert len(ALL_TOOLS) == 11
 
     def test_all_tools_unique_ids(self) -> None:
         """All tools have unique IDs."""
@@ -51,6 +51,7 @@ class TestAllTools:
             "platformio",
             "cargo",
             "sdl2",
+            "zig",
         }
         assert ids == expected
 

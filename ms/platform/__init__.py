@@ -15,6 +15,11 @@ from .paths import (
     home,
     user_config_dir,
 )
+from .process import (
+    ProcessError,
+    run,
+    run_silent,
+)
 
 __all__ = [
     # detection
@@ -30,4 +35,8 @@ __all__ = [
     # paths
     "home",
     "user_config_dir",
+    # process
+    "ProcessError",
+    "run",
+    "run_silent",
 ]

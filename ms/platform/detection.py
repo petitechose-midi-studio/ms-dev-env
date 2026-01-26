@@ -21,7 +21,9 @@ __all__ = [
     "LinuxDistro",
     "PlatformInfo",
     "detect",
+    "detect_arch",
     "detect_linux_distro",
+    "detect_platform",
     "is_windows",
     "is_linux",
     "is_macos",
@@ -140,7 +142,7 @@ class PlatformInfo:
 
 
 @lru_cache(maxsize=1)
-def _detect_platform() -> Platform:
+def detect_platform() -> Platform:
     """Detect the current operating system (cached)."""
     # NOTE: avoid platform.system() on Windows.
     # Python's platform.system() may query WMI (slow/hangs on some machines).
@@ -155,12 +157,12 @@ def _detect_platform() -> Platform:
 
 
 @lru_cache(maxsize=1)
-def _detect_arch() -> Arch:
+def detect_arch() -> Arch:
     """Detect the current CPU architecture (cached)."""
     # NOTE: avoid platform.machine() on Windows.
     # Python's platform.machine() may call platform.uname() which may query WMI
     # (slow/hangs on some machines).
-    if _detect_platform() == Platform.WINDOWS:
+    if detect_platform() == Platform.WINDOWS:
         env_arch = (
             _os.environ.get("PROCESSOR_ARCHITEW6432")
             or _os.environ.get("PROCESSOR_ARCHITECTURE")
@@ -193,7 +195,7 @@ def detect_linux_distro() -> LinuxDistro:
     - /etc/os-release is not readable
     - Distribution is not recognized
     """
-    if _detect_platform() != Platform.LINUX:
+    if detect_platform() != Platform.LINUX:
         return LinuxDistro.UNKNOWN
 
     content = _read_os_release()
@@ -221,22 +223,22 @@ def detect() -> PlatformInfo:
     Linux distribution (if applicable).
     """
     return PlatformInfo(
-        platform=_detect_platform(),
-        arch=_detect_arch(),
+        platform=detect_platform(),
+        arch=detect_arch(),
         distro=detect_linux_distro(),
     )
 
 
 def is_windows() -> bool:
     """Check if running on Windows."""
-    return _detect_platform() == Platform.WINDOWS
+    return detect_platform() == Platform.WINDOWS
 
 
 def is_linux() -> bool:
     """Check if running on Linux."""
-    return _detect_platform() == Platform.LINUX
+    return detect_platform() == Platform.LINUX
 
 
 def is_macos() -> bool:
     """Check if running on macOS."""
-    return _detect_platform() == Platform.MACOS
+    return detect_platform() == Platform.MACOS

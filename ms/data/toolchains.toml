@@ -17,6 +17,9 @@ emscripten = "latest"
 # SDL2 is auto-installed only on Windows.
 sdl2 = "2.30.0"
 
+# Zig compiler for Windows native builds (produces MSVC-compatible binaries).
+zig = "0.14.0"
+
 [platformio]
 # Installed into tools/platformio/venv and configured with PLATFORMIO_* env vars.
 version = "6.1.18"

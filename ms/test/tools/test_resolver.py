@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from ms.core.result import Err, Ok
 from ms.platform.detection import Arch, Platform
 from ms.tools.base import Mode, ToolSpec

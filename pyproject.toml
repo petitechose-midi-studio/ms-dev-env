@@ -35,9 +35,10 @@ markers = [
 
 [tool.pyright]
 include = ["ms"]
-exclude = ["ms/test"]
 pythonVersion = "3.13"
 typeCheckingMode = "strict"
+venvPath = "."
+venv = ".venv"
 
 [tool.ruff]
 line-length = 100

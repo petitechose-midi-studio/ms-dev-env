@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from ms.core import (
     Config,
     Err,
@@ -20,8 +18,8 @@ from ms.core import (
     detect_workspace,
     load_config,
 )
-from ms.output import MockConsole, Style
-from ms.platform import Platform, detect, is_windows
+from ms.output import MockConsole
+from ms.platform import Platform, detect
 
 
 class TestPhase1Integration:
@@ -184,61 +182,52 @@ class TestModuleExports:
     """Test that all Phase 1 modules export correctly."""
 
     def test_core_exports(self) -> None:
-        """Test ms.core exports."""
-        from ms.core import (
-            Config,
-            ConfigError,
-            Err,
-            ErrorCode,
-            Ok,
-            Result,
-            Workspace,
-            WorkspaceError,
-            detect_workspace,
-            is_err,
-            is_ok,
-            load_config,
-        )
+        """Test ms.core exports all expected symbols."""
+        import ms.core as core
 
-        # All should be importable
-        assert Config is not None
-        assert ErrorCode is not None
-        assert Ok is not None
-        assert Err is not None
-        assert Workspace is not None
+        expected = {
+            "Config",
+            "ConfigError",
+            "Err",
+            "ErrorCode",
+            "Ok",
+            "Result",
+            "Workspace",
+            "WorkspaceError",
+            "detect_workspace",
+            "is_err",
+            "is_ok",
+            "load_config",
+        }
+        assert expected <= set(dir(core))
 
     def test_platform_exports(self) -> None:
-        """Test ms.platform exports."""
-        from ms.platform import (
-            Arch,
-            LinuxDistro,
-            Platform,
-            PlatformInfo,
-            detect,
-            detect_linux_distro,
-            home,
-            is_linux,
-            is_macos,
-            is_windows,
-            user_config_dir,
-        )
+        """Test ms.platform exports all expected symbols."""
+        import ms.platform as platform
 
-        assert Platform is not None
-        assert Arch is not None
-        assert detect is not None
-        assert home is not None
-        assert user_config_dir is not None
+        expected = {
+            "Arch",
+            "LinuxDistro",
+            "Platform",
+            "PlatformInfo",
+            "detect",
+            "detect_linux_distro",
+            "home",
+            "is_linux",
+            "is_macos",
+            "is_windows",
+            "user_config_dir",
+        }
+        assert expected <= set(dir(platform))
 
     def test_output_exports(self) -> None:
-        """Test ms.output exports."""
-        from ms.output import (
-            ConsoleProtocol,
-            MockConsole,
-            RichConsole,
-            Style,
-        )
+        """Test ms.output exports all expected symbols."""
+        import ms.output as output
 
-        assert ConsoleProtocol is not None
-        assert MockConsole is not None
-        assert RichConsole is not None
-        assert Style is not None
+        expected = {
+            "ConsoleProtocol",
+            "MockConsole",
+            "RichConsole",
+            "Style",
+        }
+        assert expected <= set(dir(output))

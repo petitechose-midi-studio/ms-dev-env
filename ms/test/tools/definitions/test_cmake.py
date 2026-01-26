@@ -1,9 +1,6 @@
 """Tests for CMakeTool."""
 
-import sys
 from pathlib import Path
-
-import pytest
 
 from ms.core.result import Ok
 from ms.platform.detection import Arch, Platform

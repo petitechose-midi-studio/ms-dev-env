@@ -2,7 +2,7 @@
 
 This module provides a Result type similar to Rust's Result<T, E>.
 It forces explicit handling of success and failure cases, eliminating
-the need for try/except blocks scattered throughout the codebase.
+the need for try/except blocks scattered throughout the app.
 
 Usage:
     def divide(a: int, b: int) -> Result[float, str]:

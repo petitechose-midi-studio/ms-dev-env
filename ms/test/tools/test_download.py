@@ -33,29 +33,29 @@ class TestDownloadResult:
 class TestDownloaderCacheKey:
     """Tests for cache key generation."""
 
-    def test_cache_key_includes_filename(self, tmp_path: Path) -> None:
+    def testcache_key_includes_filename(self, tmp_path: Path) -> None:
         """Cache key includes original filename."""
         downloader = Downloader(MockHttpClient(), tmp_path)
 
-        key = downloader._cache_key("https://example.com/path/to/ninja-linux.zip")
+        key = downloader.cache_key("https://example.com/path/to/ninja-linux.zip")
 
         assert "ninja-linux.zip" in key
 
-    def test_cache_key_unique_per_url(self, tmp_path: Path) -> None:
+    def testcache_key_unique_per_url(self, tmp_path: Path) -> None:
         """Different URLs get different cache keys."""
         downloader = Downloader(MockHttpClient(), tmp_path)
 
-        key1 = downloader._cache_key("https://example.com/v1/file.zip")
-        key2 = downloader._cache_key("https://example.com/v2/file.zip")
+        key1 = downloader.cache_key("https://example.com/v1/file.zip")
+        key2 = downloader.cache_key("https://example.com/v2/file.zip")
 
         assert key1 != key2
 
-    def test_cache_key_same_for_same_url(self, tmp_path: Path) -> None:
+    def testcache_key_same_for_same_url(self, tmp_path: Path) -> None:
         """Same URL always gets same cache key."""
         downloader = Downloader(MockHttpClient(), tmp_path)
 
-        key1 = downloader._cache_key("https://example.com/file.zip")
-        key2 = downloader._cache_key("https://example.com/file.zip")
+        key1 = downloader.cache_key("https://example.com/file.zip")
+        key2 = downloader.cache_key("https://example.com/file.zip")
 
         assert key1 == key2
 

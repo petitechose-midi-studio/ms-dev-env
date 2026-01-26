@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ms.platform.detection import Platform
 
-__all__ = ["WrapperGenerator", "WrapperSpec", "create_emscripten_wrappers"]
+__all__ = ["WrapperGenerator", "WrapperSpec", "create_emscripten_wrappers", "create_zig_wrappers"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +183,48 @@ def create_emscripten_wrappers(
     specs = [
         WrapperSpec(name="emcc", target=emcc, env=env),
         WrapperSpec(name="emcmake", target=emcmake, env=env),
+    ]
+
+    return generator.generate_all(specs, platform)
+
+
+def create_zig_wrappers(
+    zig_dir: Path,
+    bin_dir: Path,
+    platform: Platform,
+) -> list[Path]:
+    """Create zig compiler wrapper scripts (zig-cc, zig-cxx, zig-ar).
+
+    These wrappers invoke zig with -target x86_64-windows-gnu to produce
+    GNU-compatible binaries that link with SDL2 MinGW libraries.
+
+    Args:
+        zig_dir: Path to zig directory (tools/zig)
+        bin_dir: Directory to write wrappers to
+        platform: Target platform
+
+    Returns:
+        List of paths to generated wrappers
+    """
+    generator = WrapperGenerator(bin_dir)
+    zig_exe = zig_dir / ("zig.exe" if str(platform).lower() == "windows" else "zig")
+
+    specs = [
+        WrapperSpec(
+            name="zig-cc",
+            target=zig_exe,
+            args=("cc", "-target", "x86_64-windows-gnu"),
+        ),
+        WrapperSpec(
+            name="zig-cxx",
+            target=zig_exe,
+            args=("c++", "-target", "x86_64-windows-gnu"),
+        ),
+        WrapperSpec(
+            name="zig-ar",
+            target=zig_exe,
+            args=("ar",),
+        ),
     ]
 
     return generator.generate_all(specs, platform)

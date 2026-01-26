@@ -21,6 +21,8 @@ __all__ = [
     "Workspace",
     "WorkspaceError",
     "detect_workspace",
+    "find_workspace_upward",
+    "is_workspace_root",
 ]
 
 
@@ -121,7 +123,7 @@ class Workspace:
         return str(self.root)
 
 
-def _is_workspace_root(path: Path) -> bool:
+def is_workspace_root(path: Path) -> bool:
     """Check if a path is a workspace root.
 
     A workspace root must have:
@@ -130,13 +132,13 @@ def _is_workspace_root(path: Path) -> bool:
     return (path / ".ms-workspace").is_file()
 
 
-def _find_workspace_upward(start: Path) -> Path | None:
+def find_workspace_upward(start: Path) -> Path | None:
     """Search upward from start directory for a workspace root.
 
     Returns the workspace root path if found, None otherwise.
     """
     for parent in (start, *start.parents):
-        if _is_workspace_root(parent):
+        if is_workspace_root(parent):
             return parent
     return None
 
@@ -163,7 +165,7 @@ def detect_workspace(
     env_value = os.environ.get(env_var)
     if env_value:
         env_path = Path(env_value).expanduser().resolve()
-        if env_path.is_dir() and _is_workspace_root(env_path):
+        if env_path.is_dir() and is_workspace_root(env_path):
             return Ok(Workspace(root=env_path))
         # Environment variable set but invalid - this is an error, not a fallback
         return Err(
@@ -177,7 +179,7 @@ def detect_workspace(
     search_start = start_dir or Path.cwd()
     search_start = search_start.resolve()
 
-    found = _find_workspace_upward(search_start)
+    found = find_workspace_upward(search_start)
     if found:
         return Ok(Workspace(root=found))
 

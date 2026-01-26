@@ -5,6 +5,33 @@ import pytest
 from ms.core.result import Ok, Err, Result, is_ok, is_err
 
 
+# Helper functions for tests (avoids lambda type inference issues)
+def double(x: int) -> int:
+    return x * 2
+
+
+def double_ok(x: int) -> Result[int, str]:
+    return Ok(x * 2)
+
+
+def safe_div(a: int, b: int) -> Result[int, str]:
+    if b == 0:
+        return Err("division by zero")
+    return Ok(a // b)
+
+
+def div_by_2(x: int) -> Result[int, str]:
+    return safe_div(x, 2)
+
+
+def div_by_5(x: int) -> Result[int, str]:
+    return safe_div(x, 5)
+
+
+def div_by_0(x: int) -> Result[int, str]:
+    return safe_div(x, 0)
+
+
 class TestOk:
     """Tests for Ok type."""
 
@@ -53,8 +80,8 @@ class TestOk:
 
     def test_ok_flat_map_to_ok(self) -> None:
         """Ok.flat_map() with function returning Ok."""
-        result: Result[int, str] = Ok(21)
-        flat = result.flat_map(lambda x: Ok(x * 2))
+        result = Ok(21)
+        flat = result.flat_map(double_ok)
         assert flat == Ok(42)
 
     def test_ok_flat_map_to_err(self) -> None:
@@ -117,8 +144,8 @@ class TestErr:
 
     def test_err_map(self) -> None:
         """Err.map() returns self unchanged."""
-        result: Result[int, str] = Err("error")
-        mapped = result.map(lambda x: x * 2)
+        result: Err[str] = Err("error")
+        mapped = result.map(double)
         assert mapped == Err("error")
 
     def test_err_map_err(self) -> None:
@@ -129,8 +156,8 @@ class TestErr:
 
     def test_err_flat_map(self) -> None:
         """Err.flat_map() returns self unchanged."""
-        result: Result[int, str] = Err("error")
-        flat = result.flat_map(lambda x: Ok(x * 2))
+        result: Err[str] = Err("error")
+        flat = result.flat_map(double_ok)
         assert flat == Err("error")
 
     def test_err_repr(self) -> None:
@@ -175,12 +202,22 @@ class TestTypeGuards:
         assert is_err(result) is False
 
 
+def _make_ok_result() -> Result[int, str]:
+    """Helper to create Ok result (hides concrete type from pyright)."""
+    return Ok(42)
+
+
+def _make_err_result() -> Result[int, str]:
+    """Helper to create Err result (hides concrete type from pyright)."""
+    return Err("oops")
+
+
 class TestPatternMatching:
     """Tests for pattern matching with match statement."""
 
     def test_match_ok(self) -> None:
         """Pattern matching works with Ok."""
-        result: Result[int, str] = Ok(42)
+        result = _make_ok_result()
         match result:
             case Ok(value):
                 assert value == 42
@@ -189,7 +226,7 @@ class TestPatternMatching:
 
     def test_match_err(self) -> None:
         """Pattern matching works with Err."""
-        result: Result[int, str] = Err("oops")
+        result = _make_err_result()
         match result:
             case Ok(_):
                 pytest.fail("Should not match Ok")
@@ -202,36 +239,20 @@ class TestResultChaining:
 
     def test_chain_maps(self) -> None:
         """Multiple map operations can be chained."""
-        result: Result[int, str] = Ok(10)
+        result = Ok(10)
         final = result.map(lambda x: x * 2).map(lambda x: x + 1).map(str)
         assert final == Ok("21")
 
     def test_chain_flat_maps(self) -> None:
         """Multiple flat_map operations can be chained."""
-
-        def safe_div(a: int, b: int) -> Result[int, str]:
-            if b == 0:
-                return Err("division by zero")
-            return Ok(a // b)
-
-        result: Result[int, str] = Ok(100)
-        final = result.flat_map(lambda x: safe_div(x, 2)).flat_map(
-            lambda x: safe_div(x, 5)
-        )
+        result = Ok(100)
+        final = result.flat_map(div_by_2).flat_map(div_by_5)
         assert final == Ok(10)
 
     def test_chain_stops_on_err(self) -> None:
         """Chain stops propagating on first Err."""
-
-        def safe_div(a: int, b: int) -> Result[int, str]:
-            if b == 0:
-                return Err("division by zero")
-            return Ok(a // b)
-
-        result: Result[int, str] = Ok(100)
-        final = result.flat_map(lambda x: safe_div(x, 0)).flat_map(
-            lambda x: safe_div(x, 5)
-        )
+        result = Ok(100)
+        final = result.flat_map(div_by_0).flat_map(div_by_5)
         assert final == Err("division by zero")
 
 

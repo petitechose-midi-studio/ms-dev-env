@@ -12,10 +12,10 @@ from ms.core.result import Err, Ok
 from ms.core.workspace import (
     Workspace,
     WorkspaceError,
-    _find_workspace_upward,
-    _is_workspace_root,
     detect_workspace,
     detect_workspace_or_raise,
+    find_workspace_upward,
+    is_workspace_root,
 )
 
 
@@ -121,37 +121,37 @@ class TestWorkspaceError:
 
 
 class TestIsWorkspaceRoot:
-    """Test _is_workspace_root helper."""
+    """Test is_workspace_root helper."""
 
     def test_valid_workspace(self, temp_workspace: Path) -> None:
-        assert _is_workspace_root(temp_workspace) is True
+        assert is_workspace_root(temp_workspace) is True
 
     def test_missing_marker(self, tmp_path: Path) -> None:
-        assert _is_workspace_root(tmp_path) is False
+        assert is_workspace_root(tmp_path) is False
 
     def test_empty_dir(self, tmp_path: Path) -> None:
-        assert _is_workspace_root(tmp_path) is False
+        assert is_workspace_root(tmp_path) is False
 
     def test_marker_as_dir(self, tmp_path: Path) -> None:
         """Marker must be a file, not a directory."""
         (tmp_path / ".ms-workspace").mkdir()
-        assert _is_workspace_root(tmp_path) is False
+        assert is_workspace_root(tmp_path) is False
 
 
 class TestFindWorkspaceUpward:
-    """Test _find_workspace_upward helper."""
+    """Test find_workspace_upward helper."""
 
     def test_find_at_start(self, temp_workspace: Path) -> None:
-        found = _find_workspace_upward(temp_workspace)
+        found = find_workspace_upward(temp_workspace)
         assert found == temp_workspace
 
     def test_find_from_nested(self, nested_workspace: Path) -> None:
         nested = nested_workspace / "a" / "b" / "c"
-        found = _find_workspace_upward(nested)
+        found = find_workspace_upward(nested)
         assert found == nested_workspace
 
     def test_not_found(self, tmp_path: Path) -> None:
-        found = _find_workspace_upward(tmp_path)
+        found = find_workspace_upward(tmp_path)
         assert found is None
 
 
@@ -160,23 +160,23 @@ class TestDetectWorkspace:
 
     def test_detect_from_workspace_root(self, temp_workspace: Path) -> None:
         """Starting at a workspace root should find it immediately."""
-        # Use _find_workspace_upward directly to avoid env var interference
-        from ms.core.workspace import _find_workspace_upward
+        # Use find_workspace_upward directly to avoid env var interference
+        from ms.core.workspace import find_workspace_upward
 
-        found = _find_workspace_upward(temp_workspace)
+        found = find_workspace_upward(temp_workspace)
         assert found == temp_workspace
 
     def test_detect_from_nested(self, nested_workspace: Path) -> None:
         """Starting from nested dir should find workspace above."""
-        from ms.core.workspace import _find_workspace_upward
+        from ms.core.workspace import find_workspace_upward
 
         nested = nested_workspace / "a" / "b" / "c"
-        found = _find_workspace_upward(nested)
+        found = find_workspace_upward(nested)
         assert found == nested_workspace
 
     def test_not_found_in_isolated_hierarchy(self, tmp_path: Path) -> None:
         """When no workspace markers exist in hierarchy, returns None."""
-        from ms.core.workspace import _find_workspace_upward
+        from ms.core.workspace import find_workspace_upward
 
         # tmp_path has no workspace markers, but its parents might include
         # the real workspace. Create a "fake root" by making a marker that
@@ -186,7 +186,7 @@ class TestDetectWorkspace:
         isolated.mkdir()
         # The helper will search upward and may find real workspace
         # So we test that if workspace IS found, it's not our isolated path
-        found = _find_workspace_upward(isolated)
+        found = find_workspace_upward(isolated)
         # found might be the real workspace or None - either is valid
         # What we care about is that isolated itself is NOT a workspace
         assert found != isolated

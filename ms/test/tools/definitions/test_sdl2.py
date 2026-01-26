@@ -72,36 +72,36 @@ class TestSdl2ToolDownloadUrl:
     """Tests for Sdl2Tool.download_url()."""
 
     def test_windows_x64(self) -> None:
-        """Download URL for Windows x64."""
+        """Download URL for Windows x64 (MinGW)."""
         tool = Sdl2Tool()
 
         url = tool.download_url("2.30.0", Platform.WINDOWS, Arch.X64)
 
         assert (
             url
-            == "https://github.com/libsdl-org/SDL/releases/download/release-2.30.0/SDL2-devel-2.30.0-VC.zip"
+            == "https://github.com/libsdl-org/SDL/releases/download/release-2.30.0/SDL2-devel-2.30.0-mingw.zip"
         )
 
     def test_windows_arm64(self) -> None:
-        """Download URL is same for Windows ARM64 (VC build)."""
+        """Download URL is same for Windows ARM64 (MinGW build)."""
         tool = Sdl2Tool()
 
         url = tool.download_url("2.30.0", Platform.WINDOWS, Arch.ARM64)
 
-        # Same URL - we use VC build
-        assert "SDL2-devel-2.30.0-VC.zip" in url
+        # Same URL - we use MinGW build
+        assert "SDL2-devel-2.30.0-mingw.zip" in url
 
 
 class TestSdl2ToolBinPath:
     """Tests for Sdl2Tool.bin_path()."""
 
     def test_windows(self) -> None:
-        """Binary (DLL) path on Windows."""
+        """Binary (DLL) path on Windows (MinGW)."""
         tool = Sdl2Tool()
 
         path = tool.bin_path(Path("/tools"), Platform.WINDOWS)
 
-        assert path == Path("/tools/sdl2/lib/x64/SDL2.dll")
+        assert path == Path("/tools/sdl2/bin/SDL2.dll")
 
     def test_linux_returns_none(self) -> None:
         """bin_path returns None on Linux (system install)."""
@@ -132,25 +132,25 @@ class TestSdl2ToolPaths:
         assert path == Path("/tools/sdl2/include")
 
     def test_lib_path(self) -> None:
-        """lib_path returns SDL2 library location."""
+        """lib_path returns SDL2 library location (MinGW)."""
         tool = Sdl2Tool()
 
         path = tool.lib_path(Path("/tools"))
 
-        assert path == Path("/tools/sdl2/lib/x64")
+        assert path == Path("/tools/sdl2/lib")
 
 
 class TestSdl2ToolIsInstalled:
     """Tests for Sdl2Tool.is_installed()."""
 
     def test_windows_installed(self, tmp_path: Path) -> None:
-        """is_installed returns True when SDL2.lib exists on Windows."""
+        """is_installed returns True when libSDL2.dll.a exists on Windows (MinGW)."""
         tool = Sdl2Tool()
 
-        # Create SDL2.lib in VC package structure
-        lib_dir = tmp_path / "sdl2" / "lib" / "x64"
+        # Create libSDL2.dll.a in MinGW package structure
+        lib_dir = tmp_path / "sdl2" / "lib"
         lib_dir.mkdir(parents=True)
-        (lib_dir / "SDL2.lib").touch()
+        (lib_dir / "libSDL2.dll.a").touch()
 
         assert tool.is_installed(tmp_path, Platform.WINDOWS) is True
 

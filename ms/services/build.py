@@ -1,9 +1,9 @@
 """Build service for native and WASM targets.
 
-Provides build orchestration using platform-native toolchains:
-- Windows: Visual Studio (MSVC) via "Visual Studio 17 2022" generator
-- Linux/macOS: System compiler (GCC/Clang) via Ninja generator
-- WASM: Emscripten via emcmake + Ninja
+Provides build orchestration using Ninja generator on all platforms:
+- Windows: Zig compiler via zig-toolchain.cmake
+- Linux/macOS: System compiler (GCC/Clang)
+- WASM: Emscripten via emcmake
 """
 
 from __future__ import annotations
@@ -15,15 +15,100 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
-from ms.core.codebase import CodebaseError, resolve
+from ms.core.app import AppError, resolve
 from ms.core.config import Config
 from ms.core.errors import ErrorCode
-from ms.core.result import Err
+from ms.core.result import Err, Ok, Result
 from ms.core.workspace import Workspace
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.detection import Platform, PlatformInfo
 from ms.tools.registry import ToolRegistry
+
+
+# -----------------------------------------------------------------------------
+# Build Error Types
+# -----------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class AppNotFound:
+    """App does not exist."""
+
+    name: str
+    available: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SdlAppNotFound:
+    """SDL app not found for app."""
+
+    app_name: str
+
+
+@dataclass(frozen=True, slots=True)
+class AppConfigInvalid:
+    """App config (app.cmake) missing or invalid."""
+
+    path: Path
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolMissing:
+    """Required tool not installed."""
+
+    tool_id: str
+    hint: str = "Run: ms tools sync"
+
+
+@dataclass(frozen=True, slots=True)
+class PrereqMissing:
+    """Build prerequisite missing."""
+
+    name: str
+    hint: str
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigureFailed:
+    """CMake configure step failed."""
+
+    returncode: int
+
+
+@dataclass(frozen=True, slots=True)
+class CompileFailed:
+    """Build/compile step failed."""
+
+    returncode: int
+
+
+@dataclass(frozen=True, slots=True)
+class OutputMissing:
+    """Expected output file not found."""
+
+    path: Path
+
+
+BuildError = (
+    AppNotFound
+    | SdlAppNotFound
+    | AppConfigInvalid
+    | ToolMissing
+    | PrereqMissing
+    | ConfigureFailed
+    | CompileFailed
+    | OutputMissing
+)
+
+Target = Literal["native", "wasm"]
+
+
+# -----------------------------------------------------------------------------
+# App Config
+# -----------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,192 +138,177 @@ class BuildService:
             arch=platform.arch,
         )
 
-    def build_native(self, *, codebase: str, dry_run: bool = False) -> bool:
-        """Build native executable for current platform."""
-        res = resolve(codebase, self._workspace.root)
+    def build_native(
+        self, *, app_name: str, dry_run: bool = False
+    ) -> Result[Path, BuildError]:
+        """Build native executable for current platform.
+
+        Returns:
+            Ok(path) with path to built executable
+            Err(BuildError) on failure
+        """
+        # Resolve app_name
+        res = resolve(app_name, self._workspace.root)
         if isinstance(res, Err):
-            self._print_codebase_error(res.error)
-            return False
+            return Err(
+                AppNotFound(
+                    name=res.error.name,
+                    available=res.error.available,
+                )
+            )
 
         cb = res.value
         if cb.sdl_path is None:
-            self._console.error(f"SDL app not found for codebase: {codebase}")
-            return False
+            return Err(SdlAppNotFound(app_name=app_name))
 
-        app_cfg = self._read_app_config(cb.sdl_path)
-        if app_cfg is None:
-            return False
+        # Read app config
+        app_cfg_result = self._read_app_config_result(cb.sdl_path)
+        if isinstance(app_cfg_result, Err):
+            return app_cfg_result
+        app_cfg = app_cfg_result.value
 
-        if not self._ensure_core_layout():
-            return False
+        # Check prerequisites
+        prereq_result = self._check_build_prereqs(dry_run=dry_run)
+        if isinstance(prereq_result, Err):
+            return prereq_result
 
-        if not self._ensure_pio_libdeps(dry_run=dry_run):
-            return False
+        # Get tool paths
+        cmake = self._get_tool_path("cmake")
+        if isinstance(cmake, Err):
+            return cmake
+        ninja = self._get_tool_path("ninja")
+        if isinstance(ninja, Err):
+            return ninja
 
-        cmake = self._tool_path("cmake")
-        if cmake is None:
-            return False
+        # Windows-specific prereqs
+        if self._platform.platform == Platform.WINDOWS:
+            win_prereq = self._check_windows_native_prereqs()
+            if isinstance(win_prereq, Err):
+                return win_prereq
 
+        # Setup build
         sdl_src = self._core_sdl_dir()
         build_dir = self._workspace.build_dir / app_cfg.app_id / "native"
         build_dir.mkdir(parents=True, exist_ok=True)
-
         env = self._base_env()
 
-        # Platform-specific CMake configuration
-        if self._platform.platform == Platform.WINDOWS:
-            # Windows: use Visual Studio generator (works without vcvars)
-            if not self._ensure_windows_native_prereqs():
-                return False
+        configure_args = [
+            str(cmake.value),
+            "-G",
+            "Ninja",
+            "-S",
+            str(sdl_src),
+            "-B",
+            str(build_dir),
+            f"-DAPP_PATH={cb.sdl_path}",
+            f"-DBIN_OUTPUT_DIR={self._workspace.bin_dir}",
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
+        ]
 
+        # Platform-specific additions
+        if self._platform.platform == Platform.WINDOWS:
+            toolchain_file = self._core_sdl_dir() / "zig-toolchain.cmake"
             sdl2_root = self._registry.tools_dir / "sdl2"
-            configure_args = [
-                str(cmake),
-                "-G",
-                "Visual Studio 17 2022",
-                "-A",
-                "x64",
-                "-S",
-                str(sdl_src),
-                "-B",
-                str(build_dir),
-                f"-DAPP_PATH={cb.sdl_path}",
-                f"-DBIN_OUTPUT_DIR={self._workspace.bin_dir}",
+            configure_args += [
+                f"-DCMAKE_TOOLCHAIN_FILE={toolchain_file}",
                 f"-DSDL2_ROOT={sdl2_root}",
             ]
-            build_args = [
-                str(cmake),
-                "--build",
-                str(build_dir),
-                "--config",
-                "Release",
-            ]
-        else:
-            # Linux/macOS: use Ninja generator with system compiler
-            ninja = self._tool_path("ninja")
-            if ninja is None:
-                return False
 
-            configure_args = [
-                str(cmake),
-                "-G",
-                "Ninja",
-                "-S",
-                str(sdl_src),
-                "-B",
-                str(build_dir),
-                f"-DAPP_PATH={cb.sdl_path}",
-                f"-DBIN_OUTPUT_DIR={self._workspace.bin_dir}",
-                "-DCMAKE_BUILD_TYPE=Release",
-                f"-DCMAKE_MAKE_PROGRAM={ninja}",
-            ]
-            build_args = [str(ninja), "-C", str(build_dir)]
+        build_args = [str(ninja.value), "-C", str(build_dir)]
 
         # Configure
         self._console.print(" ".join(configure_args), Style.DIM)
         if not dry_run:
-            if (
-                subprocess.run(
-                    configure_args, cwd=str(self._workspace.root), env=env, check=False
-                ).returncode
-                != 0
-            ):
-                self._console.error("cmake configure failed")
-                return False
+            proc = subprocess.run(
+                configure_args, cwd=str(self._workspace.root), env=env, check=False
+            )
+            if proc.returncode != 0:
+                return Err(ConfigureFailed(returncode=proc.returncode))
 
         # Build
         self._console.print(" ".join(build_args), Style.DIM)
         if not dry_run:
-            if (
-                subprocess.run(
-                    build_args, cwd=str(self._workspace.root), env=env, check=False
-                ).returncode
-                != 0
-            ):
-                self._console.error("build failed")
-                return False
+            proc = subprocess.run(
+                build_args, cwd=str(self._workspace.root), env=env, check=False
+            )
+            if proc.returncode != 0:
+                return Err(CompileFailed(returncode=proc.returncode))
 
         # Verify output
         out_dir = self._workspace.bin_dir / app_cfg.app_id / "native"
         out_exe = out_dir / self._platform.platform.exe_name(app_cfg.exe_name)
         if not dry_run and not out_exe.exists():
-            self._console.error(f"native binary not found: {out_exe}")
-            return False
+            return Err(OutputMissing(path=out_exe))
 
         # Copy SDL2.dll on Windows
         if not dry_run and self._platform.platform == Platform.WINDOWS:
-            import shutil
-
-            sdl2_dll = self._registry.tools_dir / "sdl2" / "lib" / "x64" / "SDL2.dll"
-            if sdl2_dll.exists():
+            sdl2_dll = self._registry.tools_dir / "sdl2" / "bin" / "SDL2.dll"
+            if sdl2_dll.exists() and not (out_dir / "SDL2.dll").exists():
                 shutil.copy2(sdl2_dll, out_dir / "SDL2.dll")
 
-        self._console.success(str(out_exe))
-        return True
+        return Ok(out_exe)
 
-    def run_native(self, *, codebase: str) -> int:
+    def run_native(self, *, app_name: str) -> int:
         """Build and run native executable."""
-        res = resolve(codebase, self._workspace.root)
+        result = self.build_native(app_name=app_name)
+
+        match result:
+            case Ok(exe_path):
+                self._console.print(f"run: {exe_path}", Style.DIM)
+                return subprocess.run(
+                    [str(exe_path)], cwd=str(self._workspace.root), check=False
+                ).returncode
+            case Err(error):
+                self._print_build_error(error)
+                return self._error_to_exit_code(error)
+
+    def build_wasm(
+        self, *, app_name: str, dry_run: bool = False
+    ) -> Result[Path, BuildError]:
+        """Build WebAssembly target using Emscripten.
+
+        Returns:
+            Ok(path) with path to built HTML file
+            Err(BuildError) on failure
+        """
+        # Resolve app_name
+        res = resolve(app_name, self._workspace.root)
         if isinstance(res, Err):
-            self._print_codebase_error(res.error)
-            return int(ErrorCode.USER_ERROR)
+            return Err(
+                AppNotFound(
+                    name=res.error.name,
+                    available=res.error.available,
+                )
+            )
 
         cb = res.value
         if cb.sdl_path is None:
-            self._console.error(f"SDL app not found for codebase: {codebase}")
-            return int(ErrorCode.ENV_ERROR)
+            return Err(SdlAppNotFound(app_name=app_name))
 
-        app_cfg = self._read_app_config(cb.sdl_path)
-        if app_cfg is None:
-            return int(ErrorCode.ENV_ERROR)
+        # Read app config
+        app_cfg_result = self._read_app_config_result(cb.sdl_path)
+        if isinstance(app_cfg_result, Err):
+            return app_cfg_result
+        app_cfg = app_cfg_result.value
 
-        if not self.build_native(codebase=codebase):
-            return int(ErrorCode.BUILD_ERROR)
+        # Check prerequisites
+        prereq_result = self._check_build_prereqs(dry_run=dry_run)
+        if isinstance(prereq_result, Err):
+            return prereq_result
 
-        exe = (
-            self._workspace.bin_dir
-            / app_cfg.app_id
-            / "native"
-            / self._platform.platform.exe_name(app_cfg.exe_name)
-        )
-        if not exe.exists():
-            self._console.error(f"native binary not found: {exe}")
-            return int(ErrorCode.IO_ERROR)
+        # Get tool paths
+        cmake = self._get_tool_path("cmake")
+        if isinstance(cmake, Err):
+            return cmake
+        ninja = self._get_tool_path("ninja")
+        if isinstance(ninja, Err):
+            return ninja
+        emcmake = self._get_emcmake_path()
+        if isinstance(emcmake, Err):
+            return emcmake
 
-        self._console.print(f"run: {exe}", Style.DIM)
-        return subprocess.run([str(exe)], cwd=str(self._workspace.root), check=False).returncode
-
-    def build_wasm(self, *, codebase: str, dry_run: bool = False) -> bool:
-        """Build WebAssembly target using Emscripten."""
-        res = resolve(codebase, self._workspace.root)
-        if isinstance(res, Err):
-            self._print_codebase_error(res.error)
-            return False
-
-        cb = res.value
-        if cb.sdl_path is None:
-            self._console.error(f"SDL app not found for codebase: {codebase}")
-            return False
-
-        app_cfg = self._read_app_config(cb.sdl_path)
-        if app_cfg is None:
-            return False
-
-        if not self._ensure_core_layout():
-            return False
-
-        if not self._ensure_pio_libdeps(dry_run=dry_run):
-            return False
-
-        cmake = self._tool_path("cmake")
-        ninja = self._tool_path("ninja")
-        if cmake is None or ninja is None:
-            return False
-
-        emcmake = self._emcmake_py()
-        if emcmake is None:
-            return False
-
+        # Setup build
         sdl_src = self._core_sdl_dir()
         build_dir = self._workspace.build_dir / app_cfg.app_id / "wasm"
         build_dir.mkdir(parents=True, exist_ok=True)
@@ -249,8 +319,8 @@ class BuildService:
 
         configure_args = [
             sys.executable,
-            str(emcmake),
-            str(cmake),
+            str(emcmake.value),
+            str(cmake.value),
             "-G",
             "Ninja",
             "-S",
@@ -260,69 +330,49 @@ class BuildService:
             f"-DAPP_PATH={cb.sdl_path}",
             f"-DBIN_OUTPUT_DIR={self._workspace.bin_dir}",
             "-DCMAKE_BUILD_TYPE=Release",
-            f"-DCMAKE_MAKE_PROGRAM={ninja}",
+            f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
         ]
 
+        # Configure
         self._console.print(" ".join(str(x) for x in configure_args), Style.DIM)
         if not dry_run:
-            if (
-                subprocess.run(
-                    configure_args, cwd=str(self._workspace.root), env=env, check=False
-                ).returncode
-                != 0
-            ):
-                self._console.error("emcmake/cmake configure failed")
-                return False
+            proc = subprocess.run(
+                configure_args, cwd=str(self._workspace.root), env=env, check=False
+            )
+            if proc.returncode != 0:
+                return Err(ConfigureFailed(returncode=proc.returncode))
 
-            build_cmd = [str(ninja), "-C", str(build_dir)]
+            # Build
+            build_cmd = [str(ninja.value), "-C", str(build_dir)]
             self._console.print(" ".join(build_cmd), Style.DIM)
-            if (
-                subprocess.run(
-                    build_cmd, cwd=str(self._workspace.root), env=env, check=False
-                ).returncode
-                != 0
-            ):
-                self._console.error("ninja build failed")
-                return False
+            proc = subprocess.run(
+                build_cmd, cwd=str(self._workspace.root), env=env, check=False
+            )
+            if proc.returncode != 0:
+                return Err(CompileFailed(returncode=proc.returncode))
 
+        # Verify output
         out_html = self._workspace.bin_dir / app_cfg.app_id / "wasm" / f"{app_cfg.exe_name}.html"
         if not dry_run and not out_html.exists():
-            self._console.error(f"wasm output not found: {out_html}")
-            return False
+            return Err(OutputMissing(path=out_html))
 
-        self._console.success(str(out_html))
-        return True
+        return Ok(out_html)
 
-    def serve_wasm(self, *, codebase: str, port: int = 8000) -> int:
+    def serve_wasm(self, *, app_name: str, port: int = 8000) -> int:
         """Build WASM and serve via HTTP."""
-        res = resolve(codebase, self._workspace.root)
-        if isinstance(res, Err):
-            self._print_codebase_error(res.error)
-            return int(ErrorCode.USER_ERROR)
+        result = self.build_wasm(app_name=app_name)
 
-        cb = res.value
-        if cb.sdl_path is None:
-            self._console.error(f"SDL app not found for codebase: {codebase}")
-            return int(ErrorCode.ENV_ERROR)
+        match result:
+            case Ok(html_path):
+                out_dir = html_path.parent
+                url_path = html_path.name
+                self._console.print(f"serve: http://localhost:{port}/{url_path}", Style.INFO)
 
-        app_cfg = self._read_app_config(cb.sdl_path)
-        if app_cfg is None:
-            return int(ErrorCode.ENV_ERROR)
-
-        if not self.build_wasm(codebase=codebase):
-            return int(ErrorCode.BUILD_ERROR)
-
-        out_dir = self._workspace.bin_dir / app_cfg.app_id / "wasm"
-        if not out_dir.exists():
-            self._console.error(f"wasm output dir not found: {out_dir}")
-            return int(ErrorCode.IO_ERROR)
-
-        html = out_dir / f"{app_cfg.exe_name}.html"
-        url_path = html.name if html.exists() else ""
-        self._console.print(f"serve: http://localhost:{port}/{url_path}", Style.INFO)
-
-        cmd = [sys.executable, "-m", "http.server", str(port), "-d", str(out_dir)]
-        return subprocess.run(cmd, cwd=str(self._workspace.root), check=False).returncode
+                cmd = [sys.executable, "-m", "http.server", str(port), "-d", str(out_dir)]
+                return subprocess.run(cmd, cwd=str(self._workspace.root), check=False).returncode
+            case Err(error):
+                self._print_build_error(error)
+                return self._error_to_exit_code(error)
 
     # -------------------------------------------------------------------------
     # Internal helpers
@@ -368,69 +418,22 @@ class BuildService:
         return True
 
     def _ensure_windows_native_prereqs(self) -> bool:
-        """Check Windows native build prerequisites (MSVC, SDL2)."""
-        # Check SDL2-VC is installed
-        sdl2_lib = self._registry.tools_dir / "sdl2" / "lib" / "x64" / "SDL2.lib"
+        """Check Windows native build prerequisites (Zig, SDL2)."""
+        # Check SDL2 MinGW package is installed
+        sdl2_lib = self._registry.tools_dir / "sdl2" / "lib" / "libSDL2.dll.a"
         if not sdl2_lib.exists():
-            self._console.error("SDL2 (VC) not found")
+            self._console.error("SDL2 not found")
             self._console.print("hint: Run: uv run ms tools sync", Style.DIM)
             return False
 
-        # Check for Visual Studio (via vswhere)
-        vswhere = self._find_vswhere()
-        if vswhere is None:
-            self._console.error("Visual Studio Build Tools not found")
-            self._console.print(
-                "hint: Install from https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022",
-                Style.DIM,
-            )
-            return False
-
-        # Verify C++ workload is installed
-        # Note: -products * is required to include Build Tools (not just full VS)
-        try:
-            result = subprocess.run(
-                [
-                    str(vswhere),
-                    "-latest",
-                    "-products",
-                    "*",
-                    "-requires",
-                    "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
-                    "-property",
-                    "installationPath",
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if result.returncode != 0 or not result.stdout.strip():
-                self._console.error("Visual Studio C++ workload not found")
-                self._console.print(
-                    "hint: Install 'Desktop development with C++' workload",
-                    Style.DIM,
-                )
-                return False
-        except Exception:
-            self._console.error("Failed to query Visual Studio installation")
+        # Check Zig wrappers exist
+        zig_cc = self._registry.tools_dir / "bin" / "zig-cc.cmd"
+        if not zig_cc.exists():
+            self._console.error("Zig compiler wrappers not found")
+            self._console.print("hint: Run: uv run ms tools sync", Style.DIM)
             return False
 
         return True
-
-    def _find_vswhere(self) -> Path | None:
-        """Find vswhere.exe (Visual Studio locator)."""
-        # Standard location
-        program_files = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
-        vswhere = Path(program_files) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
-        if vswhere.exists():
-            return vswhere
-
-        # Try PATH
-        found = shutil.which("vswhere")
-        if found:
-            return Path(found)
-
-        return None
 
     def _base_env(self) -> dict[str, str]:
         env = os.environ.copy()
@@ -492,11 +495,127 @@ class BuildService:
             return None
         return AppConfig(app_id=app_id, exe_name=exe_name)
 
-    def _print_codebase_error(self, err: CodebaseError) -> None:
+    def _print_app_error(self, err: AppError) -> None:
         msg = err.message
         if err.available:
             msg += f"\nAvailable: {', '.join(err.available)}"
         self._console.error(msg)
+
+    # -------------------------------------------------------------------------
+    # Result-based helpers (for new API)
+    # -------------------------------------------------------------------------
+
+    def _read_app_config_result(self, app_path: Path) -> Result[AppConfig, BuildError]:
+        """Read app.cmake and return AppConfig or error."""
+        app_cmake = app_path / "app.cmake"
+        if not app_cmake.exists():
+            return Err(AppConfigInvalid(path=app_cmake, reason="file not found"))
+
+        content = app_cmake.read_text(encoding="utf-8")
+        app_id = _extract_cmake_var(content, "APP_ID")
+        exe_name = _extract_cmake_var(content, "APP_EXE_NAME")
+        if not app_id or not exe_name:
+            return Err(AppConfigInvalid(path=app_cmake, reason="missing APP_ID or APP_EXE_NAME"))
+        return Ok(AppConfig(app_id=app_id, exe_name=exe_name))
+
+    def _check_build_prereqs(self, *, dry_run: bool) -> Result[None, BuildError]:
+        """Check core layout and PIO libdeps."""
+        # Check core layout
+        if not (self._workspace.midi_studio_dir / "core").is_dir():
+            return Err(PrereqMissing(name="midi-studio/core", hint="Run: ms repos sync"))
+        if not self._workspace.open_control_dir.is_dir():
+            return Err(PrereqMissing(name="open-control", hint="Run: ms repos sync"))
+        if not self._core_sdl_dir().is_dir():
+            return Err(PrereqMissing(name="SDL build system", hint=str(self._core_sdl_dir())))
+
+        # Check PIO libdeps
+        core_dir = self._workspace.midi_studio_dir / "core"
+        libdeps = core_dir / ".pio" / "libdeps"
+        if libdeps.is_dir():
+            return Ok(None)
+
+        pio = self._pio_cmd()
+        if pio is None:
+            return Err(ToolMissing(tool_id="platformio"))
+
+        cmd = [str(pio), "pkg", "install"]
+        self._console.print(" ".join(cmd), Style.DIM)
+        if dry_run:
+            return Ok(None)
+
+        proc = subprocess.run(cmd, cwd=str(core_dir), env=self._base_env(), check=False)
+        if proc.returncode != 0:
+            return Err(PrereqMissing(name="PlatformIO libdeps", hint="pio pkg install failed"))
+        return Ok(None)
+
+    def _get_tool_path(self, tool_id: str) -> Result[Path, BuildError]:
+        """Get tool path or error."""
+        p = self._registry.get_bin_path(tool_id)
+        if p is not None and p.exists():
+            return Ok(p)
+        found = shutil.which(tool_id)
+        if found:
+            return Ok(Path(found))
+        return Err(ToolMissing(tool_id=tool_id))
+
+    def _check_windows_native_prereqs(self) -> Result[None, BuildError]:
+        """Check Windows native build prerequisites."""
+        # Check SDL2 MinGW package
+        sdl2_lib = self._registry.tools_dir / "sdl2" / "lib" / "libSDL2.dll.a"
+        if not sdl2_lib.exists():
+            return Err(PrereqMissing(name="SDL2", hint="Run: ms tools sync"))
+
+        # Check Zig wrappers
+        zig_cc = self._registry.tools_dir / "bin" / "zig-cc.cmd"
+        if not zig_cc.exists():
+            return Err(PrereqMissing(name="Zig compiler wrappers", hint="Run: ms tools sync"))
+
+        return Ok(None)
+
+    def _get_emcmake_path(self) -> Result[Path, BuildError]:
+        """Get emcmake.py path or error."""
+        emcmake = self._registry.tools_dir / "emsdk" / "upstream" / "emscripten" / "emcmake.py"
+        if emcmake.exists():
+            return Ok(emcmake)
+        return Err(ToolMissing(tool_id="emscripten", hint=f"emcmake.py not found: {emcmake}"))
+
+    def _print_build_error(self, error: BuildError) -> None:
+        """Print build error to console."""
+        match error:
+            case AppNotFound(name=name, available=available):
+                self._console.error(f"Unknown app_name: {name}")
+                if available:
+                    self._console.print(f"Available: {', '.join(available)}", Style.DIM)
+            case SdlAppNotFound(app_name=app_name):
+                self._console.error(f"SDL app not found for app_name: {app_name}")
+            case AppConfigInvalid(path=path, reason=reason):
+                self._console.error(f"Invalid app config: {path} ({reason})")
+            case ToolMissing(tool_id=tool_id, hint=hint):
+                self._console.error(f"{tool_id}: missing")
+                self._console.print(f"hint: {hint}", Style.DIM)
+            case PrereqMissing(name=name, hint=hint):
+                self._console.error(f"{name}: missing")
+                self._console.print(f"hint: {hint}", Style.DIM)
+            case ConfigureFailed(returncode=rc):
+                self._console.error(f"cmake configure failed (exit {rc})")
+            case CompileFailed(returncode=rc):
+                self._console.error(f"build failed (exit {rc})")
+            case OutputMissing(path=path):
+                self._console.error(f"output not found: {path}")
+
+    def _error_to_exit_code(self, error: BuildError) -> int:
+        """Convert BuildError to exit code."""
+        match error:
+            case AppNotFound():
+                return int(ErrorCode.USER_ERROR)
+            case SdlAppNotFound() | AppConfigInvalid():
+                return int(ErrorCode.ENV_ERROR)
+            case ToolMissing() | PrereqMissing():
+                return int(ErrorCode.ENV_ERROR)
+            case ConfigureFailed() | CompileFailed():
+                return int(ErrorCode.BUILD_ERROR)
+            case OutputMissing():
+                return int(ErrorCode.IO_ERROR)
 
 
 _CMAKE_SET_RE = re.compile(r"^\s*set\(\s*(?P<name>[A-Z0-9_]+)\s+\"(?P<value>[^\"]+)\"\s*\)\s*$")

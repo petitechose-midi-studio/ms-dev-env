@@ -22,6 +22,7 @@ from ms.tools.wrapper import (
     WrapperGenerator,
     WrapperSpec,
     create_emscripten_wrappers,
+    create_zig_wrappers,
 )
 
 
@@ -209,6 +210,13 @@ class ToolchainService:
         emsdk_dir = self._paths.tools_dir / "emsdk"
         if emsdk_dir.exists():
             create_emscripten_wrappers(emsdk_dir, self._paths.bin_dir, self._platform.platform)
+
+        # Zig compiler wrappers (Windows only)
+        from ms.platform.detection import Platform
+        if self._platform.platform == Platform.WINDOWS:
+            zig_dir = self._paths.tools_dir / "zig"
+            if zig_dir.exists():
+                create_zig_wrappers(zig_dir, self._paths.bin_dir, self._platform.platform)
 
     def _install_git_tool(self, tool: _GitInstallTool, *, dry_run: bool) -> bool:
         cmds = tool.get_install_commands(self._paths.tools_dir, self._platform.platform)
