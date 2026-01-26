@@ -94,6 +94,14 @@ arch = "sudo pacman -S gcc"
 macos = "xcode-select --install"
 windows = "Install MinGW-w64: https://www.mingw-w64.org/"
 
+# C compiler/linker - required for Rust compilation
+[system.cc]
+fedora = "sudo dnf install gcc"
+debian = "sudo apt install build-essential"
+arch = "sudo pacman -S base-devel"
+macos = "xcode-select --install"
+windows = "Install Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+
 # =============================================================================
 # Embedded/Platform Tools
 # =============================================================================
@@ -136,6 +144,14 @@ debian = "sudo apt install pkg-config"
 arch = "sudo pacman -S pkgconf"
 macos = "brew install pkg-config"
 windows = "N/A"
+
+# libudev - required for USB/MIDI device access (oc-bridge)
+[system.libudev]
+fedora = "sudo dnf install systemd-devel"
+debian = "sudo apt install libudev-dev pkg-config"
+arch = "sudo pacman -S systemd-libs"
+macos = "N/A (uses IOKit)"
+windows = "N/A (uses WinUSB)"
 
 # =============================================================================
 # Optional/Asset Tools

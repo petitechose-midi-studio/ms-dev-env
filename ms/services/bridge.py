@@ -22,9 +22,31 @@ from ms.platform.process import run_silent
 class BridgeError:
     """Error from bridge operations."""
 
-    kind: Literal["dir_missing", "cargo_missing", "build_failed", "binary_missing"]
+    kind: Literal["dir_missing", "cargo_missing", "linker_missing", "build_failed", "binary_missing"]
     message: str
     hint: str | None = None
+
+
+def _get_linker_hint(platform: PlatformInfo) -> str:
+    """Get platform-specific hint for installing C linker."""
+    from ms.platform.detection import LinuxDistro, Platform
+
+    if platform.platform == Platform.WINDOWS:
+        return "Install Build Tools: https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+    if platform.platform == Platform.MACOS:
+        return "Run: xcode-select --install"
+    # Linux - check distro
+    if platform.distro == LinuxDistro.FEDORA:
+        return "Run: sudo dnf install gcc"
+    if platform.distro == LinuxDistro.ARCH:
+        return "Run: sudo pacman -S base-devel"
+    # Default to Debian/Ubuntu
+    return "Run: sudo apt install build-essential"
+
+
+def _has_c_linker() -> bool:
+    """Check if a C compiler/linker is available."""
+    return shutil.which("cc") is not None or shutil.which("gcc") is not None
 
 
 class BridgeService:
@@ -59,7 +81,17 @@ class BridgeService:
                 BridgeError(
                     kind="cargo_missing",
                     message="cargo: missing",
-                    hint="install rustup: https://rustup.rs",
+                    hint="Install rustup: https://rustup.rs",
+                )
+            )
+
+        # Rust needs a C linker (cc/gcc) to link binaries
+        if not _has_c_linker():
+            return Err(
+                BridgeError(
+                    kind="linker_missing",
+                    message="C linker (cc/gcc): missing",
+                    hint=_get_linker_hint(self._platform),
                 )
             )
 
