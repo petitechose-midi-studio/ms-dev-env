@@ -1,190 +1,140 @@
-# CLI Unification - Execution Runbook (DEV Priority)
+# CLI Unification - Execution Runbook (DEV)
 
-> Date: 2026-01-25
-> Status: ACTIVE (source of truth for implementation order)
-> Scope: DEV only. END-USER is explicitly deferred.
+> Last updated: 2026-01-25
+> Status: ACTIVE
+> Roadmap / decisions: `docs/memories/work/cli-unification-plan.md`
 
-This document is the **precise step-by-step** execution plan to make `ms/` the **only** system.
-No legacy, no duplication, no ambiguous entrypoints.
+Ce document est une checklist operationnelle pour:
 
-
-## Target UX/DX (DEV)
-
-- Canonical invocation (no activation required): `uv run ms <cmd>`
-- One mental model:
-  - `ms setup` prepares everything.
-  - `ms check` diagnoses and gives actionable hints.
-  - `ms build/upload/run/web` operate on codebases.
-- Idempotent: rerun is safe.
-- Non-invasive: no shell profile edits by default.
-- Repro-friendly: tool versions are pinned; repo SHAs are snapshotted.
+- verifier l'etat du setup DEV
+- executer un test "fresh workspace" (reproductibilite)
+- capturer les sorties attendues / warnings acceptables
 
 
-## Non-negotiable rules
+## Preconditions (system)
 
-- One backend: all business logic lives in `ms/`.
-- One state directory: `.ms/` (gitignored).
-- One build directory: `.build/` (gitignored).
-- One toolchain directory: `tools/` (gitignored).
-- Workspace detection uses `.ms-workspace` marker.
-- On Windows, bridge build requires: `rustup` + MSVC Build Tools + Windows SDK (no full IDE).
+Requis (DEV):
 
+- `uv` (system dependency)
+- `git`
+- `gh` + `gh auth status` OK
 
-## Workspace layout (DEV)
+Requis (build native):
 
-- `.ms-workspace` (marker, versioned)
-- `.ms/` (state, locks, caches)
-  - `.ms/state.toml`
-  - `.ms/repos.lock.json`
-  - `.ms/cache/downloads/`
-  - `.ms/platformio/` (PLATFORMIO_CORE_DIR)
-  - `.ms/platformio-cache/` (PLATFORMIO_CACHE_DIR)
-  - `.ms/platformio-build-cache/` (PLATFORMIO_BUILD_CACHE_DIR)
-- `tools/` (toolchains + wrappers)
-  - `tools/bin/` (wrappers)
-  - `tools/state.json` (installed versions)
-  - `tools/platformio/venv/` (dedicated PlatformIO venv)
-- `.build/` (build outputs)
-- `bin/` (runtime artifacts like built bridge binary)
+- Windows: Visual Studio Build Tools 2022 (workload "Desktop development with C++")
+- Linux: un compilateur C/C++ (gcc/g++ ou clang/clang++) + `pkg-config` + `libsdl2-dev`
+- macOS: Xcode Command Line Tools (`xcode-select --install`)
+
+Optionnel (selon ce que tu testes):
+
+- `cargo` (bridge build)
+- outils runtime: loopMIDI (Windows), inkscape/fontforge (icons)
 
 
-## Entry point policy
+## Canonical invocation
 
-- Documented, official: `uv run ms ...`
-- Optional convenience: `tools/activate.*` to add `tools/bin` to PATH.
-- No repo-level wrapper (`commands/ms`) in the final system.
-
-
-## Toolchain reproducibility policy
-
-- Tool versions are pinned in a versioned file (planned: `ms/data/toolchains.toml`).
-- `ms tools sync` installs exactly those versions.
-- `ms tools upgrade` is the only command that updates pins (and should be committed).
+- Officiel: `uv run ms <cmd>`
+- Optionnel: `tools/activate.*` (ajoute `tools/bin` au PATH)
 
 
-## Repo reproducibility policy
+## Quick smoke (sans rien casser)
 
-- Default: follow each repo's **default branch** at latest HEAD.
-- Always write `.ms/repos.lock.json` with resolved `head_sha`.
-- Future (optional): `ms repos sync --lock <file>` to reproduce exact SHAs.
+Depuis la racine workspace:
 
+1) `uv run ms --help`
+2) `uv run ms check`
 
-## PlatformIO policy (official)
+Attendu:
 
-PlatformIO is isolated to the workspace using official env vars:
-- `PLATFORMIO_CORE_DIR=<workspace>/.ms/platformio`
-- `PLATFORMIO_CACHE_DIR=<workspace>/.ms/platformio-cache`
-- `PLATFORMIO_BUILD_CACHE_DIR=<workspace>/.ms/platformio-build-cache`
-
-PlatformIO is installed into a dedicated venv:
-- `tools/platformio/venv`
-
-Wrappers in `tools/bin` force these env vars for all PlatformIO invocations.
+- workspace detecte via `.ms-workspace`
+- hints actionnables si deps manquantes
 
 
-## Implementation milestones (strict order)
+## Setup DEV (workspace existant)
 
-### Milestone 1 - CLI skeleton (already started)
+Commande:
 
-Deliverables:
-- `python -m ms --help` works
-- `ms check` implemented in `ms/` (no ms_cli)
-
-
-### Milestone 2 - `ms repos sync` (clone all repos via gh)
-
-Command:
-- `uv run ms repos sync`
-
-Behavior (exact):
-1) Require `gh` present and authenticated (`gh auth status`)
-2) For each org in:
-   - `open-control`
-   - `petitechose-midi-studio`
-   run `gh repo list <org> --limit <N> --json name,isArchived,defaultBranchRef,url --jq ...`
-3) Filter out `isArchived=true`
-4) Clone via HTTPS:
-   - if `<workspace>/<group>/<repo>/.git` absent -> `git clone <url> <dest>`
-   - else -> `git fetch` and if clean -> `git pull --ff-only`
-5) Write `.ms/repos.lock.json` with:
-   - org, repo, default_branch, head_sha, url
-6) Never reset dirty repos; log warning and skip.
-
-Acceptance:
-- Fresh workspace clone + `ms repos sync` yields `open-control/*` and `midi-studio/*` trees.
-
-
-### Milestone 3 - `ms tools sync` (install pinned toolchains)
-
-Command:
-- `uv run ms tools sync`
-
-Behavior (exact):
-1) Read pinned versions from `ms/data/toolchains.toml`
-2) Use `.ms/cache/downloads` for all downloads
-3) Install tools into `tools/<tool-id>`
-4) Record installed versions into `tools/state.json`
-5) Generate wrappers into `tools/bin`
-6) Generate activation scripts: `tools/activate.sh`, `tools/activate.ps1`, `tools/activate.bat`
-
-Acceptance:
-- `ms check` reports toolchain OK after `ms tools sync`.
-
-
-### Milestone 4 - PlatformIO venv + workspace core_dir
-
-Commands:
-- `uv run ms tools sync` (includes PlatformIO)
-
-Behavior (exact):
-1) Create `tools/platformio/venv` if missing
-2) Install pinned `platformio==<version>` into that venv
-3) Create wrappers `tools/bin/pio` and `tools/bin/platformio` that set:
-   - `PLATFORMIO_*` directories to `.ms/*`
-4) Ensure `ms` passes these env vars when calling OpenControl scripts.
-
-Acceptance:
-- PlatformIO does not touch `~/.platformio` by default.
-- `pio system info` works under workspace isolation.
-
-
-### Milestone 5 - `ms setup --mode dev` (orchestrator)
-
-Command:
 - `uv run ms setup --mode dev`
 
-Behavior (exact):
-1) Create/Update `.ms/state.toml` (mode=dev)
-2) Run `ms repos sync`
-3) Run `ms tools sync`
-4) Run `uv sync --frozen --extra dev`
-5) Run `ms check`
+Attendu:
 
-Flags:
-- `--skip-repos`, `--skip-tools`, `--skip-python`, `--skip-check`
-- `--dry-run` (prints actions, does not modify)
-
-Acceptance:
-- On a fresh clone, `ms setup --mode dev` completes and `ms check` is actionable.
+- repos sync (`open-control/`, `midi-studio/`)
+- toolchains installees dans `tools/` + `tools/activate.*` + `tools/bin/*`
+- python deps: `uv sync --frozen --extra dev`
+- `ms check` termine sans erreurs bloquantes
 
 
-### Milestone 6 - Bridge (required) and Bitwig (optional)
+## Fresh workspace validation (reproductibilite)
 
+Objectif: valider qu'un workspace vide peut etre reconstruit via `ms setup`.
+
+1) Backup (recommande) ou suppression de:
+- `open-control/`
+- `midi-studio/`
+- `tools/`
+- `.ms/`
+- `.build/`
+- `bin/`
+- `.venv/`
+
+2) Run:
+- `uv run ms setup --mode dev`
+
+3) Verify:
+- `uv run ms check`
+
+Elements attendus apres setup:
+
+- `.ms/state.toml`
+- `.ms/repos.lock.json`
+- `.ms/cache/downloads/*`
+- `tools/activate.{sh,ps1,bat}`
+- `tools/bin/*` (wrappers)
+- `tools/platformio/venv/`
+
+Warnings acceptables aujourd'hui:
+
+- `oc-bridge: not built` (tant que tu n'as pas execute `uv run ms bridge build`)
+- runtime: loopMIDI / inkscape / fontforge (optionnels)
+
+
+## Project artifacts (bridge + bitwig)
+
+Ces etapes ne font pas partie du bootstrap "env" (`ms setup`) par defaut.
+Elles restaurent les fonctionnalites legacy (build bridge + extension Bitwig).
+
+1) Bridge:
 - `uv run ms bridge build`
-- `uv run ms bitwig deploy`
+- `uv run ms bridge run --help` (ou args)
 
-Behavior (exact):
-- Windows prereqs are detected and reported before attempting build.
+2) Bitwig:
+- `uv run ms bitwig build` (produit `midi_studio.bwextension` dans `host/target/` + copie dans `bin/bitwig/`)
+- `uv run ms bitwig deploy` (installe dans le dossier Extensions + copie dans `bin/bitwig/`)
 
 
-### Milestone 7 - Final switch + legacy removal
+## Debug checklist
 
-1) Switch entrypoint in `pyproject.toml`:
-   - `ms = "ms.cli.app:main"`
-2) Remove `ms_cli/` directory
-3) Remove `commands/` and any repo-level wrappers
-4) Keep at most a minimal bootstrap script (optional) that only checks `uv` is installed, then runs `uv run ms setup`.
+Si `ms repos sync` echoue:
 
-Acceptance:
-- No references to `ms_cli` remain.
-- One documented entrypoint.
+- `gh auth status`
+- verifier protocole git (HTTPS)
+
+Si PlatformIO pollue `~/.platformio`:
+
+- verifier que `tools/bin/pio*` est utilise
+- verifier env vars `PLATFORMIO_CORE_DIR`, `PLATFORMIO_CACHE_DIR`, `PLATFORMIO_BUILD_CACHE_DIR`
+
+Si versions differentes selon shell:
+
+- `command -v uv` (PowerShell vs Git Bash)
+
+Si build native Windows echoue:
+
+- verifier Build Tools: `vswhere.exe` present (Visual Studio Installer)
+- verifier que `uv run ms check` affiche "MSVC: ok"
+
+
+## Quality gate (local, avant PR)
+
+- `uv run pytest ms/test -q`
+- `uv run pyright ms --stats`

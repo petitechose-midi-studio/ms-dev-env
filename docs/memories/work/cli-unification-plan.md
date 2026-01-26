@@ -1,303 +1,363 @@
-# CLI Unification Plan (DEV First)
-
-> Date: 2026-01-25
-> Statut: DRAFT (a valider ensemble)
-
-Objectif: faire de `ms/` l'unique systeme (CLI + setup + checks + toolchains + repos + builds), supprimer definitivement tout legacy (`ms_cli/`, wrappers historiques, scripts dupliques), et garantir un design clean, multiplateforme, maintenable.
-
-Deroule d'execution (ordre exact, runbook): `docs/memories/work/cli-unification-execution.md`
-
-Scope immediat: **mode DEV uniquement**.
-Scope differe: mode END-USER (GitHub Releases) - on prepare l'architecture pour l'ajouter sans refonte.
-
-
-## Definition of Done
-
-- Un seul backend: tout comportement vit dans `ms/` (pas de duplication ailleurs).
-- Un seul point d'entree documente: `uv run ms ...` depuis la racine workspace.
-- `ms setup` est l'orchestrateur unique du mode dev (repos + toolchains + activation + verification + builds optionnels).
-- `ms check` est la source de verite (mode-aware) et donne des hints actionnables.
-- `ms build/upload/monitor/run/web/clean/bridge/icons/status/update` existent en version dev et appellent les services `ms/services/*`.
-- Les scripts shell restants sont uniquement des bootstrap minimaux (si conserves) et ne contiennent aucune logique metier.
-- `ms_cli/` supprime.
-- CI: tests + pyright strict sur `ms/` et smoke tests sur `uv run ms check`.
-
-
-## Decisions fermes (pas d'ambiguite)
-
-- **CLI unique**: `ms` (package `ms/`).
-- **Execution canonique (cross-platform, sans activation)**: `uv run ms <command>`.
-- **Alias non-invasif (optionnel)**: `tools/activate.*` peut mettre `ms` dans le PATH (via `tools/bin`).
-- **Mode dev**: dependance assumee sur `gh` (GitHub CLI, authentifie) + `git`.
-- **Bridge (Windows, DEV)**: build-from-source requis -> `rustup` + MSVC Build Tools (C++ build tools + Windows SDK). Pas besoin de l'IDE Visual Studio.
-- **Repos dev**: discovery via GH API (default branch, pas hardcode "main"), clone/update idempotent.
-- **Toolchains dev**: installees et gerees par `ms.tools` (cache + state + wrappers + activation scripts).
-- **Non invasif par defaut**: aucune ecriture automatique dans `.bashrc`/PowerShell profiles; uniquement `tools/activate.*`.
-- **DIP strict**: output, HTTP, command runner, filesystem access injection-friendly.
-- **Qualite**: pyright strict, tests unitaires + tests d'integration (sans reseau si possible, via mocks).
-
-
-## UX/DX principles (cible)
-
-- One-liner mental model: `ms setup` -> `ms check` -> `ms build/upload/run/web`.
-- Idempotent: relancer `ms setup` ne casse rien, ne reinstalle pas inutilement.
-- Fast default: caches (downloads), skip des repos dirties, ff-only par defaut.
-- Non invasif: aucune modification systeme silencieuse; tout ce qui est "system-level" passe par `ms check` + instructions.
-- Reproductible: versions toolchains pinnees + snapshot repos resolus (lock) a chaque sync.
-- Observable: `--dry-run` sur toutes les commandes qui modifient (repos/tools/setup/update), + `--verbose`.
-
-
-## Reproductibilite (DEV)
-
-Repos:
-- Par defaut: on suit la default branch de chaque repo (latest), mais on ecrit toujours un snapshot `.ms/repos.lock.json` (repo -> remote -> default_branch -> sha).
-- On ignore les repos archives.
-- Option future (si besoin): filtrer par topics (ex: `ms-workspace`) pour ne pas cloner des repos hors scope.
-- Option de reproduction exacte: `ms repos sync --lock .ms/repos.lock.json` (checkout SHAs).
-
-Toolchains:
-- Par defaut: versions pinnees dans un fichier versionne (ex: `ms/data/toolchains.toml`).
-- Action explicite: `ms tools upgrade` met a jour les pins (et doit etre committe si on veut un "known good").
-- `ms tools sync` installe uniquement ce qui manque ou ce qui ne match pas la version pinnee.
-
-
-## Strategie Windows (DEV)
-
-Objectif: maximiser "pas de VS" sans sacrifier la stabilite.
-
-- Teensy (PlatformIO): VS non requis.
-- WASM (emsdk): VS non requis.
-- Native SDL:
-  - Windows: utiliser Zig via `CMAKE_TOOLCHAIN_FILE` (pas MSVC) + SDL2 bundle.
-  - Linux/macOS: SDL2 via deps systemes (check + hint).
-- Bridge (Rust): point dur.
- - Bridge (Rust): requis en mode dev.
-   - Windows: **MSVC Build Tools requis** (C++ build tools + Windows SDK) + `rustup` (rustc/cargo).
-   - VS-free sur Windows (mingw/zig linker) = option avancée, a considerer plus tard.
-
-
-## Architecture cible (monosource)
-
-Principes:
-- `ms/cli`: Typer uniquement, pas de logique metier.
-- `ms/services`: orchestration (setup/check/build/update/repos/tools).
-- `ms/tools`: toolchains (download/install/state/wrappers).
-- `ms/git`: multi-repo.
-- `ms/core`: workspace/config/codebase/result/errors.
-- `ms/platform`: detection + shell activation.
-
-Structure cible (simplifiee):
-
-```
-ms/
-  __init__.py
-  __main__.py
-  cli/
-    app.py
-    context.py
-    commands/
-      setup.py
-      check.py
-      repos.py
-      tools.py
-      build.py
-      bridge.py
-      update.py
-      status.py
-      icons.py
-  core/
-  platform/
-  output/
-  tools/
-  git/
-  build/
-  services/
-    checkers/
-    setup.py
-    repos.py
-    toolchains.py
-    build.py
-    bridge.py
-    update.py
-```
-
-
-## Workspace layout (prepare END-USER sans l'implementer)
-
-On separe strictement code et state.
-
-Workspace marker (versionne): ajouter un fichier `.ms-workspace` (vide) a la racine.
-- But: detection workspace sans dependre d'un dossier `commands/` (legacy).
-- Consequence: on pourra supprimer `commands/` totalement a la fin.
-
-- `.ms/` (workspace state, non versionne)
-  - `.ms/state.toml` (mode, options, timestamps)
-  - `.ms/repos.lock.json` (snapshot des SHAs resolus)
-  - `.ms/cache/` (downloads cache pour ms)
-- `tools/` (toolchains installees, non versionne)
-  - `tools/bin` (wrappers)
-  - `tools/state.json` (versions toolchains installees)
-- `bin/` (artefacts de build, non versionne)
-- `.build/` (build artifacts, non versionne)
-
-END-USER plus tard: ajouter `bin/releases/` + manifest sans casser l'arborescence.
-
-
-## Contrat des commandes (mode DEV)
-
-- `ms setup`:
-  - interactif si pas de flags: propose `dev` vs `enduser` (enduser = "not implemented" pour l'instant).
-  - `--mode dev` (default tant que enduser pas implemente)
-  - orchestre: repos -> toolchains -> activation -> check -> (optionnel) builds.
-
-- `ms check`:
-  - verifie workspace (repos), toolchains (ms.tools), prerequis systeme (SDL2/ALSA/etc), runtime.
-  - doit etre idempotent et "actionnable".
-
-- `ms repos sync`:
-  - utilise `gh` pour lister les repos, clone la default branch, update ff-only.
-  - ecrit `.ms/repos.lock.json` (repo -> remote -> branch -> sha).
-
-- `ms tools sync`:
-  - installe toolchains requises pour DEV via `ms.tools`.
-  - genere `tools/activate.*`.
-
-- `ms build <codebase> <target>`:
-  - `target`: `teensy|native|wasm`.
-  - par defaut, teensy delegue a OpenControl (`oc-build/oc-upload/oc-monitor`).
-
-- `ms upload/monitor/run/web/clean`:
-  - wrappers ergonomiques sur BuildService.
-
-- `ms bridge build/run`:
-  - build et run `open-control/bridge`.
-
-- `ms update`:
-  - dev: update explicite (repos ff-only, toolchains upgrade explicite, python deps).
-
-- `ms status`:
-  - git multi-repo (workspace + open-control/* + midi-studio/*).
-
-
-## Plan d'action (ordre d'execution)
-
-### Phase 1 - Fixer le contrat et preparer la base (no behavior change)
-
-1) Ajouter `.ms-workspace` (marker) et migrer `ms.core.workspace.detect_workspace()` pour l'utiliser.
-2) Creer le state workspace `.ms/state.toml` (mode-aware) et `.ms/cache/`.
-3) Ajouter un `RepoService` (API, pas encore branche sur `ms setup`).
-4) Ajouter un `ToolchainService` (API, pas encore branche sur `ms setup`).
-5) Creer le squelette CLI `ms/cli` + wiring DI (Console, Workspace, Config, Platform, Runner).
-6) Ajouter `ms setup` (stub) + `ms check` (appelle checkers existants).
-
-Critere: `uv run ms --help`, `uv run ms check` fonctionnent en ne cassant rien.
-
-
-### Phase 2 - Repos DEV via GH (ms devient source de verite)
-
-1) Implementer `ms repos sync`:
-   - require `gh` + `gh auth status`.
-   - lister repos des orgs (open-control, petitechose-midi-studio).
-   - cloner dans `open-control/<repo>` ou `midi-studio/<repo>`.
-   - cloner la **default branch** (pas hardcode main).
-   - update: ff-only si clean.
-   - ecrire `.ms/repos.lock.json`.
-2) Integrer `RepoService` dans `ms setup --mode dev`.
-
-Critere: un clone vide du workspace + `uv run ms repos sync` produit l'arborescence complete.
-
-
-### Phase 3 - Toolchains DEV via `ms.tools` (pinned, reproductible)
-
-1) Definir une source de verite "versions toolchains" (fichier versionne dans ce repo):
-   - ex: `ms/data/toolchains.toml` (versions pinnees).
-2) Implementer `ms tools sync`:
-   - installe les outils requis pour Mode.DEV via `ToolRegistry`.
-   - applique les versions pinnees.
-   - download cache dans `.ms/cache/`.
-   - state dans `tools/state.json`.
-   - genere `tools/activate.*`.
-3) Implementer `ms tools upgrade` (action explicite) pour rafraichir les versions.
-4) Integrer `ms tools sync` dans `ms setup --mode dev`.
-
-Critere: `uv run ms tools sync` installe un environnement dev coherent sans toucher aux profiles shell.
-
-
-### Phase 4 - Portage builds dans `ms/` (supprimer dependance a `ms_cli/build`)
-
-1) Creer `ms/build/teensy.py`, `ms/build/native.py`, `ms/build/wasm.py` en portant le code de `ms_cli/build/*`.
-2) Adapter pour utiliser `ms.tools` (ToolRegistry/Resolver) + Runner injectable.
-3) Teensy:
-   - par defaut: delegation a `open-control/cli-tools/bin/oc-*`.
-   - fallback "raw": `pio` direct.
-4) Native:
-   - Windows: utiliser Zig comme toolchain (pas VS) via `CMAKE_TOOLCHAIN_FILE`.
-   - SDL2: Windows via tool bundled; Linux/mac via system deps (check + hint).
-5) WASM:
-   - emsdk via `ms.tools` (non global), run emcmake/emcc via python.
-6) Exposer `ms build/run/web/upload/monitor/clean` via `ms/services/build.py`.
-
-Critere: `uv run ms build core teensy`, `uv run ms run core`, `uv run ms web core` fonctionnent (selon OS deps).
-
-
-### Phase 5 - Orchestration DEV complete (`ms setup` devient le seul setup)
-
-1) Implementer `SetupService`:
-   - etapes: repos sync -> tools sync -> activation scripts -> check -> (optionnel) build bridge/bitwig.
-   - flags: `--skip-repos`, `--skip-tools`, `--skip-check`, `--targets teensy,native,wasm,bridge`.
-2) Ajouter un mode interactif minimal:
-   - prompt: dev vs enduser (enduser non implemente => message clair).
-   - prompt optionnel: targets.
-3) Verrouiller le comportement idempotent.
-
-Critere: sur machine fraiche, `uv run ms setup --mode dev` suffit pour etre operationnel.
-
-
-### Phase 6 - Bridge + Bitwig (DEV)
-
-1) `BridgeService`:
-   - build `open-control/bridge` (cargo) + run.
-   - Windows: strategy explicite (VS-free si possible, sinon prerequis documente + check).
-2) `BitwigService`:
-   - build/deploy extension via Maven/JDK geres par tools.
-   - discovery du dossier Bitwig + override config.
-
-Critere: `uv run ms bridge` et `uv run ms setup` (avec bitwig) fonctionnent.
-
-
-### Phase 7 - Switch final + suppression legacy (un seul systeme)
-
-1) Basculer le script entrypoint `ms` vers `ms.cli.app:main` dans `pyproject.toml`.
-2) Supprimer `ms_cli/` et toutes references.
-3) Supprimer tout le legacy repo-level:
-   - `commands/` (wrappers, dev scripts, completions)
-   - scripts de setup legacy (tout ce qui n'est pas un bootstrap minimal)
-   - toute reference a `ms_cli`.
-4) Transformer `setup-minimal.sh` en bootstrap minimal:
-   - il ne clone plus les repos.
-   - il ne fait que: verifier `uv` puis lancer `uv run ms setup --mode dev`.
-   - ajouter un equivalent PowerShell si necessaire (strictement minimal).
-5) Mettre a jour docs (README) avec un unique chemin.
-
-Critere: aucun fichier legacy ne reste; un nouveau clone suit un seul chemin documente.
-
-
-## Test & CI (quality gate)
-
-- Unit tests: `uv run pytest ms/test -q`
-- Typecheck: `uv run pyright ms`
-- Smoke:
-  - `uv run ms --help`
-  - `uv run ms check`
-  - `uv run ms repos sync --dry-run` (a ajouter)
-  - `uv run ms tools sync --dry-run` (a ajouter)
-
-
-## END-USER (differe, mais prepare)
-
-Ce qu'on fait maintenant pour faciliter l'ajout plus tard:
-- `Mode` existe deja (`DEV`, `ENDUSER`).
-- Workspace state `.ms/state.toml` prevoit `mode` + `channel/ref`.
-- Services separables: RepoService/ToolchainService/BuildService.
-
-Plus tard (hors scope): `ReleaseService` (GitHub Releases manifest + download + history + pin/rollback).
+# MIDI Studio Workspace CLI - Unification + Parite (DEV First)
+
+> Start date: 2026-01-25
+> Last updated: 2026-01-25
+> Status: ACTIVE (source of truth)
+> Scope: DEV only. END-USER is deferred.
+
+Objectif: faire de `ms/` l'unique systeme (CLI + setup + checks + toolchains + repos + builds), supprimer definitivement tout legacy (`ms_cli/`, `setup.sh`, docs legacy), et restaurer toutes les fonctionnalites utiles de l'ancien CLI via des equivalents propres et maintenables.
+
+Runbook (procedure de validation, dont "fresh workspace"): `docs/memories/work/cli-unification-execution.md`
+
+
+## Etat actuel (factuel)
+
+Livre (deja fait, dans le repo):
+
+- Backend unique: `ms/` (services, outils, checkers, tests).
+- Point d'entree officiel: `uv run ms <cmd>` (pas d'activation requise).
+- Workspace marker: `.ms-workspace`.
+- State: `.ms/` (gitignored) + build: `.build/` + runtime artifacts: `bin/` + toolchains: `tools/`.
+- Commandes existantes:
+  - `ms setup --mode dev` (repos + tools + python deps + check)
+  - `ms check`
+  - `ms repos sync`
+  - `ms tools sync`
+  - `ms bridge build/run`
+  - `ms bitwig build/deploy`
+  - `ms build/run/web` (native + wasm)
+- Decisions actees:
+  - `uv` est une dependance systeme (pas installee/upgradee par `ms`).
+  - Pas de modification automatique des profiles shell; uniquement `tools/activate.*`.
+  - PlatformIO est isole dans le workspace via `PLATFORMIO_*` + venv dediee.
+- Legacy supprime:
+  - `ms_cli/`
+  - `setup.sh`
+  - `docs/ms-cli/`
+
+Non livre (a faire pour parite):
+
+- Commandes restantes: upload/monitor/clean/update/status/changes/icons/completion/list.
+- `build/run` existent mais Windows native doit etre simplifie (cf. Phase B.1).
+- Orchestration optionnelle (si desire): `ms setup` peut declencher `bridge/bitwig` via flags.
+- CI moderne (tests + pyright + smoke) sans `setup.sh`.
+
+
+## Definition of Done (parite DEV)
+
+On considere l'objectif atteint quand:
+
+- `ms/` est l'unique backend (aucune logique metier ailleurs).
+- `uv run ms ...` est l'unique point d'entree documente (le reste est optionnel et deprecie).
+- "Fresh workspace" reproductible:
+  - suppression de `open-control/`, `midi-studio/`, `tools/`, `.ms/`, `.build/`, `bin/`, `.venv/`
+  - `uv run ms setup --mode dev` reconstruit repos + toolchains + deps Python + scripts d'activation
+  - `uv run ms check` est actionnable (0 erreurs bloquantes; warnings acceptes selon prerequis externes).
+- Parite commandes legacy (equivalents dans `ms`):
+  - `ms bridge build/run`
+  - `ms bitwig build/deploy`
+  - `ms build/upload/monitor/run/web`
+  - `ms clean`
+  - `ms update`
+  - `ms status` / `ms changes`
+  - `ms icons`
+  - `ms completion`
+  - `ms list`
+- Tests/quality gate:
+  - `uv run pytest ms/test -q`
+  - `uv run pyright ms --stats`
+  - smoke: `uv run ms --help`, `uv run ms check`
+
+
+## Decisions actees (et leur impact)
+
+1) `uv` = dependance systeme
+- Raison: bootstrap stable, evite overwrite/locks Windows, moins de matrice plateforme.
+- Consequence: `ms check` doit expliquer comment installer/upgrade `uv`.
+
+2) `gh` (auth) = dependance DEV
+- Raison: discovery repos via API + HTTPS.
+- Consequence: `ms repos sync` echoue si `gh` absent/non-auth.
+
+3) PlatformIO isole (workspace-local)
+- Env vars forcees:
+  - `PLATFORMIO_CORE_DIR=.ms/platformio`
+  - `PLATFORMIO_CACHE_DIR=.ms/platformio-cache`
+  - `PLATFORMIO_BUILD_CACHE_DIR=.ms/platformio-build-cache`
+- Consequence: pas de pollution `~/.platformio`.
+
+4) Non invasif par defaut
+- Pas d'ecriture dans `.bashrc`/PowerShell profiles.
+- On genere seulement `tools/activate.*`.
+
+5) Windows: eviter WMI pour la detection
+- Raison: `platform.system()`/`platform.machine()` peut hang sur certains environnements Windows.
+- Consequence: detection via `sys.platform` + env vars processeur.
+
+6) Windows native: MSVC (Build Tools) uniquement
+- Objectif: toolchain plateforme-native, robuste, et suppression du glue code Zig.
+- Consequence:
+  - `zig` n'est plus requis/installe par `ms tools sync` (sauf reintroduction explicite plus tard).
+  - Windows native build exige Visual Studio Build Tools 2022 (workload C++).
+  - SDL2 Windows: utiliser le package `SDL2-devel-<ver>-VC.zip` (pas MinGW).
+  - `ms build <codebase> native` sur Windows utilise le generateur CMake "Visual Studio 17 2022".
+
+
+## Incoherences / dette technique identifiees (a corriger)
+
+- `--dry-run` n'est pas encore "zero side effects":
+  - `ms tools sync --dry-run` cree quand meme `tools/` et `tools/bin/`.
+  - `ms repos sync --dry-run` appelle `gh repo list` (reseau).
+- `ms check` Runtime hint: `ms bridge install` est mentionne mais la commande n'existe pas encore.
+- `ms check` depend du `uv` trouve dans PATH; l'environnement shell (PowerShell vs Git Bash) peut changer le binaire resolu.
+
+
+## Inventaire parite (legacy -> nouveau)
+
+Source legacy: ancien `ms` (Typer) + scripts `open-control/cli-tools`.
+
+| Legacy | Nouveau (cible) | Statut | Notes |
+|---|---|---|---|
+| `ms doctor` | `ms check` | DONE | `ms check` remplace doctor/verify en unifie. |
+| `ms verify` | `ms check` | DONE | (Option: ajouter `ms verify` alias si besoin). |
+| `ms setup --bootstrap` | `ms setup --mode dev` | DONE | Aujourd'hui: prepare workspace (pas de builds projet). |
+| `ms setup` (build bridge + deploy bitwig) | `ms bridge build` + `ms bitwig deploy` | DONE | Decision actee: build/deploy sont des commandes explicites (pas implicitement dans `ms setup`). |
+| `ms update` | `ms update` | TODO | Subcommands/flags a definir, mais parite requise (repos/tools/python). |
+| `ms status` / `ms changes` | `ms status` / `ms changes` | TODO | Git multi-repo (workspace + children). |
+| `ms list` | `ms list` | TODO | Liste codebases (core + plugin-*). |
+| `ms completion` | `ms completion bash|zsh` | TODO | Ideal: generer depuis Typer, ou servir les fichiers. |
+| `ms icons <core|bitwig>` | `ms icons <core|bitwig>` | TODO | Appel a `open-control/ui-lvgl-cli-tools/icon/build.py`. |
+| `ms build <codebase> [native|wasm|teensy]` | `ms build ...` | PARTIAL | Fonctionnel (native+wasm) mais Windows native doit etre simplifie (MSVC, cf. Phase B.1). |
+| `ms run <codebase>` | `ms run <codebase>` | PARTIAL | Fonctionnel; depend de la stabilite build native Windows (cf. Phase B.1). |
+| `ms web <codebase>` | `ms web <codebase>` | DONE | Build wasm + serve. |
+| `ms upload <codebase>` | `ms upload <codebase>` | TODO | Teensy upload. |
+| `ms monitor <codebase>` | `ms monitor <codebase>` | TODO | Teensy monitor. |
+| `ms clean [codebase]` | `ms clean [codebase]` | TODO | Ne pas supprimer `bin/bridge`. |
+| `ms bridge [args...]` | `ms bridge run [args...]` | TODO | Preferer `bin/bridge/` si present. |
+| `ms core` / `ms bitwig` (quick upload) | `ms core` / `ms bitwig` (alias) | OPTIONAL | DX only; peut etre conserve. |
+| `ms r/w/b` aliases | `ms r/w/b` aliases | OPTIONAL | DX only; peut etre conserve. |
+
+
+## Roadmap (phases, sans ambiguite)
+
+### Phase A - Parite "Bridge" + "Bitwig" (restaurer setup projet)
+
+Livrables:
+- `ms bridge build` (release) + copie vers `bin/bridge/` (binaire + config)
+- `ms bridge run` (exec)
+- `ms bitwig build` + `ms bitwig deploy` (detect Extensions dir via config/defaults)
+- Mise a jour `ms check` hints pour pointer vers ces commandes (plus de hints inexistants)
+
+Statut: DONE (valide sur Windows)
+
+Acceptance:
+- `uv run ms bridge build` produit `bin/bridge/oc-bridge(.exe)`
+- `uv run ms bridge run --help` (ou args) lance le binaire
+- `uv run ms bitwig deploy` produit `bin/bitwig/*.bwextension` et installe dans le dossier Extensions
+
+Prerequis:
+- Rust/cargo (system)
+- Maven/JDK fournis via `ms tools sync`
+
+### Phase B - Parite "native" + "wasm" (build/run/web)
+
+Livrables:
+- `ms build <codebase> native`
+- `ms run <codebase>`
+- `ms build <codebase> wasm`
+- `ms web <codebase> [--port] [--no-watch]`
+
+Notes:
+- Native toolchains par plateforme (cible finale):
+  - Windows: MSVC (Visual Studio Build Tools 2022)
+  - Linux: GCC/Clang system
+  - macOS: Xcode Clang
+- WASM: Emscripten via `tools/emsdk` (toutes plateformes).
+
+Statut:
+- WASM: DONE
+- Native:
+  - Linux/macOS: OK
+  - Windows: a migrer Zig -> MSVC (cf. Phase B.1)
+
+### Phase B.1 - Windows native simplification (Zig -> MSVC, zero workaround)
+
+Objectif:
+- Utiliser une toolchain "plateforme-native" (MSVC) et supprimer les workarounds (wrappers zig, toolchain file, `-j1`, etc.).
+- Reduire `ms/services/build.py` a une orchestration CMake standard.
+
+Non-objectifs (assumes):
+- Pas de support MinGW sur Windows.
+- Pas de cross-compilation Windows via Zig.
+- SDL reste en v2 (LVGL/stack actuelle).
+
+Invariants (ce qui ne change pas):
+- Entry point: `uv run ms ...`
+- Layout artifacts: `.build/<app_id>/{native,wasm}` et `bin/<app_id>/{native,wasm}`
+- WASM: `emcmake` + Ninja.
+- PlatformIO: `.pio/libdeps` reste source LVGL.
+
+Plan d'execution (ultra precis, sans ambiguite)
+
+1) Decision: generator CMake (Windows native)
+- Windows native: `cmake -G "Visual Studio 17 2022" -A <arch>`
+- Build: `cmake --build <build_dir> --config Release`
+- Raison: aucune dependance a l'environnement vcvars (pas besoin de "Developer Prompt"), robuste dans tous les shells.
+
+2) SDL2 Windows: passer du bundle MinGW a VC
+- Changer le download asset:
+  - avant: `SDL2-devel-<ver>-mingw.zip`
+  - apres: `SDL2-devel-<ver>-VC.zip`
+- Adapter la verification d'installation: presence d'un artefact stable (ex: `cmake/sdl2-config.cmake` ou `lib/x64/SDL2.lib`).
+- Adapter les chemins exposes par l'outil (include/lib) si utilises par d'autres composants.
+
+Fichiers:
+- `ms/tools/definitions/sdl2.py`
+
+Acceptance:
+- `uv run ms tools sync` installe SDL2 Windows en mode VC (pas de `x86_64-w64-mingw32/`).
+
+3) CMake (projet midi-studio): utiliser SDL2 via find_package (pas de libs hardcode)
+- Dans `midi-studio/core/sdl/CMakeLists.txt`:
+  - supprimer l'import manuel `add_library(SDL2-static STATIC IMPORTED ...)`
+  - sur Windows, quand `SDL2_ROOT` est fourni:
+    - ajouter `${SDL2_ROOT}` au `CMAKE_PREFIX_PATH` (ou definir `SDL2_DIR`), puis `find_package(SDL2 REQUIRED)`
+    - lier via une target de package (ex: `SDL2::SDL2-static` si dispo, sinon `SDL2::SDL2`)
+  - supprimer le flag MinGW `-mconsole`.
+
+Fichiers:
+- `midi-studio/core/sdl/CMakeLists.txt`
+
+Acceptance:
+- CMake configure + build sur Windows/MSVC sans referencer `.a` ou `mingw32`.
+
+4) BuildService: supprimer Zig et unifier sur CMake standard
+- Dans `ms/services/build.py`:
+  - supprimer toute la logique Zig (toolchain file, wrappers, prereqs Zig, `-j1`).
+  - `build_native`:
+    - Windows: generator Visual Studio (ci-dessus)
+    - non-Windows: `-G Ninja` (inchangé)
+    - build via `cmake --build` (toutes plateformes)
+  - passer `-DSDL2_ROOT=<tools/sdl2>` sur Windows native (pour que CMake trouve SDL2 bundled).
+  - conserver `pio pkg install` auto (necessaire a LVGL) mais documenter que c'est un effet de bord du build.
+
+Fichiers:
+- `ms/services/build.py`
+
+Acceptance:
+- `uv run ms build core native` produit `bin/core/native/midi_studio_core.exe`
+- `uv run ms build bitwig native` produit `bin/bitwig/native/midi_studio_bitwig.exe`
+- `uv run ms run core` et `uv run ms run bitwig` lancent les exe.
+
+5) Checks: prerequis compilateur par plateforme
+- `ms check` doit etre actionnable et dire quoi installer.
+
+Windows:
+- Detecter Visual Studio Build Tools 2022 via `vswhere.exe` (path standard) + composant C++.
+- Si absent: erreur bloquante pour "native build" (mais pas pour wasm).
+
+Linux:
+- Detecter un compilateur (`cc`/`c++` ou `gcc`/`g++` ou `clang`/`clang++`).
+- Hint minimal: `sudo apt install build-essential pkg-config libsdl2-dev` (adapter par distro si on veut).
+
+macOS:
+- Detecter Xcode CLT (`xcode-select -p` ou `clang`).
+- Hint: `xcode-select --install`.
+
+Fichiers:
+- `ms/services/checkers/system.py` (ou nouveau checker dedie MSVC)
+- `ms/services/check.py` (si besoin de wiring)
+
+Acceptance:
+- `uv run ms check`:
+  - Windows: affiche "MSVC: ok" si Build Tools present.
+  - Linux/macOS: affiche "C/C++ compiler: ok" (ou hint clair si manquant).
+
+6) Tools: retirer Zig de la toolchain DEV
+- Retirer `zig` des tools bundles et des wrappers.
+
+Fichiers:
+- `ms/tools/definitions/zig.py` (supprimer)
+- `ms/tools/definitions/__init__.py` (retirer import/export/ALL_TOOLS)
+- `ms/services/checkers/tools.py` (retirer ZigTool du check)
+- `ms/tools/wrapper.py` (retirer generation wrappers zig-cc/zig-cxx/zig-ar)
+- `ms/services/toolchains.py` (retirer references)
+- tests associes (voir point suivant)
+
+Acceptance:
+- `uv run ms tools sync` n'installe plus `tools/zig/`.
+- `uv run ms check` ne mentionne plus Zig.
+
+7) Tests: mettre a jour suite a la suppression Zig
+- Supprimer/adapter tous les tests qui attendent Zig/wrappers.
+
+Fichiers:
+- `ms/test/tools/definitions/test_zig.py` (supprimer)
+- `ms/test/tools/test_wrapper.py` (retirer cas zig-*)
+- `ms/test/test_integration_phase2.py` (retirer expectations zig)
+- `ms/test/tools/definitions/test_init.py` (retirer ZigTool)
+
+Acceptance:
+- `uv run pytest ms/test -q` (pass)
+- `uv run pyright ms --stats` (0 errors)
+
+8) Nettoyage repo + docs
+- Mettre a jour `docs/memories/work/cli-unification-execution.md` (prerequis Windows native = Build Tools)
+- Supprimer toute reference docs a Zig comme prerequis.
+
+Acceptance:
+- Fresh workspace (Windows) + `uv run ms setup --mode dev` n'installe pas Zig.
+- `uv run ms build core native` marche apres installation Build Tools.
+
+### Phase C - Parite Teensy (build/upload/monitor)
+
+Approche (deux etapes, explicite):
+- Etape 1 (parite rapide): utiliser `open-control/cli-tools/bin/oc-build|oc-upload|oc-monitor` quand `bash` est disponible (Git Bash sur Windows), sinon fallback `--raw`.
+- Etape 2 (maintenabilite): reimplementer le workflow en Python (spinner/memory bars optionnels).
+
+Livrables:
+- `ms build <codebase> teensy [--release] [--raw]`
+- `ms upload <codebase> [--release] [--raw]`
+- `ms monitor <codebase> [--release] [--raw]`
+
+### Phase D - Hygiene UX (update/status/clean/icons/completion/list)
+
+Livrables:
+- `ms update` (repos/tools/python) + `--dry-run`
+- `ms status` / `ms changes`
+- `ms clean`
+- `ms list`
+- `ms icons`
+- `ms completion`
+
+### Phase E - Hardening (dry-run, CI, docs)
+
+Livrables:
+- `--dry-run` = zero side effects (idealement zero reseau)
+- CI: tests + pyright + smoke `ms check`
+- Doc root (README) explique 1 seul chemin: `uv run ms ...`
+- Option: deprecier/supprimer `commands/` wrappers une fois `ms completion` stable
+
+
+## Validation "fresh workspace" (deja executee)
+
+Machine: Windows
+
+Preconditions:
+- `uv` installe
+- `git` installe
+- `gh` installe + `gh auth status` OK
+
+Procedure:
+1) Deplacer (backup) ou supprimer: `open-control/`, `midi-studio/`, `tools/`, `.ms/`, `.build/`, `bin/`, `.venv/`
+2) Executer: `uv run ms setup --mode dev`
+3) Verifier: `uv run ms check`
+
+Resultat observe (OK):
+- repos reclones
+- toolchains installees (ninja/cmake/zig/bun/jdk/maven/emsdk/platformio/sdl2)
+- python deps sync
+- `ms check` sans erreurs bloquantes
+- warnings attendus: `oc-bridge` "not built" (commande a implementer), runtime MIDI/asset tools optionnels
+
+Note: une sauvegarde a ete creee localement lors du test: `C:\Users\simon\pc_fresh_backup_20260125-174015`
