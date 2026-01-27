@@ -182,15 +182,29 @@ class TestSystemCheckerLinux:
 class TestSystemCheckerMacOS:
     """Tests for macOS system dependency checks."""
 
-    def test_brew_missing(self) -> None:
-        checker = SystemChecker(platform=Platform.MACOS)
-        with patch("shutil.which", return_value=None):
+    def test_xcode_clt_missing(self) -> None:
+        runner = MockCommandRunner(
+            {
+                ("xcode-select", "-p"): (1, "", ""),
+            }
+        )
+        checker = SystemChecker(platform=Platform.MACOS, runner=runner)
+
+        def which(name: str) -> str | None:
+            return {
+                "xcode-select": "/usr/bin/xcode-select",
+            }.get(name)
+
+        with patch(
+            "shutil.which",
+            side_effect=which,
+        ):
             results = checker.check_all()
 
         assert len(results) == 4
-        assert results[0].name == "brew"
+        assert results[0].name == "Xcode CLT"
         assert results[0].status == CheckStatus.ERROR
-        assert "brew.sh" in (results[0].hint or "")
+        assert "xcode-select --install" in (results[0].hint or "")
         assert results[1].name == "SDL2"
         assert results[1].status == CheckStatus.WARNING
         assert results[2].name == "C compiler"
@@ -201,7 +215,9 @@ class TestSystemCheckerMacOS:
     def test_sdl2_installed(self) -> None:
         runner = MockCommandRunner(
             {
-                ("brew", "list", "sdl2"): (0, "/opt/homebrew/Cellar/sdl2/2.28.5", ""),
+                ("xcode-select", "-p"): (0, "/Library/Developer/CommandLineTools", ""),
+                ("pkg-config", "--exists", "sdl2"): (0, "", ""),
+                ("pkg-config", "--modversion", "sdl2"): (0, "2.28.5", ""),
                 ("cc", "--version"): (0, "cc 1.0", ""),
                 ("c++", "--version"): (0, "c++ 1.0", ""),
             }
@@ -210,7 +226,8 @@ class TestSystemCheckerMacOS:
 
         def which(name: str) -> str | None:
             return {
-                "brew": "/opt/homebrew/bin/brew",
+                "xcode-select": "/usr/bin/xcode-select",
+                "pkg-config": "/opt/homebrew/bin/pkg-config",
                 "cc": "/usr/bin/cc",
                 "c++": "/usr/bin/c++",
             }.get(name)
@@ -222,10 +239,11 @@ class TestSystemCheckerMacOS:
             results = checker.check_all()
 
         assert len(results) == 4
-        assert results[0].name == "brew"
+        assert results[0].name == "Xcode CLT"
         assert results[0].status == CheckStatus.OK
         assert results[1].name == "SDL2"
         assert results[1].status == CheckStatus.OK
+        assert "2.28.5" in results[1].message
         assert results[2].name == "C compiler"
         assert results[2].status == CheckStatus.OK
         assert results[3].name == "C++ compiler"
@@ -235,7 +253,8 @@ class TestSystemCheckerMacOS:
         hints = Hints(system={"sdl2": {"macos": "brew install sdl2"}})
         runner = MockCommandRunner(
             {
-                ("brew", "list", "sdl2"): (1, "", "Error: No such keg: sdl2"),
+                ("xcode-select", "-p"): (0, "/Library/Developer/CommandLineTools", ""),
+                ("pkg-config", "--exists", "sdl2"): (1, "", "No package 'sdl2' found"),
                 ("cc", "--version"): (0, "cc 1.0", ""),
                 ("c++", "--version"): (0, "c++ 1.0", ""),
             }
@@ -244,7 +263,8 @@ class TestSystemCheckerMacOS:
 
         def which(name: str) -> str | None:
             return {
-                "brew": "/opt/homebrew/bin/brew",
+                "xcode-select": "/usr/bin/xcode-select",
+                "pkg-config": "/opt/homebrew/bin/pkg-config",
                 "cc": "/usr/bin/cc",
                 "c++": "/usr/bin/c++",
             }.get(name)
@@ -256,7 +276,7 @@ class TestSystemCheckerMacOS:
             results = checker.check_all()
 
         sdl2_result = next(r for r in results if r.name == "SDL2")
-        assert sdl2_result.status == CheckStatus.ERROR
+        assert sdl2_result.status == CheckStatus.WARNING
         assert sdl2_result.hint == "brew install sdl2"
 
 

@@ -3,7 +3,7 @@
 
 Validates system-level dependencies:
 - Linux: SDL2, ALSA, libudev, pkg-config, C/C++ compiler
-- macOS: SDL2 (via brew), C/C++ compiler
+- macOS: SDL2, C/C++ compiler
 - Windows: SDL2 (bundled), C compiler
 """
 
@@ -103,17 +103,12 @@ class SystemChecker:
         """Check macOS system dependencies."""
         results: list[CheckResult] = []
 
-        # Homebrew check
-        if not shutil.which("brew"):
-            results.append(
-                CheckResult.error(
-                    "brew", "missing (required for SDL2)", hint="Install from https://brew.sh"
-                )
-            )
-            results.append(CheckResult.warning("SDL2", "cannot check (brew missing)"))
-        else:
-            results.append(CheckResult.success("brew", "ok"))
-            results.append(self._check_brew_package("SDL2", "sdl2"))
+        # Xcode Command Line Tools are the minimum supported path for native builds.
+        results.append(self._check_xcode_clt())
+
+        # SDL2 is needed for native core builds, but on macOS we can fetch/build it
+        # during the CMake configure step if it's not installed system-wide.
+        results.append(self._check_sdl2_macos())
 
         results.append(self._check_c_compiler(_C_COMPILERS_UNIX))
         results.append(self._check_cxx_compiler(_CXX_COMPILERS_UNIX))
@@ -157,6 +152,42 @@ class SystemChecker:
         if result.returncode == 0:
             return CheckResult.success(display_name, "ok")
         return CheckResult.error(display_name, "missing", hint=self._get_hint(package))
+
+    def _check_xcode_clt(self) -> CheckResult:
+        """Check that Xcode Command Line Tools are installed."""
+        if not shutil.which("xcode-select"):
+            return CheckResult.warning("Xcode CLT", "cannot check (xcode-select missing)")
+
+        result = self.runner.run(["xcode-select", "-p"])
+        path = result.stdout.strip()
+        if result.returncode == 0 and path:
+            return CheckResult.success("Xcode CLT", f"ok ({path})")
+
+        return CheckResult.error(
+            "Xcode CLT",
+            "missing",
+            hint="Run: xcode-select --install",
+        )
+
+    def _check_sdl2_macos(self) -> CheckResult:
+        """Check SDL2 availability on macOS.
+
+        SDL2 is required for native builds, but it can be fetched during the build
+        if it isn't installed system-wide.
+        """
+        if shutil.which("pkg-config"):
+            result = self.runner.run(["pkg-config", "--exists", "sdl2"])
+            if result.returncode == 0:
+                version_result = self.runner.run(["pkg-config", "--modversion", "sdl2"])
+                version = version_result.stdout.strip() if version_result.returncode == 0 else ""
+                msg = f"ok ({version})" if version else "ok"
+                return CheckResult.success("SDL2", msg)
+
+        return CheckResult.warning(
+            "SDL2",
+            "missing (will fetch during build)",
+            hint=self._get_hint("sdl2"),
+        )
 
     def _check_sdl2_bundled(self) -> CheckResult:
         """Check for bundled SDL2 on Windows."""
