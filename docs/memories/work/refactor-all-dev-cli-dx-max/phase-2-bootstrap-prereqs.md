@@ -73,6 +73,9 @@
   - Added `ms use`, `ms where`, `ms forget`.
   - Added global `--workspace` override (maps to `WORKSPACE_ROOT` for the current invocation).
 
+- 2026-01-27:
+  - Added `ms self install|uninstall|update-shell` to manage global installation via `uv tool`.
+
 ## Decisions
 
 - Store the default workspace root in a dedicated user config file: `<user_config_dir>/workspace.toml`.
@@ -122,4 +125,5 @@ uv run pytest -m network
 - `ms/core/user_workspace.py`
 - `ms/cli/commands/workspace.py`
 - `ms/cli/app.py`
+- `ms/cli/commands/self_cmd.py`
 - `ms/data/hints.toml`

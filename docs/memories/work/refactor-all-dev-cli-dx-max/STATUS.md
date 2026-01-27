@@ -27,11 +27,12 @@
 - 2026-01-27 (windows):
   - `uv run ms --help` ok
   - `uv run ms where` ok
+  - `uv run ms self --help` ok
   - `uv run ms check` ok
   - `uv run oc-build --help` ok
   - `uv run oc-upload --help` ok
   - `uv run oc-monitor --help` ok
-  - `uv run pytest ms/test -q` -> 903 passed, 7 skipped, 6 deselected (network)
+  - `uv run pytest ms/test -q` -> 905 passed, 7 skipped, 6 deselected (network)
 
 ## Notes
 
