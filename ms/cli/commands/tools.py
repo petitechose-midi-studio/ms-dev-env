@@ -14,7 +14,7 @@ def tools() -> None:
 
     if not state:
         ctx.console.print("No tools installed", Style.DIM)
-        ctx.console.print("hint: Run: ms sync --tools", Style.DIM)
+        ctx.console.print("hint: Run: uv run ms sync --tools", Style.DIM)
         return
 
     for tool_id, tool_state in sorted(state.items()):

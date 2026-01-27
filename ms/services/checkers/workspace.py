@@ -101,7 +101,7 @@ class WorkspaceChecker:
         return CheckResult.error(
             "emsdk",
             "missing",
-            hint="Run: uv run ms tools sync",
+            hint="Run: uv run ms sync --tools",
         )
 
     def check_bridge(self) -> CheckResult:

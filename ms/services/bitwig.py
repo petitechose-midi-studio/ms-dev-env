@@ -53,7 +53,7 @@ class BitwigService(BaseService):
                 BitwigError(
                     kind="maven_missing",
                     message="maven: missing",
-                    hint="Run: uv run ms tools sync",
+                    hint="Run: uv run ms sync --tools",
                 )
             )
 
@@ -105,7 +105,7 @@ class BitwigService(BaseService):
                 BitwigError(
                     kind="maven_missing",
                     message="maven: missing",
-                    hint="Run: uv run ms tools sync",
+                    hint="Run: uv run ms sync --tools",
                 )
             )
 

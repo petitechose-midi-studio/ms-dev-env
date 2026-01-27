@@ -324,7 +324,7 @@ class TestSystemCheckerWindows:
         assert len(results) == 2
         assert results[0].name == "SDL2"
         assert results[0].status == CheckStatus.WARNING
-        assert "ms tools sync" in (results[0].hint or "")
+        assert "ms sync --tools" in (results[0].hint or "")
         assert results[1].name == "C compiler"
 
     def test_no_tools_dir(self) -> None:

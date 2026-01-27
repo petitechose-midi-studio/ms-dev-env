@@ -59,7 +59,7 @@ class ToolMissing:
     """Required tool not installed."""
 
     tool_id: str
-    hint: str = "Run: ms tools sync"
+    hint: str = "Run: uv run ms sync --tools"
 
 
 @dataclass(frozen=True, slots=True)
@@ -399,7 +399,7 @@ class BuildService(BaseService):
             return pio
 
         self._console.error("platformio: missing")
-        self._console.print("hint: Run: uv run ms tools sync", Style.DIM)
+        self._console.print("hint: Run: uv run ms sync --tools", Style.DIM)
         return None
 
     def _read_app_config(self, app_path: Path) -> Result[AppConfig, BuildError]:
@@ -460,7 +460,7 @@ class BuildService(BaseService):
         # Check SDL2 MinGW package
         sdl2_lib = self._registry.get_sdl2_lib()
         if sdl2_lib is None or not sdl2_lib.exists():
-            return Err(PrereqMissing(name="SDL2", hint="Run: ms tools sync"))
+            return Err(PrereqMissing(name="SDL2", hint="Run: uv run ms sync --tools"))
 
         # Check Zig wrappers
         required = ("zig-cc", "zig-cxx", "zig-ar", "zig-ranlib")
@@ -470,7 +470,7 @@ class BuildService(BaseService):
                 return Err(
                     PrereqMissing(
                         name=f"Zig wrapper missing: {name}",
-                        hint="Run: ms tools sync",
+                        hint="Run: uv run ms sync --tools",
                     )
                 )
 

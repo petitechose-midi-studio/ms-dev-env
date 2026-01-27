@@ -1,7 +1,7 @@
 # Phase 6: CLI unified verbs
 
 **Scope**: ms CLI surface
-**Status**: started
+**Status**: completed
 **Created**: 2026-01-27
 **Updated**: 2026-01-27
 
@@ -36,6 +36,7 @@
   - Added verb commands: `ms list`, `ms build`, `ms run`, `ms web`, `ms upload`, `ms monitor`.
   - Bitwig extension is now handled via `ms build bitwig --target extension`.
   - Removed legacy app-specific entrypoints: `ms core`, `ms bitwig`.
+  - Aligned all hints to real commands (e.g. `ms sync --tools`).
 
 ## Decisions
 

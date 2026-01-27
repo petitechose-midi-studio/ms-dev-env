@@ -17,25 +17,25 @@
 # =============================================================================
 
 [tools.cmake]
-fedora = "Run: uv run ms tools sync"
-debian = "Run: uv run ms tools sync"
-arch = "Run: uv run ms tools sync"
-macos = "Run: uv run ms tools sync"
-windows = "Run: uv run ms tools sync"
+fedora = "Run: uv run ms sync --tools"
+debian = "Run: uv run ms sync --tools"
+arch = "Run: uv run ms sync --tools"
+macos = "Run: uv run ms sync --tools"
+windows = "Run: uv run ms sync --tools"
 
 [tools.ninja]
-fedora = "Run: uv run ms tools sync"
-debian = "Run: uv run ms tools sync"
-arch = "Run: uv run ms tools sync"
-macos = "Run: uv run ms tools sync"
-windows = "Run: uv run ms tools sync"
+fedora = "Run: uv run ms sync --tools"
+debian = "Run: uv run ms sync --tools"
+arch = "Run: uv run ms sync --tools"
+macos = "Run: uv run ms sync --tools"
+windows = "Run: uv run ms sync --tools"
 
 [tools.bun]
-fedora = "Run: uv run ms tools sync"
-debian = "Run: uv run ms tools sync"
-arch = "Run: uv run ms tools sync"
-macos = "Run: uv run ms tools sync"
-windows = "Run: uv run ms tools sync"
+fedora = "Run: uv run ms sync --tools"
+debian = "Run: uv run ms sync --tools"
+arch = "Run: uv run ms sync --tools"
+macos = "Run: uv run ms sync --tools"
+windows = "Run: uv run ms sync --tools"
 
 [tools.uv]
 fedora = "Install uv: https://docs.astral.sh/uv/getting-started/installation/"
@@ -49,18 +49,18 @@ windows = "Install uv: https://docs.astral.sh/uv/getting-started/installation/"
 # =============================================================================
 
 [tools.jdk]
-fedora = "Run: uv run ms tools sync"
-debian = "Run: uv run ms tools sync"
-arch = "Run: uv run ms tools sync"
-macos = "Run: uv run ms tools sync"
-windows = "Run: uv run ms tools sync"
+fedora = "Run: uv run ms sync --tools"
+debian = "Run: uv run ms sync --tools"
+arch = "Run: uv run ms sync --tools"
+macos = "Run: uv run ms sync --tools"
+windows = "Run: uv run ms sync --tools"
 
 [tools.maven]
-fedora = "Run: uv run ms tools sync"
-debian = "Run: uv run ms tools sync"
-arch = "Run: uv run ms tools sync"
-macos = "Run: uv run ms tools sync"
-windows = "Run: uv run ms tools sync"
+fedora = "Run: uv run ms sync --tools"
+debian = "Run: uv run ms sync --tools"
+arch = "Run: uv run ms sync --tools"
+macos = "Run: uv run ms sync --tools"
+windows = "Run: uv run ms sync --tools"
 
 # =============================================================================
 # System Tools
@@ -107,18 +107,18 @@ windows = "Install Build Tools: https://visualstudio.microsoft.com/visual-cpp-bu
 # =============================================================================
 
 [tools.platformio]
-fedora = "Run: uv run ms tools sync"
-debian = "Run: uv run ms tools sync"
-arch = "Run: uv run ms tools sync"
-macos = "Run: uv run ms tools sync"
-windows = "Run: uv run ms tools sync"
+fedora = "Run: uv run ms sync --tools"
+debian = "Run: uv run ms sync --tools"
+arch = "Run: uv run ms sync --tools"
+macos = "Run: uv run ms sync --tools"
+windows = "Run: uv run ms sync --tools"
 
 [tools.emscripten]
-fedora = "Run: uv run ms tools sync"
-debian = "Run: uv run ms tools sync"
-arch = "Run: uv run ms tools sync"
-macos = "Run: uv run ms tools sync"
-windows = "Run: uv run ms tools sync"
+fedora = "Run: uv run ms sync --tools"
+debian = "Run: uv run ms sync --tools"
+arch = "Run: uv run ms sync --tools"
+macos = "Run: uv run ms sync --tools"
+windows = "Run: uv run ms sync --tools"
 
 # =============================================================================
 # System Dependencies
@@ -129,7 +129,7 @@ fedora = "sudo dnf install -y SDL2-devel"
 debian = "sudo apt install -y libsdl2-dev"
 arch = "sudo pacman -S --noconfirm sdl2"
 macos = "Optional: brew install sdl2 (or build will fetch)"
-windows = "Run: uv run ms tools sync"
+windows = "Run: uv run ms sync --tools"
 
 [system.alsa]
 fedora = "sudo dnf install -y alsa-lib-devel"

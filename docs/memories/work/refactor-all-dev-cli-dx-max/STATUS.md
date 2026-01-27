@@ -20,7 +20,7 @@
 - Phase 4 (bridge prebuilt): completed
 - Phase 5 (macos without brew): started
 - Phase 5a (type-safety contract): completed
-- Phase 6 (cli unified verbs): started
+- Phase 6 (cli unified verbs): completed
 - Phase 7 (ci matrix): planned
 
 ## Latest verification

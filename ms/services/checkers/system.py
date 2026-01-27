@@ -202,7 +202,7 @@ class SystemChecker:
         ):
             return CheckResult.success("SDL2", "ok (bundled)")
 
-        return CheckResult.warning("SDL2", "not found", hint="Run: uv run ms tools sync")
+        return CheckResult.warning("SDL2", "not found", hint="Run: uv run ms sync --tools")
 
     def _check_c_compiler(self, candidates: tuple[str, ...]) -> CheckResult:
         """Check for a working C compiler from candidates list."""

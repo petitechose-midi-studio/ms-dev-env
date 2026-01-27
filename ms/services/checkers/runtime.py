@@ -116,7 +116,7 @@ class RuntimeChecker:
         return CheckResult.warning(
             "serial permissions",
             "missing",
-            hint="Run: ms bridge install (or see docs for manual setup)",
+            hint="Run: uv run ms bridge install (or see docs for manual setup)",
         )
 
     def _check_macos(self) -> list[CheckResult]:
