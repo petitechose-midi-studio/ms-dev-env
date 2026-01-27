@@ -17,7 +17,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+
 
 from rich.console import Console
 
@@ -460,14 +460,18 @@ def list_serial_ports(pio: str, *, env: dict[str, str]) -> list[str]:
 
     ports: list[str] = []
     try:
-        data = json.loads(raw)
-        if isinstance(data, list):
-            for item in cast(list[object], data):
-                if isinstance(item, dict):
-                    d = cast(dict[str, object], item)
-                    port_obj = d.get("port")
-                    if isinstance(port_obj, str) and port_obj:
-                        ports.append(port_obj)
+        from ms.core.structured import as_obj_list, as_str_dict, get_str
+
+        data_obj: object = json.loads(raw)
+        items = as_obj_list(data_obj)
+        if items is not None:
+            for item in items:
+                d = as_str_dict(item)
+                if d is None:
+                    continue
+                port = get_str(d, "port")
+                if port:
+                    ports.append(port)
     except json.JSONDecodeError:
         # Fallback: regex extract "port": "..."
         ports = re.findall(r"\"port\"\s*:\s*\"([^\"]+)\"", raw)

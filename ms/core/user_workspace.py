@@ -61,8 +61,7 @@ def _parse_toml(path: Path) -> Result[dict[str, Any], UserWorkspaceError]:
     except Exception as e:  # noqa: BLE001
         return Err(UserWorkspaceError(f"Error parsing config: {e}", path=path))
 
-    if not isinstance(data, dict):
-        return Err(UserWorkspaceError("Config is not a TOML table", path=path))
+    # tomllib guarantees the top-level is a mapping.
     return Ok(data)
 
 

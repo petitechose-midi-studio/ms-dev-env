@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ms.core.result import Err, Ok
+from ms.core.result import Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.services.repos import RepoService

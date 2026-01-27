@@ -14,7 +14,9 @@ import tomllib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Protocol
+
+from ms.core.structured import as_str_dict
 
 
 class CommandRunner(Protocol):
@@ -147,19 +149,15 @@ def _extract_section(data: dict[str, object], section: str) -> dict[str, dict[st
     result: dict[str, dict[str, str]] = {}
     raw_section = data.get(section)
 
-    if raw_section is None or not isinstance(raw_section, dict):
+    section_dict = as_str_dict(raw_section)
+    if section_dict is None:
         return result
-
-    # Cast to Any to work with dynamic TOML data
-    section_dict = cast(dict[str, Any], raw_section)
 
     # Iterate over items (e.g., cmake, ninja, etc.)
     for item_key, item_value in section_dict.items():
-        if not isinstance(item_value, dict):
+        item_dict = as_str_dict(item_value)
+        if item_dict is None:
             continue
-
-        # Cast item to dict[str, Any]
-        item_dict = cast(dict[str, Any], item_value)
 
         # Build hint dict for this item
         hint_dict: dict[str, str] = {}

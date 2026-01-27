@@ -4,8 +4,6 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 
 def _make_workspace(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)

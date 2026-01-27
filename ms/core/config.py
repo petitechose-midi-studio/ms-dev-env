@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from .result import Err, Ok, Result
+from .structured import as_str_dict
 
 __all__ = [
     "Config",
@@ -139,11 +140,10 @@ class Config:
         paths_data: dict[str, Any] = data.get("paths", {})
         bitwig_section: Any = data.get("bitwig", {})
         bitwig_data: dict[str, Any] = {}
-        if isinstance(bitwig_section, dict):
-            section = cast(dict[object, object], bitwig_section)
-            for k, v in section.items():
-                if isinstance(k, str):
-                    bitwig_data[k] = v
+        bitwig_table = as_str_dict(bitwig_section)
+        if bitwig_table is not None:
+            for k, v in bitwig_table.items():
+                bitwig_data[k] = v
 
         return cls(
             ports=PortsConfig(
@@ -151,10 +151,16 @@ class Config:
                 native=int(ports_data.get("native", BRIDGE_NATIVE_PORT)),
                 wasm=int(ports_data.get("wasm", BRIDGE_WASM_PORT)),
                 controller=ControllerPortsConfig(
-                    core_native=int(controller_data.get("core_native", CONTROLLER_CORE_NATIVE_PORT)),
+                    core_native=int(
+                        controller_data.get("core_native", CONTROLLER_CORE_NATIVE_PORT)
+                    ),
                     core_wasm=int(controller_data.get("core_wasm", CONTROLLER_CORE_WASM_PORT)),
-                    bitwig_native=int(controller_data.get("bitwig_native", CONTROLLER_BITWIG_NATIVE_PORT)),
-                    bitwig_wasm=int(controller_data.get("bitwig_wasm", CONTROLLER_BITWIG_WASM_PORT)),
+                    bitwig_native=int(
+                        controller_data.get("bitwig_native", CONTROLLER_BITWIG_NATIVE_PORT)
+                    ),
+                    bitwig_wasm=int(
+                        controller_data.get("bitwig_wasm", CONTROLLER_BITWIG_WASM_PORT)
+                    ),
                 ),
             ),
             midi=MidiConfig(

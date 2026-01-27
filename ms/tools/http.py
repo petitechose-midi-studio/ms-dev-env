@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 from ms.core.result import Err, Ok, Result
+from ms.core.structured import as_str_dict
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -158,10 +159,11 @@ class RealHttpClient:
             return result
 
         try:
-            data = json.loads(result.value.decode("utf-8"))
-            if not isinstance(data, dict):
+            data_obj: object = json.loads(result.value.decode("utf-8"))
+            data = as_str_dict(data_obj)
+            if data is None:
                 return Err(HttpError(url=url, status=0, message="Expected JSON object"))
-            # json.loads returns Any, cast to proper type after isinstance check
+            # Values are dynamic; preserve as Any for callers.
             return Ok(cast(dict[str, Any], data))
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             return Err(HttpError(url=url, status=0, message=f"JSON parse error: {e}"))

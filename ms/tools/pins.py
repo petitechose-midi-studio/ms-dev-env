@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
+
+from ms.core.structured import as_str_dict, get_str
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,17 +40,18 @@ class ToolPins:
 
         versions: dict[str, str] = {}
         tools = data.get("tools")
-        if isinstance(tools, dict):
-            tools_map = cast(dict[str, Any], tools)
+        tools_map = as_str_dict(tools)
+        if tools_map is not None:
             for k, v in tools_map.items():
                 if isinstance(v, str):
                     versions[k] = v
 
         platformio_version = ""
         platformio = data.get("platformio")
-        if isinstance(platformio, dict):
-            pv = cast(dict[str, Any], platformio).get("version")
-            if isinstance(pv, str):
+        platformio_map = as_str_dict(platformio)
+        if platformio_map is not None:
+            pv = get_str(platformio_map, "version")
+            if pv:
                 platformio_version = pv
 
         if not platformio_version:

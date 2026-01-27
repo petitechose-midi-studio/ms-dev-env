@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, NoReturn, TypeVar
 
 import typer
 
 from ms.core.errors import ErrorCode
+from ms.core.result import Err, Result
 from ms.output.console import Style
 
 if TYPE_CHECKING:
     from ms.cli.context import CLIContext
 
 
+T = TypeVar("T")
+E = TypeVar("E")
+
+
 def exit_on_error(
-    result: Any,  # Result[T, E] - use Any to avoid invariance issues
+    result: Result[T, E],
     ctx: CLIContext,
     error_code: ErrorCode = ErrorCode.BUILD_ERROR,
 ) -> None:
@@ -32,11 +37,8 @@ def exit_on_error(
 
     Expects error objects to have 'message' and optional 'hint' attributes.
     """
-    from ms.core.result import Err
-
     if isinstance(result, Err):
-        err = cast(Err[object], result)
-        error = err.error
+        error = result.error
         message: str = getattr(error, "message", str(error))
         hint: str | None = getattr(error, "hint", None)
         ctx.console.error(message)

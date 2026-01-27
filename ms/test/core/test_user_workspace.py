@@ -34,8 +34,9 @@ def test_default_workspace_roundtrip(isolated_user_config: Path, tmp_path: Path)
     ws.mkdir()
     (ws / ".ms-workspace").write_text("", encoding="utf-8")
 
-    assert isinstance(get_default_workspace_root(), Ok)
-    assert get_default_workspace_root().value is None
+    initial = get_default_workspace_root()
+    assert isinstance(initial, Ok)
+    assert initial.value is None
 
     saved = remember_default_workspace_root(ws)
     assert isinstance(saved, Ok)

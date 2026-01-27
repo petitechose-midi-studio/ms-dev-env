@@ -11,9 +11,10 @@ All functions take an HttpClient parameter for testability.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING
 
 from ms.core.result import Err, Ok, Result
+from ms.core.structured import as_obj_list, as_str_dict, get_str, get_table
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -100,36 +101,38 @@ def adoptium_jdk_url(
         return Err(HttpError(url=url, status=0, message=f"JSON parse error: {e}"))
 
     # Validate response is a non-empty list
-    if not isinstance(raw_data, list):
+    releases = as_obj_list(raw_data)
+    if releases is None:
         return Err(HttpError(url=url, status=0, message="Expected JSON array"))
-    data = cast(list[dict[str, Any]], raw_data)
-    if len(data) == 0:
+    if len(releases) == 0:
         return Err(HttpError(url=url, status=0, message="No JDK releases found"))
 
     # Get first (latest) release
-    release: dict[str, Any] = data[0]
+    release = as_str_dict(releases[0])
+    if release is None:
+        return Err(HttpError(url=url, status=0, message="Invalid release payload"))
 
-    binary: dict[str, Any] | None = release.get("binary")
-    if not isinstance(binary, dict):
+    binary = get_table(release, "binary")
+    if binary is None:
         return Err(HttpError(url=url, status=0, message="Missing binary info"))
 
-    package: dict[str, Any] | None = binary.get("package")
-    if not isinstance(package, dict):
+    package = get_table(binary, "package")
+    if package is None:
         return Err(HttpError(url=url, status=0, message="Missing package info"))
 
-    download_link: str | None = package.get("link")
-    if not isinstance(download_link, str):
+    download_link = get_str(package, "link")
+    if not download_link:
         return Err(HttpError(url=url, status=0, message="Missing download link"))
 
     # Get version info
-    version_data: dict[str, Any] | None = release.get("version")
-    if isinstance(version_data, dict):
-        semver: str = version_data.get("semver", "")
+    version_table = get_table(release, "version")
+    if version_table is not None:
+        semver = get_str(version_table, "semver")
         if semver:
             return Ok((download_link, semver))
 
     # Fallback: extract version from release name
-    release_name: str = release.get("release_name", f"jdk-{major}")
+    release_name = get_str(release, "release_name") or f"jdk-{major}"
     return Ok((download_link, release_name))
 
 

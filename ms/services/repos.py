@@ -4,9 +4,10 @@ import json
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from ms.core.result import Err, Ok, Result
+from ms.core.structured import as_obj_list, as_str_dict, get_str
 from ms.core.workspace import Workspace
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
@@ -110,7 +111,7 @@ class RepoService:
             )
 
         try:
-            data = tomllib.loads(path.read_text(encoding="utf-8"))
+            data_obj: object = tomllib.loads(path.read_text(encoding="utf-8"))
         except Exception as e:  # noqa: BLE001
             return Err(
                 RepoError(
@@ -119,15 +120,26 @@ class RepoService:
                 )
             )
 
-        raw = data.get("repos")
-        if raw is None:
+        data = as_str_dict(data_obj)
+        if data is None:
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message="repo manifest root must be a TOML table",
+                )
+            )
+
+        raw_obj = data.get("repos")
+        if raw_obj is None:
             return Err(
                 RepoError(
                     kind="manifest_invalid",
                     message="repo manifest missing 'repos' section",
                 )
             )
-        if not isinstance(raw, list):
+
+        raw = as_obj_list(raw_obj)
+        if raw is None:
             return Err(
                 RepoError(
                     kind="manifest_invalid",
@@ -136,23 +148,24 @@ class RepoService:
             )
 
         specs: list[RepoSpec] = []
-        for item in cast(list[object], raw):
-            if not isinstance(item, dict):
+        for item in raw:
+            item_dict = as_str_dict(item)
+            if item_dict is None:
                 continue
 
-            org = item.get("org")
-            name = item.get("name")
-            url = item.get("url")
-            rel_path = item.get("path")
-            branch = item.get("branch")
+            org = get_str(item_dict, "org")
+            name = get_str(item_dict, "name")
+            url = get_str(item_dict, "url")
+            rel_path = get_str(item_dict, "path")
+            branch = get_str(item_dict, "branch")
 
-            if not isinstance(org, str) or not org.strip():
+            if org is None:
                 continue
-            if not isinstance(name, str) or not name.strip():
+            if name is None:
                 continue
-            if not isinstance(url, str) or not url.strip():
+            if url is None:
                 continue
-            if not isinstance(rel_path, str) or not rel_path.strip():
+            if rel_path is None:
                 continue
 
             repo_path = Path(rel_path)
@@ -164,15 +177,13 @@ class RepoService:
                     )
                 )
 
-            branch_str = branch.strip() if isinstance(branch, str) and branch.strip() else None
-
             specs.append(
                 RepoSpec(
-                    org=org.strip(),
-                    name=name.strip(),
-                    url=url.strip(),
-                    path=rel_path.strip(),
-                    branch=branch_str,
+                    org=org,
+                    name=name,
+                    url=url,
+                    path=rel_path,
+                    branch=branch,
                 )
             )
 

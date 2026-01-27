@@ -8,6 +8,7 @@ import typer
 
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
+from ms.core.structured import as_str_dict, get_str, get_table
 from ms.core.user_workspace import remember_default_workspace_root
 from ms.core.workspace import detect_workspace_info
 from ms.output.console import RichConsole, Style
@@ -40,17 +41,19 @@ def _tool_name_from_workspace(root: Path) -> str | None:
         return None
 
     try:
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+        data_obj: object = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         return None
 
-    project = data.get("project")
-    if not isinstance(project, dict):
+    data = as_str_dict(data_obj)
+    if data is None:
         return None
-    name = project.get("name")
-    if isinstance(name, str) and name.strip():
-        return name.strip()
-    return None
+
+    project = get_table(data, "project")
+    if project is None:
+        return None
+
+    return get_str(project, "name")
 
 
 def _resolve_tool_name(*, override: str | None) -> tuple[str, str]:
