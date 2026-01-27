@@ -1,7 +1,7 @@
 # Phase 5: macOS without Homebrew requirement
 
 **Scope**: system checks + native build deps on macOS
-**Status**: planned
+**Status**: started
 **Created**: 2026-01-27
 **Updated**: 2026-01-27
 
@@ -25,6 +25,10 @@
 ## Work log
 
 - 2026-01-27: Phase created (no code changes yet).
+
+- 2026-01-27:
+  - `ms check` on macOS no longer hard-requires Homebrew; it checks Xcode CLT and warns on missing SDL2.
+  - `midi-studio/core` now fetches SDL2 via CMake FetchContent on macOS when not found.
 
 ## Decisions
 

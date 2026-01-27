@@ -18,7 +18,7 @@
 - Phase 2 (bootstrap prereqs): completed
 - Phase 3 (repos git-only): completed
 - Phase 4 (bridge prebuilt): completed
-- Phase 5 (macos without brew): planned
+- Phase 5 (macos without brew): started
 - Phase 6 (cli unified verbs): planned
 - Phase 7 (ci matrix): planned
 
