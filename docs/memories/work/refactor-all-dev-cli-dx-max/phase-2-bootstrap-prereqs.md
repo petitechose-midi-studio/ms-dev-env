@@ -1,7 +1,7 @@
 # Phase 2: Bootstrap + Global CLI (uv tool)
 
 **Scope**: prereqs + system install + hints + global CLI install + workspace default
-**Status**: planned
+**Status**: started
 **Created**: 2026-01-27
 **Updated**: 2026-01-27
 

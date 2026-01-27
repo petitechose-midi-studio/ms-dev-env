@@ -15,7 +15,7 @@
 ## Phases
 
 - Phase 1 (deshellize): started
-- Phase 2 (bootstrap prereqs): planned
+- Phase 2 (bootstrap prereqs): started
 - Phase 3 (repos git-only): planned
 - Phase 4 (bridge prebuilt): planned
 - Phase 5 (macos without brew): planned
