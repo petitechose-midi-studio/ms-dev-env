@@ -35,6 +35,7 @@ bin/
 # Local tooling
 .claude/
 *.egg-info/
+_bmad/
 
 # OS
 .DS_Store
