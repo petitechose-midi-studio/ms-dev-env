@@ -29,6 +29,7 @@
 - 2026-01-27:
   - `ms check` on macOS no longer hard-requires Homebrew; it checks Xcode CLT and warns on missing SDL2.
   - `midi-studio/core` now fetches SDL2 via CMake FetchContent on macOS when not found.
+  - Updated default hints to avoid treating Homebrew as required (`uv` install link; SDL2/pkg-config marked optional).
 
 ## Decisions
 

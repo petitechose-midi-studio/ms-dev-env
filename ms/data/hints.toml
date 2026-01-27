@@ -41,7 +41,7 @@ windows = "Run: uv run ms tools sync"
 fedora = "Install uv: https://docs.astral.sh/uv/getting-started/installation/"
 debian = "Install uv: https://docs.astral.sh/uv/getting-started/installation/"
 arch = "Install uv: https://docs.astral.sh/uv/getting-started/installation/"
-macos = "brew install uv"
+macos = "Install uv: https://docs.astral.sh/uv/getting-started/installation/"
 windows = "Install uv: https://docs.astral.sh/uv/getting-started/installation/"
 
 # =============================================================================
@@ -128,7 +128,7 @@ windows = "Run: uv run ms tools sync"
 fedora = "sudo dnf install -y SDL2-devel"
 debian = "sudo apt install -y libsdl2-dev"
 arch = "sudo pacman -S --noconfirm sdl2"
-macos = "brew install sdl2"
+macos = "Optional: brew install sdl2 (or build will fetch)"
 windows = "Run: uv run ms tools sync"
 
 [system.alsa]
@@ -142,7 +142,7 @@ windows = "N/A (uses WinMM)"
 fedora = "sudo dnf install -y pkgconf-pkg-config"
 debian = "sudo apt install -y pkg-config"
 arch = "sudo pacman -S --noconfirm pkgconf"
-macos = "brew install pkg-config"
+macos = "Optional: brew install pkg-config"
 windows = "N/A"
 
 # libudev - required for USB/MIDI device access (oc-bridge)
