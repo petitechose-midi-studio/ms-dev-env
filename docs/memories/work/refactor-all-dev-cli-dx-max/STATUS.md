@@ -35,7 +35,7 @@
   - `uv run ms setup --dry-run --install-cli --update-shell --remember-workspace` ok
   - `uv run ms prereqs --help` ok
   - `uv run ms prereqs --dry-run` ok
-  - `uv run pytest ms/test -q` -> 911 passed, 7 skipped, 6 deselected (network)
+  - `uv run pytest ms/test -q` -> 912 passed, 7 skipped, 6 deselected (network)
 
 ## Notes
 

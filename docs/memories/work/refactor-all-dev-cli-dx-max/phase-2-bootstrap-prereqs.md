@@ -89,6 +89,12 @@
     - Ubuntu/Fedora: `sudo apt/dnf install -y git`.
   - Grouped and de-duplicated safe install steps per package manager (apt/dnf/pacman/brew).
 
+- 2026-01-27:
+  - Removed unsafe `curl | sh` / `powershell | iex` snippets from `hints.toml`.
+    - Windows: prefer `winget install --id astral-sh.uv -e` for uv.
+    - macOS: prefer `brew install uv` for uv.
+  - Added `ms self uninstall --name` override and improved tool name resolution.
+
 ## Decisions
 
 - Store the default workspace root in a dedicated user config file: `<user_config_dir>/workspace.toml`.
