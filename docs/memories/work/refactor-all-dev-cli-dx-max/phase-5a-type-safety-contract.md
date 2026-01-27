@@ -1,7 +1,7 @@
 # Phase 5a: Type-safety contract (Pyright)
 
 **Scope**: ms Python codebase (typing + boundaries)
-**Status**: started
+**Status**: completed
 **Created**: 2026-01-27
 **Updated**: 2026-01-27
 

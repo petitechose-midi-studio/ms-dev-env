@@ -19,7 +19,7 @@
 - Phase 3 (repos git-only): completed
 - Phase 4 (bridge prebuilt): completed
 - Phase 5 (macos without brew): started
-- Phase 5a (type-safety contract): started
+- Phase 5a (type-safety contract): completed
 - Phase 6 (cli unified verbs): planned
 - Phase 7 (ci matrix): planned
 
