@@ -1,0 +1,114 @@
+name: Full Builds
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+concurrency:
+  group: full-builds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            build_native: true
+            build_wasm: true
+          - os: windows-latest
+            build_native: false
+            build_wasm: true
+          - os: macos-latest
+            build_native: true
+            build_wasm: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libsdl2-dev libasound2-dev libudev-dev
+
+      - name: Sync Python deps
+        run: uv sync --frozen --extra dev
+
+      - name: Setup workspace (real)
+        run: uv run ms setup --skip-prereqs --yes
+
+      - name: Build core (native)
+        if: ${{ matrix.build_native }}
+        run: uv run ms build core --target native
+
+      - name: Build core (wasm)
+        if: ${{ matrix.build_wasm }}
+        run: uv run ms build core --target wasm
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-${{ runner.os }}
+          path: |
+            bin
+
+  build_fedora:
+    name: build (fedora)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:41
+    steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y \
+            curl \
+            gcc \
+            gcc-c++ \
+            git \
+            pkgconf-pkg-config \
+            python3 \
+            SDL2-devel \
+            alsa-lib-devel \
+            systemd-devel
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Sync Python deps
+        run: uv sync --frozen --extra dev
+
+      - name: Setup workspace (real)
+        run: uv run ms setup --skip-prereqs --yes
+
+      - name: Build core (native)
+        run: uv run ms build core --target native
+
+      - name: Build core (wasm)
+        run: uv run ms build core --target wasm
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: bin-fedora
+          path: |
+            bin

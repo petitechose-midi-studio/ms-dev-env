@@ -37,6 +37,10 @@
   - Runs safe CLI smoke in dry-run mode (`ms setup --dry-run`, `ms sync --tools --dry-run`, `ms sync --repos --dry-run`).
   - Runs `ms check` as informational (non-blocking) because full workspace repos/toolchains are not present in CI by default.
 
+- 2026-01-27:
+  - Added a separate full-build workflow (manual/scheduled) that clones repos, installs toolchains, and builds `core`.
+  - Targets per OS: Ubuntu/Fedora = native+wasm, Windows = wasm, macOS = native.
+
 ## Decisions
 
 - Keep CI fast: validate ms package (tests + typing) on all OS targets; don't auto-install heavy toolchains (emsdk) in the smoke job.
@@ -52,3 +56,4 @@
 ## Sources
 
 - `.github/workflows/ci.yml`
+- `.github/workflows/builds.yml`
