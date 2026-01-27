@@ -1,7 +1,7 @@
 # Phase 3: Repos sync (git-only)
 
 **Scope**: repos sync
-**Status**: planned
+**Status**: completed
 **Created**: 2026-01-27
 **Updated**: 2026-01-27
 
@@ -30,9 +30,20 @@
 
 - 2026-01-27: Phase created (no code changes yet).
 
+- 2026-01-27:
+  - Added pinned manifest: `ms/data/repos.toml`.
+  - Rewrote repo sync to read the manifest and use `git` only (drop `gh`).
+  - Updated repo-sync hints to `uv run ms sync --repos`.
+  - Added local git-backed tests for clone/pull/skip dirty/skip branch.
+
 ## Decisions
 
-- (pending)
+- Minimal but complete repo set for dev (core + bitwig) comes from:
+  - Teensy firmware deps (`platformio.ini` symlinks): `framework`, `hal-common`, `hal-teensy`, `ui-lvgl`, `ui-lvgl-components`.
+  - SDL native/wasm deps (`midi-studio/core/sdl/CMakeLists.txt`): `hal-sdl`, `hal-net`, `hal-midi`.
+  - Protocol generation (`midi-studio/plugin-bitwig/pyproject.toml`): `protocol-codegen`.
+  - Icon generation scripts: `ui-lvgl-cli-tools`.
+  - Bridge build: `bridge`.
 
 ## Plan deviations
 

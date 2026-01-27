@@ -16,7 +16,7 @@
 
 - Phase 1 (deshellize): started
 - Phase 2 (bootstrap prereqs): completed
-- Phase 3 (repos git-only): planned
+- Phase 3 (repos git-only): completed
 - Phase 4 (bridge prebuilt): planned
 - Phase 5 (macos without brew): planned
 - Phase 6 (cli unified verbs): planned
@@ -35,7 +35,8 @@
   - `uv run ms setup --dry-run --install-cli --update-shell --remember-workspace` ok
   - `uv run ms prereqs --help` ok
   - `uv run ms prereqs --dry-run` ok
-  - `uv run pytest ms/test -q` -> 912 passed, 7 skipped, 6 deselected (network)
+  - `uv run ms sync --repos --dry-run` ok
+  - `uv run pytest ms/test -q` -> 915 passed, 7 skipped, 6 deselected (network)
 
 ## Notes
 
