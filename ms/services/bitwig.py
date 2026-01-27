@@ -43,7 +43,7 @@ class BitwigService(BaseService):
                 BitwigError(
                     kind="host_missing",
                     message=f"bitwig host missing: {host_dir}",
-                    hint="Run: uv run ms repos sync",
+                    hint="Run: uv run ms sync --repos",
                 )
             )
 
@@ -71,9 +71,7 @@ class BitwigService(BaseService):
 
         result = run_silent(cmd, cwd=host_dir, env=env)
         if isinstance(result, Err):
-            return Err(
-                BitwigError(kind="build_failed", message="maven build failed")
-            )
+            return Err(BitwigError(kind="build_failed", message="maven build failed"))
 
         built = host_dir / "target" / "midi_studio.bwextension"
         if not built.exists():
@@ -97,7 +95,7 @@ class BitwigService(BaseService):
                 BitwigError(
                     kind="host_missing",
                     message=f"bitwig host missing: {host_dir}",
-                    hint="Run: uv run ms repos sync",
+                    hint="Run: uv run ms sync --repos",
                 )
             )
 
@@ -138,17 +136,13 @@ class BitwigService(BaseService):
 
         result = run_silent(cmd, cwd=host_dir, env=env)
         if isinstance(result, Err):
-            return Err(
-                BitwigError(kind="build_failed", message="maven build failed")
-            )
+            return Err(BitwigError(kind="build_failed", message="maven build failed"))
 
         deployed = install_dir / "midi_studio.bwextension"
         if not deployed.exists():
             # Fallback: find any .bwextension file.
             matches = list(install_dir.glob("*.bwextension"))
-            deployed = (
-                max(matches, key=lambda p: p.stat().st_mtime) if matches else deployed
-            )
+            deployed = max(matches, key=lambda p: p.stat().st_mtime) if matches else deployed
 
         if not deployed.exists():
             return Err(

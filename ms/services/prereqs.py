@@ -39,8 +39,6 @@ class PrereqsService:
         self,
         *,
         require_git: bool,
-        require_gh: bool,
-        require_gh_auth: bool,
         require_uv: bool,
         install: bool,
         dry_run: bool,
@@ -52,8 +50,6 @@ class PrereqsService:
 
         issues = self._check(
             require_git=require_git,
-            require_gh=require_gh,
-            require_gh_auth=require_gh_auth,
             require_uv=require_uv,
         )
 
@@ -107,8 +103,6 @@ class PrereqsService:
 
         remaining = self._check(
             require_git=require_git,
-            require_gh=require_gh,
-            require_gh_auth=require_gh_auth,
             require_uv=require_uv,
         )
         if remaining:
@@ -126,8 +120,6 @@ class PrereqsService:
         self,
         *,
         require_git: bool,
-        require_gh: bool,
-        require_gh_auth: bool,
         require_uv: bool,
     ) -> list[CheckResult]:
         from ms.services.checkers import SystemChecker, ToolsChecker, load_hints
@@ -170,27 +162,5 @@ class PrereqsService:
             git = tools_checker.check_system_tool("git", ["--version"])
             if git.status != CheckStatus.OK:
                 issues.append(git)
-
-        if require_gh or require_gh_auth:
-            gh = tools_checker.check_system_tool("gh", ["--version"], required=True)
-            if gh.status != CheckStatus.OK:
-                issues.append(
-                    CheckResult.error(
-                        "gh",
-                        "missing (required for repo sync)",
-                        hint=gh.hint,
-                    )
-                )
-            elif require_gh_auth:
-                gh_auth = tools_checker.check_gh_auth()
-                if gh_auth.status != CheckStatus.OK:
-                    hint = gh_auth.hint or "Run: gh auth login"
-                    issues.append(
-                        CheckResult.error(
-                            "gh auth",
-                            "not authenticated (required for repo sync)",
-                            hint=hint,
-                        )
-                    )
 
         return issues

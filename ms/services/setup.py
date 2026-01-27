@@ -103,8 +103,6 @@ class SetupService:
                 confirm=self._confirm,
             ).ensure(
                 require_git=(not skip_repos) or require_git_for_tools,
-                require_gh=not skip_repos,
-                require_gh_auth=not skip_repos,
                 require_uv=not skip_python,
                 install=True,
                 dry_run=dry_run,
@@ -123,7 +121,6 @@ class SetupService:
         if not skip_repos:
             self._console.header("Repos")
             result = RepoService(workspace=self._workspace, console=self._console).sync_all(
-                limit=200,
                 dry_run=dry_run,
             )
             if isinstance(result, Err):

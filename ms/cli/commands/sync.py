@@ -23,9 +23,7 @@ def sync(
 
     if sync_all or repos:
         ctx.console.header("Repos")
-        result = RepoService(workspace=ctx.workspace, console=ctx.console).sync_all(
-            limit=200, dry_run=dry_run
-        )
+        result = RepoService(workspace=ctx.workspace, console=ctx.console).sync_all(dry_run=dry_run)
         match result:
             case Err(e):
                 ctx.console.error(e.message)

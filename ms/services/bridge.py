@@ -80,7 +80,7 @@ class BridgeService:
                 BridgeError(
                     kind="dir_missing",
                     message=f"bridge dir missing: {bridge_dir}",
-                    hint="Run: uv run ms repos sync",
+                    hint="Run: uv run ms sync --repos",
                 )
             )
 

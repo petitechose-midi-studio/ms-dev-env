@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -19,7 +20,7 @@ from ms.platform.process import run as run_process
 class RepoError:
     """Error from repository sync operations."""
 
-    kind: Literal["gh_missing", "not_authenticated", "sync_failed"]
+    kind: Literal["manifest_invalid", "sync_failed"]
     message: str
     hint: str | None = None
 
@@ -30,12 +31,12 @@ class RepoError:
 
 
 @dataclass(frozen=True, slots=True)
-class RepoRef:
+class RepoSpec:
     org: str
     name: str
     url: str
-    default_branch: str | None
-    archived: bool
+    path: str
+    branch: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,50 +49,43 @@ class RepoLockEntry:
 
 
 class RepoService:
-    """Clone/update all repos from configured GitHub orgs.
+    """Clone/update all repos from a pinned manifest (git-only).
 
-    Current policy (DEV):
-    - Uses GitHub CLI (gh) + git
-    - Clones via HTTPS
-    - Tracks default branch at latest HEAD
-    - Never touches dirty repos
+    Policy:
+    - Uses `git` only (no `gh`, no GH auth).
+    - Never touches dirty repos.
+    - Skips repos not on the expected branch.
+    - Pulls with `--ff-only`.
     """
 
-    ORGS: tuple[str, ...] = (
-        "open-control",
-        "petitechose-midi-studio",
-    )
-
-    def __init__(self, *, workspace: Workspace, console: ConsoleProtocol) -> None:
+    def __init__(
+        self,
+        *,
+        workspace: Workspace,
+        console: ConsoleProtocol,
+        manifest_path: Path | None = None,
+    ) -> None:
         self._workspace = workspace
         self._console = console
+        self._manifest_path = manifest_path or (
+            Path(__file__).parent.parent / "data" / "repos.toml"
+        )
 
-    def sync_all(
-        self, *, limit: int = 200, dry_run: bool = False
-    ) -> Result[None, RepoError]:
-        auth_result = self._check_gh_auth()
-        if isinstance(auth_result, Err):
-            return auth_result
+    def sync_all(self, *, dry_run: bool = False) -> Result[None, RepoError]:
+        specs_result = self._load_manifest(self._manifest_path)
+        if isinstance(specs_result, Err):
+            return specs_result
+        specs = specs_result.value
 
         lock: list[RepoLockEntry] = []
         has_errors = False
 
-        for org in self.ORGS:
-            repos = self._list_org_repos(org, limit=limit)
-            if repos is None:
+        for spec in specs:
+            entry = self._sync_repo(spec, dry_run=dry_run)
+            if entry is None:
                 has_errors = True
                 continue
-
-            for repo in repos:
-                if repo.archived:
-                    continue
-
-                dest = self._dest_dir_for_repo(org, repo.name)
-                entry = self._sync_repo(repo, dest, dry_run=dry_run)
-                if entry is None:
-                    has_errors = True
-                    continue
-                lock.append(entry)
+            lock.append(entry)
 
         if not dry_run:
             self._write_lock(lock)
@@ -105,106 +99,119 @@ class RepoService:
             )
         return Ok(None)
 
-    def _check_gh_auth(self) -> Result[None, RepoError]:
-        if not self._which("gh"):
+    def _load_manifest(self, path: Path) -> Result[list[RepoSpec], RepoError]:
+        if not path.exists():
             return Err(
                 RepoError(
-                    kind="gh_missing",
-                    message="gh: missing",
-                    hint="install GitHub CLI (gh)",
+                    kind="manifest_invalid",
+                    message=f"repo manifest not found: {path}",
+                    hint="Reinstall or update the workspace package",
                 )
             )
 
-        result = run_process(["gh", "auth", "status"], cwd=self._workspace.root)
-        if isinstance(result, Err):
+        try:
+            data = tomllib.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:  # noqa: BLE001
             return Err(
                 RepoError(
-                    kind="not_authenticated",
-                    message="gh auth: not logged in",
-                    hint="run `gh auth login`",
+                    kind="manifest_invalid",
+                    message=f"repo manifest is invalid TOML: {e}",
                 )
             )
 
-        return Ok(None)
+        raw = data.get("repos")
+        if raw is None:
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message="repo manifest missing 'repos' section",
+                )
+            )
+        if not isinstance(raw, list):
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message="repo manifest 'repos' must be a list",
+                )
+            )
 
-    def _list_org_repos(self, org: str, *, limit: int) -> list[RepoRef] | None:
-        cmd = [
-            "gh",
-            "repo",
-            "list",
-            org,
-            "--limit",
-            str(limit),
-            "--json",
-            "name,isArchived,defaultBranchRef,url",
-        ]
+        specs: list[RepoSpec] = []
+        for item in cast(list[object], raw):
+            if not isinstance(item, dict):
+                continue
 
-        result = run_process(cmd, cwd=self._workspace.root)
-        match result:
-            case Err(e):
-                self._console.print(f"gh repo list failed for {org}", Style.ERROR)
-                stderr = e.stderr.strip()
+            org = item.get("org")
+            name = item.get("name")
+            url = item.get("url")
+            rel_path = item.get("path")
+            branch = item.get("branch")
+
+            if not isinstance(org, str) or not org.strip():
+                continue
+            if not isinstance(name, str) or not name.strip():
+                continue
+            if not isinstance(url, str) or not url.strip():
+                continue
+            if not isinstance(rel_path, str) or not rel_path.strip():
+                continue
+
+            repo_path = Path(rel_path)
+            if repo_path.is_absolute() or ".." in repo_path.parts:
+                return Err(
+                    RepoError(
+                        kind="manifest_invalid",
+                        message=f"invalid repo path in manifest: {rel_path}",
+                    )
+                )
+
+            branch_str = branch.strip() if isinstance(branch, str) and branch.strip() else None
+
+            specs.append(
+                RepoSpec(
+                    org=org.strip(),
+                    name=name.strip(),
+                    url=url.strip(),
+                    path=rel_path.strip(),
+                    branch=branch_str,
+                )
+            )
+
+        if not specs:
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message="repo manifest contains no repos",
+                )
+            )
+
+        return Ok(specs)
+
+    def _sync_repo(self, repo: RepoSpec, *, dry_run: bool) -> RepoLockEntry | None:
+        dest = self._workspace.root / repo.path
+
+        if not dest.exists():
+            self._console.print(f"clone {repo.org}/{repo.name} -> {dest}", Style.DIM)
+            if dry_run:
+                return RepoLockEntry(
+                    org=repo.org,
+                    name=repo.name,
+                    url=repo.url,
+                    default_branch=repo.branch,
+                    head_sha=None,
+                )
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            cmd = ["git", "clone"]
+            if repo.branch:
+                cmd.extend(["--branch", repo.branch])
+            cmd.extend([repo.url, str(dest)])
+            result = run_process(cmd, cwd=self._workspace.root)
+            if isinstance(result, Err):
+                self._console.print(f"git clone failed: {repo.org}/{repo.name}", Style.ERROR)
+                stderr = result.error.stderr.strip()
                 if stderr:
                     self._console.print(stderr, Style.DIM)
                 return None
-            case Ok(stdout):
-                pass
-
-        try:
-            raw: Any = json.loads(stdout)
-        except json.JSONDecodeError:
-            self._console.print(f"gh repo list returned invalid JSON for {org}", Style.ERROR)
-            return None
-
-        if not isinstance(raw, list):
-            self._console.print(f"gh repo list returned unexpected JSON for {org}", Style.ERROR)
-            return None
-
-        raw_list = cast(list[dict[str, Any]], raw)
-
-        repos: list[RepoRef] = []
-        for item_d in raw_list:
-            name = item_d.get("name")
-            url = item_d.get("url")
-            is_archived = bool(item_d.get("isArchived", False))
-            default_ref = item_d.get("defaultBranchRef")
-            default_branch: str | None = None
-            if isinstance(default_ref, dict):
-                ref_name = cast(dict[str, Any], default_ref).get("name")
-                if isinstance(ref_name, str) and ref_name:
-                    default_branch = ref_name
-
-            if not isinstance(name, str) or not name:
-                continue
-            if not isinstance(url, str) or not url:
-                continue
-
-            repos.append(
-                RepoRef(
-                    org=org,
-                    name=name,
-                    url=url,
-                    default_branch=default_branch,
-                    archived=is_archived,
-                )
-            )
-
-        return repos
-
-    def _dest_dir_for_repo(self, org: str, repo: str) -> Path:
-        if org == "open-control":
-            return self._workspace.root / "open-control" / repo
-        return self._workspace.root / "midi-studio" / repo
-
-    def _sync_repo(self, repo: RepoRef, dest: Path, *, dry_run: bool) -> RepoLockEntry | None:
-        if not dest.exists():
-            self._console.print(f"clone {repo.org}/{repo.name} -> {dest}", Style.DIM)
-            if not dry_run:
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                result = run_process(["git", "clone", repo.url, str(dest)], cwd=self._workspace.root)
-                if isinstance(result, Err):
-                    self._console.print(f"git clone failed: {repo.org}/{repo.name}", Style.ERROR)
-                    return None
 
         # Update existing repo
         if not (dest / ".git").exists():
@@ -213,7 +220,7 @@ class RepoService:
                 org=repo.org,
                 name=repo.name,
                 url=repo.url,
-                default_branch=repo.default_branch,
+                default_branch=repo.branch,
                 head_sha=None,
             )
 
@@ -223,43 +230,62 @@ class RepoService:
                 org=repo.org,
                 name=repo.name,
                 url=repo.url,
-                default_branch=repo.default_branch,
+                default_branch=repo.branch,
                 head_sha=self._head_sha(dest) if not dry_run else None,
             )
 
         current_branch = self._current_branch(dest)
-        if repo.default_branch and current_branch and current_branch != repo.default_branch:
+        if repo.branch and current_branch and current_branch != repo.branch:
             self._console.print(
-                f"skip (on branch {current_branch}, default is {repo.default_branch}): {dest}",
+                f"skip (on branch {current_branch}, expected {repo.branch}): {dest}",
                 Style.WARNING,
             )
             return RepoLockEntry(
                 org=repo.org,
                 name=repo.name,
                 url=repo.url,
-                default_branch=repo.default_branch,
+                default_branch=repo.branch,
                 head_sha=self._head_sha(dest) if not dry_run else None,
             )
 
         self._console.print(f"update {repo.org}/{repo.name}", Style.DIM)
-        if not dry_run:
-            fetch_result = run_process(
-                ["git", "-C", str(dest), "fetch", "--prune"], cwd=self._workspace.root
+        if dry_run:
+            return RepoLockEntry(
+                org=repo.org,
+                name=repo.name,
+                url=repo.url,
+                default_branch=repo.branch,
+                head_sha=None,
             )
-            if isinstance(fetch_result, Err):
-                self._console.print(f"git fetch failed: {dest}", Style.WARNING)
-            result = run_process(
-                ["git", "-C", str(dest), "pull", "--ff-only"], cwd=self._workspace.root
-            )
-            if isinstance(result, Err):
-                self._console.print(f"git pull --ff-only failed: {dest}", Style.WARNING)
+
+        fetch_result = run_process(
+            ["git", "-C", str(dest), "fetch", "--prune", "origin"],
+            cwd=self._workspace.root,
+        )
+        if isinstance(fetch_result, Err):
+            self._console.print(f"git fetch failed: {dest}", Style.ERROR)
+            stderr = fetch_result.error.stderr.strip()
+            if stderr:
+                self._console.print(stderr, Style.DIM)
+            return None
+
+        pull_cmd = ["git", "-C", str(dest), "pull", "--ff-only"]
+        if repo.branch:
+            pull_cmd.extend(["origin", repo.branch])
+        pull_result = run_process(pull_cmd, cwd=self._workspace.root)
+        if isinstance(pull_result, Err):
+            self._console.print(f"git pull --ff-only failed: {dest}", Style.ERROR)
+            stderr = pull_result.error.stderr.strip()
+            if stderr:
+                self._console.print(stderr, Style.DIM)
+            return None
 
         return RepoLockEntry(
             org=repo.org,
             name=repo.name,
             url=repo.url,
-            default_branch=repo.default_branch,
-            head_sha=self._head_sha(dest) if not dry_run else None,
+            default_branch=repo.branch,
+            head_sha=self._head_sha(dest),
         )
 
     def _write_lock(self, lock: list[RepoLockEntry]) -> None:
@@ -277,11 +303,6 @@ class RepoService:
         ]
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    def _which(self, name: str) -> str | None:
-        import shutil
-
-        return shutil.which(name)
-
     def _is_dirty(self, repo_dir: Path) -> bool:
         result = run_process(
             ["git", "-C", str(repo_dir), "status", "--porcelain"],
@@ -291,6 +312,8 @@ class RepoService:
             case Ok(stdout):
                 return bool(stdout.strip())
             case Err(_):
+                return False
+            case _:
                 return False
 
     def _current_branch(self, repo_dir: Path) -> str | None:

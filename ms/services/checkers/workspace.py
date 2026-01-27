@@ -65,7 +65,7 @@ class WorkspaceChecker:
         return CheckResult.error(
             "open-control",
             "missing",
-            hint="Run: uv run ms repos sync",
+            hint="Run: uv run ms sync --repos",
         )
 
     def check_midi_studio(self) -> CheckResult:
@@ -76,7 +76,7 @@ class WorkspaceChecker:
         return CheckResult.error(
             "midi-studio",
             "missing",
-            hint="Run: uv run ms repos sync",
+            hint="Run: uv run ms sync --repos",
         )
 
     def check_config(self) -> CheckResult:
@@ -129,7 +129,7 @@ class WorkspaceChecker:
         return CheckResult.error(
             "bitwig host",
             "missing",
-            hint="Run: uv run ms repos sync",
+            hint="Run: uv run ms sync --repos",
         )
 
     def check_bitwig_extensions(self) -> CheckResult:

@@ -37,8 +37,6 @@ def prereqs(
         confirm=lambda msg: typer.confirm(msg, default=False),
     ).ensure(
         require_git=(not skip_repos) or require_git_for_tools,
-        require_gh=not skip_repos,
-        require_gh_auth=not skip_repos,
         require_uv=not skip_python,
         install=install,
         dry_run=dry_run,

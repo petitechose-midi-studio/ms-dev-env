@@ -419,9 +419,9 @@ class BuildService(BaseService):
         """Check core layout and PIO libdeps."""
         # Check core layout
         if not (self._workspace.midi_studio_dir / "core").is_dir():
-            return Err(PrereqMissing(name="midi-studio/core", hint="Run: ms repos sync"))
+            return Err(PrereqMissing(name="midi-studio/core", hint="Run: uv run ms sync --repos"))
         if not self._workspace.open_control_dir.is_dir():
-            return Err(PrereqMissing(name="open-control", hint="Run: ms repos sync"))
+            return Err(PrereqMissing(name="open-control", hint="Run: uv run ms sync --repos"))
         if not self._core_sdl_dir().is_dir():
             return Err(PrereqMissing(name="SDL build system", hint=str(self._core_sdl_dir())))
 
