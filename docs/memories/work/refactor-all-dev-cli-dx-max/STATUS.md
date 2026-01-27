@@ -27,7 +27,7 @@
 
 - 2026-01-27 (windows, phase-5a):
   - `pyright` -> 0 errors
-  - `uv run pytest ms/test -q` -> 917 passed, 7 skipped, 6 deselected
+  - `uv run pytest ms/test -q` -> 918 passed, 7 skipped, 6 deselected
 
 - 2026-01-27 (windows, phase-4):
   - `uv run ms bridge --help` ok

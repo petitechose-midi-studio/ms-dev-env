@@ -41,8 +41,15 @@ Rules:
 ## Pyright enforcement
 
 - Baseline: `typeCheckingMode = strict` (already enabled).
-- Add: `reportExplicitAny = error` after we remove remaining explicit `Any` imports in `ms/`.
-- If a boundary truly needs explicit `Any`, document it and prefer a local type alias (e.g. `JsonValue`) over raw `Any`.
+
+- Tighten inference so we don't silently fall back to `Any` in containers:
+  - `strictListInference = true`
+  - `strictDictionaryInference = true`
+  - `strictSetInference = true`
+
+- Note: Pyright does not provide a config switch to forbid `typing.Any` directly.
+  We enforce this contract with a small pytest guard that rejects `from typing import Any`
+  and `typing.Any` usages.
 
 ## Plan (atomic)
 
@@ -53,15 +60,22 @@ Rules:
    - Replace remaining `typing.Any` usage with `object`/aliases and typed callbacks.
    - Tighten config/workspace/tool pins parsing to use validated shapes.
 
-3. `chore(pyright): forbid explicit Any`
-   - Enable `reportExplicitAny = error`.
+3. `chore(pyright): tighten inference`
+   - Enable strict container inference flags.
    - Ensure `pyright` remains green.
+
+4. `test(types): forbid typing.Any`
+   - Add a guard test that fails if `typing.Any` is introduced.
 
 ## Work log
 
 - 2026-01-27:
   - Landed structured boundary helpers and removed `Unknown` propagation in parsers/tests.
   - Verified: `pyright` (0 errors), `uv run pytest ms/test -q`.
+
+- 2026-01-27:
+  - Removed explicit `typing.Any` from `ms/` (switched boundaries to validated `object`/tables).
+  - Added strict container inference in pyright and a pytest guard against `typing.Any`.
 
 ## Verification (minimum)
 
