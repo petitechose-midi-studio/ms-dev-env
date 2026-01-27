@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from importlib import metadata
 from pathlib import Path
 
@@ -30,6 +31,43 @@ def _tool_name_for_current_ms() -> str:
     except Exception:  # noqa: BLE001
         pass
     return "petitechose-audio-workspace"
+
+
+def _tool_name_from_workspace(root: Path) -> str | None:
+    """Read the project distribution name from pyproject.toml (if present)."""
+    pyproject = root / "pyproject.toml"
+    if not pyproject.exists():
+        return None
+
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+
+    project = data.get("project")
+    if not isinstance(project, dict):
+        return None
+    name = project.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
+def _resolve_tool_name(*, override: str | None) -> tuple[str, str]:
+    if override and override.strip():
+        return override.strip(), "--name"
+
+    name = _tool_name_for_current_ms()
+    if name and name != "petitechose-audio-workspace":
+        return name, "metadata"
+
+    info = detect_workspace_info()
+    if isinstance(info, Ok):
+        from_ws = _tool_name_from_workspace(info.value.workspace.root)
+        if from_ws:
+            return from_ws, "pyproject"
+
+    return name, "fallback"
 
 
 @self_app.command("install")
@@ -116,12 +154,18 @@ def update_shell() -> None:
 
 @self_app.command("uninstall")
 def uninstall(
+    name: str | None = typer.Option(
+        None,
+        "--name",
+        help="Override the uv tool name (distribution name)",
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print commands without executing"),
 ) -> None:
     """Uninstall the global `ms` command (via `uv tool uninstall`)."""
     console = RichConsole()
-    name = _tool_name_for_current_ms()
-    cmd = ["uv", "tool", "uninstall", name]
+    resolved, source = _resolve_tool_name(override=name)
+    console.print(f"tool: {resolved} ({source})", Style.DIM)
+    cmd = ["uv", "tool", "uninstall", resolved]
     console.print(" ".join(cmd), Style.DIM)
     if dry_run:
         return
