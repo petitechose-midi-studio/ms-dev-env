@@ -16,13 +16,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from ms.core.app import resolve
-from ms.core.config import CONTROLLER_CORE_NATIVE_PORT
-from ms.core.result import Err, Ok, Result
-from ms.output.console import Style
-from ms.output.errors import build_error_exit_code, print_build_error
-from ms.platform.process import run_silent
-from ms.services.base import BaseService
+from ..core.app import resolve
+from ..core.config import CONTROLLER_CORE_NATIVE_PORT
+from ..core.result import Err, Ok, Result
+from ..output.console import Style
+from ..output.errors import build_error_exit_code, print_build_error
+from ..platform.process import run_silent
+from .base import BaseService
 
 
 # -----------------------------------------------------------------------------
@@ -118,9 +118,7 @@ class AppConfig:
 class BuildService(BaseService):
     """Build service for native and WASM targets."""
 
-    def build_native(
-        self, *, app_name: str, dry_run: bool = False
-    ) -> Result[Path, BuildError]:
+    def build_native(self, *, app_name: str, dry_run: bool = False) -> Result[Path, BuildError]:
         """Build native executable for current platform.
 
         Returns:
@@ -191,10 +189,19 @@ class BuildService(BaseService):
         # Platform-specific additions
         if self._platform.platform.is_windows:
             toolchain_file = self._core_sdl_dir() / "zig-toolchain.cmake"
+            zig_ranlib = self._registry.get_zig_wrapper("zig-ranlib")
             configure_args += [
                 f"-DCMAKE_TOOLCHAIN_FILE={toolchain_file}",
                 f"-DTOOLS_DIR={self._registry.tools_dir}",
+                # Avoid relying on a POSIX `true` placeholder on Windows.
+                # (Some environments don't have a `true.exe` on PATH, but cmd.exe still runs the rule.)
+                f"-DCMAKE_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
+                f"-DCMAKE_C_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
+                f"-DCMAKE_CXX_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
             ]
+
+            # Drop empty args if zig_ranlib was missing
+            configure_args = [x for x in configure_args if x]
 
         build_args = [str(ninja.value), "-C", str(build_dir)]
 
@@ -243,9 +250,10 @@ class BuildService(BaseService):
                 self._print_build_error(error)
                 return self._error_to_exit_code(error)
 
-    def build_wasm(
-        self, *, app_name: str, dry_run: bool = False
-    ) -> Result[Path, BuildError]:
+        # Defensive fallback for static analyzers / unexpected result variants.
+        return 1
+
+    def build_wasm(self, *, app_name: str, dry_run: bool = False) -> Result[Path, BuildError]:
         """Build WebAssembly target using Emscripten.
 
         Returns:
@@ -357,6 +365,9 @@ class BuildService(BaseService):
                 self._print_build_error(error)
                 return self._error_to_exit_code(error)
 
+        # Defensive fallback for static analyzers / unexpected result variants.
+        return 1
+
     # -------------------------------------------------------------------------
     # Internal helpers
     # -------------------------------------------------------------------------
@@ -445,9 +456,16 @@ class BuildService(BaseService):
             return Err(PrereqMissing(name="SDL2", hint="Run: ms tools sync"))
 
         # Check Zig wrappers
-        zig_cc = self._registry.get_zig_wrapper("zig-cc")
-        if zig_cc is None or not zig_cc.exists():
-            return Err(PrereqMissing(name="Zig compiler wrappers", hint="Run: ms tools sync"))
+        required = ("zig-cc", "zig-cxx", "zig-ar", "zig-ranlib")
+        for name in required:
+            p = self._registry.get_zig_wrapper(name)
+            if p is None or not p.exists():
+                return Err(
+                    PrereqMissing(
+                        name=f"Zig wrapper missing: {name}",
+                        hint="Run: ms tools sync",
+                    )
+                )
 
         return Ok(None)
 
