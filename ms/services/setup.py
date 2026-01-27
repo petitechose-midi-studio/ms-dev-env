@@ -86,6 +86,15 @@ class SetupService:
 
         # Check and install host dependencies first.
         if not skip_prereqs:
+            require_git_for_tools = False
+            if not skip_tools:
+                require_git_for_tools = ToolchainService(
+                    workspace=self._workspace,
+                    platform=self._platform,
+                    config=self._config,
+                    console=self._console,
+                ).needs_git_for_sync_dev()
+
             prereqs_result = PrereqsService(
                 workspace=self._workspace,
                 platform=self._platform,
@@ -93,7 +102,7 @@ class SetupService:
                 console=self._console,
                 confirm=self._confirm,
             ).ensure(
-                require_git=(not skip_repos) or (not skip_tools),
+                require_git=(not skip_repos) or require_git_for_tools,
                 require_gh=not skip_repos,
                 require_gh_auth=not skip_repos,
                 require_uv=not skip_python,

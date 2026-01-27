@@ -222,6 +222,22 @@ class ToolchainService:
             )
         return Ok(None)
 
+    def needs_git_for_sync_dev(self) -> bool:
+        """Return True if a dev tool sync would invoke git.
+
+        Today this is driven by git-based tool installers (e.g. emsdk clone).
+        """
+        for tool in self._registry.tools_for_mode("dev"):
+            if isinstance(tool, _SystemTool) and tool.is_system_tool():
+                continue
+
+            if isinstance(tool, _GitInstallTool) and tool.uses_git_install():
+                cmds = tool.get_install_commands(self._paths.tools_dir, self._platform.platform)
+                if any(cmd and cmd[0] == "git" for cmd in cmds):
+                    return True
+
+        return False
+
     def _is_installed_at_version(self, tool_id: str, version: str) -> bool:
         current = get_installed_version(self._paths.tools_dir, tool_id)
         return current == version
