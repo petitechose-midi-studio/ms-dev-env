@@ -244,4 +244,12 @@ class ToolsChecker:
     def _get_tool_hint(self, tool_id: str) -> str | None:
         """Get installation hint for a tool."""
         platform_key = get_platform_key(self.platform, self.distro)
-        return self.hints.get_tool_hint(tool_id, platform_key)
+        hint = self.hints.get_tool_hint(tool_id, platform_key)
+
+        # Prefer `winget` for Git on Windows when available.
+        if tool_id == "git" and platform_key == "windows":
+            if shutil.which("winget"):
+                return "winget install --id Git.Git -e"
+            return hint or "Install Git for Windows: https://git-scm.com/"
+
+        return hint

@@ -67,9 +67,9 @@ windows = "Run: uv run ms tools sync"
 # =============================================================================
 
 [tools.git]
-fedora = "sudo dnf install git"
-debian = "sudo apt install git"
-arch = "sudo pacman -S git"
+fedora = "sudo dnf install -y git"
+debian = "sudo apt install -y git"
+arch = "sudo pacman -S --noconfirm git"
 macos = "xcode-select --install"
 windows = "Install Git for Windows: https://git-scm.com/"
 
