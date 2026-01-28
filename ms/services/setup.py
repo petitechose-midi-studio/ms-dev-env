@@ -181,7 +181,7 @@ class SetupService:
                 platform=self._platform,
                 config=self._config,
             ).run()
-            if report.has_errors():
+            if report.has_errors() and not dry_run:
                 return Err(
                     SetupError(
                         kind="check_failed",
