@@ -3,7 +3,7 @@
 **Scope**: all (ms + open-control + midi-studio orchestration)
 **Status**: started
 **Created**: 2026-01-27
-**Updated**: 2026-01-27
+**Updated**: 2026-01-28
 
 ## Objectif
 
@@ -69,7 +69,14 @@ Fichiers par phase:
 - `docs/memories/work/refactor-all-dev-cli-dx-max/phase-6-cli-unified.md`
 - `docs/memories/work/refactor-all-dev-cli-dx-max/phase-7-ci-matrix.md`
 
+- `docs/memories/work/refactor-all-dev-cli-dx-max/phase-8-web-demos.md`
+
 - `docs/memories/work/refactor-all-dev-cli-dx-max/STATUS.md` (etat global)
+
+Docs additionnels:
+
+- `docs/memories/work/refactor-all-dev-cli-dx-max/repo-migration.md`
+- `docs/memories/work/refactor-all-dev-cli-dx-max/next-steps-2026-01-28.md`
 
 Chaque commit doit:
 

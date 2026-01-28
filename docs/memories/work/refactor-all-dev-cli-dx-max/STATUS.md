@@ -22,6 +22,7 @@
 - Phase 5a (type-safety contract): completed
 - Phase 6 (cli unified verbs): completed
 - Phase 7 (ci matrix): started
+- Phase 8 (web demos): started
 
 ## Latest verification
 
@@ -59,3 +60,5 @@
 ## Notes
 
 - Any deviation from the plan must be documented in the relevant phase file under "Plan deviations".
+
+- Repo migration plan: `docs/memories/work/refactor-all-dev-cli-dx-max/repo-migration.md`
