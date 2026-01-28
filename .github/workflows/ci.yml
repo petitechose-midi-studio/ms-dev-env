@@ -65,7 +65,8 @@ jobs:
     steps:
       - name: Install system dependencies
         run: |
-          dnf install -y curl git python3
+          # pyright downloads a bundled node binary that requires libatomic
+          dnf install -y curl git python3 libatomic
 
       - name: Checkout
         uses: actions/checkout@v4

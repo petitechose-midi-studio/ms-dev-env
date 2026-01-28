@@ -3,7 +3,7 @@
 **Scope**: CI + smoke tests
 **Status**: started
 **Created**: 2026-01-27
-**Updated**: 2026-01-27
+**Updated**: 2026-01-28
 
 ## Goal
 
@@ -40,6 +40,9 @@
 - 2026-01-27:
   - Added a separate full-build workflow (manual/scheduled) that clones repos, installs toolchains, and builds `core`.
   - Targets per OS: Ubuntu/Fedora = native+wasm, Windows = wasm, macOS = native.
+
+- 2026-01-28:
+  - Fixed Fedora CI type-check by installing `libatomic` (required by the bundled Node used by pyright).
 
 ## Decisions
 
