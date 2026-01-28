@@ -156,6 +156,7 @@ jobs:
         with:
           name: bin-Linux
           path: _artifacts
+          merge-multiple: true
 
       - name: Prepare site
         run: |
