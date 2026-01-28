@@ -50,6 +50,7 @@
     - WASM builds only on Ubuntu.
     - Added Bitwig simulator builds (native everywhere, wasm on Ubuntu).
   - Added a Pages deploy job to publish the demo site artifacts.
+  - Fixed Pages deploy to use deterministic artifact paths and validate expected WASM outputs.
 
 ## Decisions
 
