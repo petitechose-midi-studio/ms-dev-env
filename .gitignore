@@ -1,6 +1,6 @@
 # Repos séparés (clones indépendants)
-open-control/
-midi-studio/
+/open-control/
+/midi-studio/
 
 # Build artifacts
 *.pyc
