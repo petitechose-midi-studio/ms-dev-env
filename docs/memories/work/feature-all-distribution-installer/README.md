@@ -186,6 +186,7 @@ Actions:
 ## References
 
 - Setup & distribution architecture: `docs/memories/setup-architecture/README.md`
+- Teensy uploader CLI roadmap: `docs/memories/work/feature-teensy-uploader-cli/README.md`
 - Repo manifest: `ms/data/repos.toml`
 - Toolchain pins: `ms/data/toolchains.toml`
 - CI smoke: `.github/workflows/ci.yml`

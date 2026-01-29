@@ -97,3 +97,4 @@ _OLD/2026-01-17-refactor-oc-naming.md
 | `feature-ms-sequencer/` | planned | Step Sequencer modulaire (dossier multi-phase) |
 | `refactor-all-dev-cli-dx-max/` | completed | Refactor setup + ms CLI pour DX maximale |
 | `feature-all-distribution-installer/` | planned | Nightly/release channels + manifest + installer end-user |
+| `feature-teensy-uploader-cli/` | planned | Flasher CLI Rust (Teensy 4.1), base pour l'installer |
