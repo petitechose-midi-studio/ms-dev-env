@@ -50,17 +50,24 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install Linux system deps
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libsdl2-dev libasound2-dev libudev-dev
+          sudo apt-get install -y build-essential pkg-config libsdl2-dev libasound2-dev libudev-dev libusb-1.0-0-dev
 
       - name: Sync Python deps
         run: uv sync --frozen --extra dev
 
       - name: Setup workspace (real)
         run: uv run ms setup --skip-prereqs --yes
+
+      - name: Build midi-studio-loader (rust)
+        run: cargo build --release
+        working-directory: midi-studio/loader
 
       - name: Build core (teensy)
         run: uv run ms build core --target teensy --env dev

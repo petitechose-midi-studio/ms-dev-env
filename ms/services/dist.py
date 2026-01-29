@@ -138,25 +138,27 @@ def package_platform(
         created.append(native_zip)
 
     # Teensy uploader CLI bundle (per-platform)
+    #
+    # We ship our own MIT/Apache uploader (midi-studio-loader) rather than PJRC's
+    # teensy_loader_cli.
     uploader_zip = out_dir / f"midi-studio-{os_str}-{arch_str}-teensy-uploader.zip"
     uploader_files: list[tuple[Path, str]] = []
-    tool_teensy_dir = workspace_root / ".ms" / "platformio" / "packages" / "tool-teensy"
-    candidates = [
-        tool_teensy_dir / "teensy_loader_cli.exe",
-        tool_teensy_dir / "teensy_loader_cli",
-    ]
-    for c in candidates:
-        if c.exists() and c.is_file():
-            uploader_files.append((c, f"teensy/{c.name}"))
-            break
+    loader_dir = workspace_root / "midi-studio" / "loader" / "target" / "release"
+    loader_name = (
+        "midi-studio-loader.exe" if info.platform == Platform.WINDOWS else "midi-studio-loader"
+    )
+    loader_bin = loader_dir / loader_name
+
+    if loader_bin.exists() and loader_bin.is_file():
+        uploader_files.append((loader_bin, f"teensy/{loader_name}"))
 
     if uploader_files:
         _zip_files(uploader_zip, files=uploader_files)
         created.append(uploader_zip)
     elif require_uploader:
         raise FileNotFoundError(
-            "teensy_loader_cli not found (expected PlatformIO tool-teensy). "
-            "Run: uv run ms build core --target teensy --env dev"
+            "midi-studio-loader not found (expected built Rust uploader). "
+            "Build it with: (cd midi-studio/loader) cargo build --release"
         )
 
     # WASM bundles (Ubuntu-only in CI, but works everywhere if outputs exist)
