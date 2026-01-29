@@ -163,7 +163,7 @@ jobs:
               shutil.copy2(p, dst / p.name)
           PY
           mkdir -p .ms
-          cp _lock/.ms/repos.lock.json .ms/repos.lock.json
+          cp _lock/repos.lock.json .ms/repos.lock.json
 
       - name: Generate manifest.json
         env:
