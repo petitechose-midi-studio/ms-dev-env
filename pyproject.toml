@@ -1,7 +1,7 @@
 [project]
-name = "petitechose-audio-workspace"
-version = "0.1.0"
-description = "MIDI Studio workspace CLI (ms)"
+name = "midi-studio.ms-dev-env"
+version = "0.2.0"
+description = "MIDI Studio Development Environment"
 requires-python = ">=3.13"
 dependencies = [
   "rich>=13.0.0",
