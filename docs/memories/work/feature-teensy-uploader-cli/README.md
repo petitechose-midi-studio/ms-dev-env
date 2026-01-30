@@ -329,7 +329,7 @@ integration.
 - [ ] Lib: introduce an operation runner shared by flash/reboot
   - Shared pipeline: discover -> select -> bridge pause/resume -> per-target run -> aggregation.
   - Flash/reboot only implement the per-target action.
-- [ ] Tests: strengthen JSON contract coverage
+- [x] Tests: strengthen JSON contract coverage
   - Table-driven tests covering every operation event variant -> expected JSON fields.
   - Add tests for `doctor`, `list`, and `dry_run` JSON payloads.
 
