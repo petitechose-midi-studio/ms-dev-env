@@ -293,6 +293,22 @@ integration.
 - Build/footprint: optional dependencies
   - [x] Feature-gate process fallback (sysinfo) for pure-library consumers.
 
+### Current topo (2026-01-31)
+
+- Decision: no tokio/async for now
+  - Library APIs are synchronous; future GUI/installer should run operations on a worker thread and consume events.
+
+- Library (core): `midi-studio/loader/src/*`
+  - Use-cases: `api.rs` (flash + plan/dry-run), `reboot_api.rs` (reboot into HalfKay)
+  - Unified event stream: `operation.rs` -> `OperationEvent` (used by flash + reboot)
+  - Infra: `halfkay.rs` + `halfkay/win32.rs`, `hex.rs`, `targets.rs`, `selector.rs`, `bootloader.rs`, `serial_reboot.rs`
+  - Bridge coordination: `bridge_control/*` (ipc/service/process/cmd), process fallback behind `process-fallback`
+
+- CLI (presentation): `midi-studio/loader/src/bin/midi-studio-loader/*`
+  - `cli.rs`: clap only
+  - `commands/*`: wiring only (no formatting)
+  - `output/*`: single place for JSON(stdout)/human(stderr) rendering via `Reporter` + typed CLI events
+
 ### Architecture hardening (SOLID / maintainability)
 
 #### P0
@@ -303,6 +319,9 @@ integration.
   - Split into `ipc`, `service`, `process`, `cmd` submodules.
 - [x] Lib: move reboot flow into a library use-case
   - `reboot_api` reuses the same event stream as flashing.
+
+- [x] Windows: fix overlapped WriteFile timeout cancellation safety
+  - Wait for CancelIoEx completion before returning to avoid potential UAF.
 
 - [x] Lib: rename flash-scoped event type to an operation-scoped event type
   - Replaced `FlashEvent` with `OperationEvent` (no legacy support).
