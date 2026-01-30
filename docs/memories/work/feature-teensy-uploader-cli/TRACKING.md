@@ -58,6 +58,8 @@ Done (in code, pending commit decisions):
 - Abort early if bridge pause fails for serial targets (prevents risky partial operations)
 - Treat "service not installed" as `pause_skipped` instead of `pause_failed`
 - Added `--json-timestamps` (stable) to include `t_ms` (monotonic ms since process start)
+- Added `--json-progress blocks|percent|none` to control per-block JSON verbosity
+- Standardized target `kind` to `halfkay` (consistent across list/doctor/events)
 
 Done (tests / harness):
 - Removed temporary test hook env var (no test-only runtime behavior)
@@ -66,6 +68,7 @@ Done (tests / harness):
   - target failure => resume events still emitted (bridge guard path)
   - `--json-timestamps` adds `t_ms` when enabled
   - HalfKay targets => no bridge pause/resume attempted
+  - List/doctor target JSON `kind` is stable (`halfkay`)
 
 To do (actionable):
  - Ensure `--json-timestamps` is documented as stable contract (tests cover `t_ms` emission)
