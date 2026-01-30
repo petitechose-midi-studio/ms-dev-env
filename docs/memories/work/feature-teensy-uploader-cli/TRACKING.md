@@ -61,6 +61,8 @@ Done (in code, pending commit decisions):
 - Added `--json-progress blocks|percent|none` to control per-block JSON verbosity
 - Standardized target `kind` to `halfkay` (consistent across list/doctor/events)
 - Added final JSON `operation_summary` event (per command) for easier installer parsing
+- `list --json` now emits a single `{schema,event:"list"}` object (no more raw per-target lines)
+- `target_detected` JSON now embeds a full `target` object (consistent with list/doctor target records)
 
 Done (tests / harness):
 - Removed temporary test hook env var (no test-only runtime behavior)
