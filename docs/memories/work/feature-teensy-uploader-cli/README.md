@@ -271,13 +271,13 @@ integration.
 
 #### P1
 
-- [ ] UX: default progress output (human-friendly) while keeping `--json` stable
+- [x] UX: default progress output (human-friendly) while keeping `--json` stable
   - Show phases + block progress + percent to stderr.
 - [ ] UX: make bridge control policy explicit
   - Add `--bridge-method=auto|control|service|process|none` (or `--no-process-fallback`).
-- [ ] UX: make ambiguous target errors more actionable
+- [x] UX: make ambiguous target errors more actionable
   - When exiting `13`, print `list` output and exact `--device` examples.
-- [ ] Docs: expand `midi-studio/loader/README.md` for doctor/dry-run and troubleshooting.
+- [x] Docs: expand `midi-studio/loader/README.md` for doctor/dry-run and troubleshooting.
 
 #### P2
 
@@ -291,7 +291,37 @@ integration.
   - [ ] Avoid recreating HID contexts unnecessarily.
 
 - Build/footprint: optional dependencies
-  - [ ] Feature-gate process fallback (sysinfo) for pure-library consumers.
+  - [x] Feature-gate process fallback (sysinfo) for pure-library consumers.
+
+### Architecture hardening (SOLID / maintainability)
+
+#### P0
+
+- [x] CLI: split responsibilities (commands/output) and centralize output rendering
+  - Event-driven reporter (`Reporter` + typed `Event`) for consistent JSON/human output.
+- [x] Lib: modularize `bridge_control`
+  - Split into `ipc`, `service`, `process`, `cmd` submodules.
+- [x] Lib: move reboot flow into a library use-case
+  - `reboot_api` reuses the same event stream as flashing.
+
+- [ ] Lib: rename flash-scoped event type to an operation-scoped event type
+  - Replace `FlashEvent` with `OperationEvent` (no legacy support; allowed since there are no external users).
+  - Keep JSON event names stable (contract), but the Rust type should reflect the multi-operation scope.
+- [ ] Lib: introduce an operation runner shared by flash/reboot
+  - Shared pipeline: discover -> select -> bridge pause/resume -> per-target run -> aggregation.
+  - Flash/reboot only implement the per-target action.
+- [ ] Tests: strengthen JSON contract coverage
+  - Table-driven tests covering every operation event variant -> expected JSON fields.
+  - Add tests for `doctor`, `list`, and `dry_run` JSON payloads.
+
+#### P1
+
+- [ ] Lib: typed selection API (avoid re-parsing selector strings)
+  - Add a parsed selector type exposed by the lib.
+- [ ] Bridge: explicit policy surface
+  - `--bridge-method=auto|control|service|process|none` + optional `--no-process-fallback`.
+- [ ] IPC: formal request/response schema
+  - Add `schema` fields and strict parsing for oc-bridge control plane.
 
 ### Phase 0 - Repo + build system
 
