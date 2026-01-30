@@ -34,6 +34,8 @@ New in-scope items (to reduce end-user friction):
 - Auto target detection (HalfKay and/or USB Serial)
 - Safe-by-default behavior when multiple devices are present
 
+Also in-scope: oc-bridge coordination to free the USB Serial port during flashing.
+
 Non-goals (for now):
 
 - No Teensy 4.0/3.x/2.x
@@ -164,6 +166,12 @@ Selector formats:
 - `halfkay:<hid-path>`
 - `index:<n>` (index in the `list` output order)
 
+Bridge coordination flags:
+
+- `--no-bridge-control`
+- `--bridge-control-port 7999` (oc-bridge IPC)
+- `--bridge-service-id <id>` (OS service fallback)
+
 Options:
 
 - `--wait` : wait for HalfKay to appear
@@ -207,6 +215,23 @@ When flashing a Serial target:
 4) Flash *by that path* (open by path; reopen by path on retries)
 
 This provides correct device targeting even when multiple Teensys are connected.
+
+## oc-bridge pause/resume (high ROI)
+
+Problem: the bridge commonly owns the serial port and prevents a soft reboot / flashing.
+
+Solution: prefer an in-process pause/resume API that releases the serial port without stopping the
+whole bridge process.
+
+- oc-bridge exposes local IPC on `127.0.0.1:7999`:
+  - `oc-bridge ctl pause` (must ACK only once serial is closed)
+  - `oc-bridge ctl resume`
+  - `oc-bridge ctl status`
+
+Uploader behavior:
+
+1) Prefer IPC pause/resume
+2) Fallback: stop/start OS service (when installed)
 
 ## JSON contract (installer-friendly)
 
