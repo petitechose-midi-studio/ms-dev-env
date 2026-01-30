@@ -3,7 +3,7 @@
 **Status**: in_progress
 
 **Created**: 2026-01-29
-**Updated**: 2026-01-29
+**Updated**: 2026-01-30
 
 ## Goal
 
@@ -153,6 +153,7 @@ Commands:
 
 - `flash <path.hex>`
 - `list`
+- `doctor` (diagnostics)
 
 New/expanded:
 
@@ -178,6 +179,7 @@ Options:
 - `--wait-timeout-ms <n>` : max wait time (0 = forever)
 - `--no-reboot` : do not boot after programming
 - `--retries <n>` : retries per block (default: 3)
+- `--dry-run` : validate selection + HEX without flashing
 - `--json` : emit machine-readable progress/events to stdout
 - `--verbose`
 
@@ -250,6 +252,46 @@ Key events:
 - per-target summary for `--all`: `target_done` with `ok=true/false` + `error_code`
 
 ## Roadmap (very specific)
+
+### Hardening backlog (perf / footprint / UX)
+
+These items are not required for the MVP flasher to work, but they are high ROI before installer
+integration.
+
+#### P0
+
+- [x] Perf/footprint: reduce sysinfo refresh scope in process fallback
+  - Avoid `System::new_all()` and full refresh; refresh only processes with exe/cmd when needed.
+- [x] Perf: avoid per-block heap allocations while building HalfKay reports
+  - Reuse a fixed-size report buffer (stack or caller-provided) instead of allocating a `Vec`.
+- [x] UX: `doctor` command
+  - Show detected targets, oc-bridge IPC reachability/status, service status, and key hints.
+- [x] UX: `flash --dry-run`
+  - Validate `.hex`, compute blocks-to-write, resolve target selection, but do not pause/reboot/flash.
+
+#### P1
+
+- [ ] UX: default progress output (human-friendly) while keeping `--json` stable
+  - Show phases + block progress + percent to stderr.
+- [ ] UX: make bridge control policy explicit
+  - Add `--bridge-method=auto|control|service|process|none` (or `--no-process-fallback`).
+- [ ] UX: make ambiguous target errors more actionable
+  - When exiting `13`, print `list` output and exact `--device` examples.
+- [ ] Docs: expand `midi-studio/loader/README.md` for doctor/dry-run and troubleshooting.
+
+#### P2
+
+- Footprint: reduce firmware image memory
+  - [x] Remove redundant HEX "mask" tracking where safe.
+  - [ ] Optional: allocate only up to the highest address used (rounded to block size).
+  - [ ] Optional: sparse-per-block representation if we want to go below ~8MB.
+
+- Perf: reduce device discovery overhead in `--wait` loops
+  - [ ] Cache HID/serial snapshots for a short interval during polling.
+  - [ ] Avoid recreating HID contexts unnecessarily.
+
+- Build/footprint: optional dependencies
+  - [ ] Feature-gate process fallback (sysinfo) for pure-library consumers.
 
 ### Phase 0 - Repo + build system
 
