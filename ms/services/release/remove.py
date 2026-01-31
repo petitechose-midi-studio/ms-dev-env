@@ -251,7 +251,7 @@ def delete_github_releases(
         if isinstance(result, Err):
             e = result.error
             msg = e.stderr.strip() or str(e)
-            if ignore_missing and "could not find" in msg.lower():
+            if ignore_missing and ("could not find" in msg.lower() or "not found" in msg.lower()):
                 continue
             return Err(
                 ReleaseError(
