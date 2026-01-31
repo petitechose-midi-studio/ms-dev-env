@@ -128,6 +128,14 @@ Baseline security applied:
 Baseline CI:
 - `.github/workflows/ci.yml` runs `cargo test` for the distribution repo.
 
+Workflows implemented (initial):
+- `publish.yml` (manual stable/beta): builds loader + oc-bridge bundles, generates + signs manifest, publishes a GitHub Release.
+- `nightly.yml` (scheduled): selects latest green commits, builds bundles, signs with nightly key, publishes prerelease.
+
+Channels:
+- `channels/{stable,beta,nightly}.json` created (placeholder values until first release).
+- `schemas/channel-pointer.schema.json` created (includes `key_id`).
+
 ## Tests
 
 Local (fast):
