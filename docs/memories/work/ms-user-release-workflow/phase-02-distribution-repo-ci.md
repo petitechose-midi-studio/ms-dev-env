@@ -150,11 +150,20 @@ Issues found + fixed during smoke:
 
 Pages:
 - `.github/workflows/pages.yml` added with placeholder content under `pages/`.
-- Blocker: org-level policy currently rejects enabling Pages for `petitechose-midi-studio/distribution` ("administrators disabled Pages creation").
+- GitHub Pages enabled (build_type=workflow).
+- Site: https://petitechose-midi-studio.github.io/distribution/
 
 Channels:
-- `channels/{stable,beta,nightly}.json` created (placeholder values until first release).
+- `channels/{stable,beta,nightly}.json` created.
 - `schemas/channel-pointer.schema.json` created (includes `key_id`).
+
+Channel pointer updates:
+- Org policy blocks GitHub Actions from creating PRs.
+- `main` requires PRs for changes.
+- Therefore `publish.yml`/`nightly.yml` do not auto-update `channels/*.json` (they print URLs in job summary).
+- Channel pointers must be updated manually via PR (use `scripts/update_channel_pointer.py`).
+- Beta pointer is now set:
+  - `channels/beta.json` -> `v0.0.0-test.3`
 
 ## Tests
 
@@ -166,7 +175,7 @@ CI checks (required):
   - manifest signature verifies
   - sha256 matches
   - bundle contains expected files
-  - channels pointers updated
+  - channel pointer update instructions are emitted (and/or channel pointers updated manually)
 
 ## Security hardening (recommended)
 
