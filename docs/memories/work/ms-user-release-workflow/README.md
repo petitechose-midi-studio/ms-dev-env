@@ -90,7 +90,7 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02 (DONE): Distribution Repo + CI (stable/beta/nightly) + Pages Demos
   - File: `phase-02-distribution-repo-ci.md`
 
-- Phase 02b (TODO): Maintainer Release Command (ms release publish)
+- Phase 02b (DONE): Maintainer Release Command (ms release publish)
   - File: `phase-02b-maintainer-release-command.md`
 
 - Phase 03 (TODO): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle

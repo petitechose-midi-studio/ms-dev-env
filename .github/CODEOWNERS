@@ -1,0 +1,4 @@
+# Code owners for security-sensitive maintainer tooling.
+
+/ms/cli/commands/release_cmd.py @petitechose-audio
+/ms/services/release/ @petitechose-audio

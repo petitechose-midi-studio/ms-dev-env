@@ -1,6 +1,6 @@
 # Phase 02b: Maintainer Release Command (ms release publish)
 
-Status: TODO
+Status: DONE
 
 ## Goal
 
@@ -162,6 +162,27 @@ Mitigations:
 - Full test suite passes:
   - `uv run pyright`
   - `uv run pytest ms/test -q`
+
+## Results (recorded)
+
+Implemented in `ms-dev-env`:
+- CLI:
+  - `ms release plan`
+  - `ms release prepare`
+  - `ms release publish`
+- Modules: `ms/services/release/*` (semver, planning, CI checks, spec/notes generation, dist PR, workflow dispatch)
+- Guardrails:
+  - permission gating via `viewerPermission` on `petitechose-midi-studio/distribution`
+  - monotone tags enforced
+  - CI green enforced by default; `--allow-non-green` explicit override
+  - confirmation required before side effects (retype tag)
+
+Scope (v1):
+- repos pinned: `loader`, `oc-bridge`
+- firmware `.hex` selection/packaging is deferred (later phase)
+
+Distribution integration:
+- `petitechose-midi-studio/distribution` `publish.yml` uses `release-notes/<tag>.md` as the release body when present.
 
 ## Tests (complete coverage)
 

@@ -11,6 +11,7 @@ from ms.cli.commands.build_cmd import build
 from ms.cli.commands.check import check
 from ms.cli.commands.clean import clean
 from ms.cli.commands.dist import dist_app
+from ms.cli.commands.release_cmd import release_app
 from ms.cli.commands.list_cmd import list_apps
 from ms.cli.commands.monitor_cmd import monitor
 from ms.cli.commands.prereqs import prereqs
@@ -59,6 +60,7 @@ app.command()(destroy)
 app.add_typer(self_app, name="self")
 app.add_typer(bridge_app, name="bridge")
 app.add_typer(dist_app, name="dist")
+app.add_typer(release_app, name="release")
 
 
 @app.callback()
