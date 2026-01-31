@@ -84,7 +84,7 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 01 (DONE): Release Spec + Manifest v2 + Signing + Anti-rollback
   - File: `phase-01-manifest-and-release-spec.md`
 
-- Phase 02 (TODO): Distribution Repo + CI (stable/beta/nightly) + Pages Demos
+- Phase 02 (IN PROGRESS): Distribution Repo + CI (stable/beta/nightly) + Pages Demos
   - File: `phase-02-distribution-repo-ci.md`
 
 - Phase 03 (TODO): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle

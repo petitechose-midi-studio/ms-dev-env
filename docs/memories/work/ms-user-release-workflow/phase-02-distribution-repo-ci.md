@@ -1,6 +1,6 @@
 # Phase 02: Distribution Repo + CI (stable/beta/nightly) + Pages Demos
 
-Status: TODO
+Status: IN PROGRESS
 
 ## Goal
 
@@ -111,6 +111,22 @@ The demos are built in CI but are not included in the installed bundle.
 - pages deploy works and URLs are recorded in manifest.
 - channel pointers are updated atomically.
 
+## Progress (recorded)
+
+Repo created:
+- `petitechose-midi-studio/distribution`
+
+Baseline security applied:
+- `SECURITY.md` documents key handling and hardening.
+- `.github/CODEOWNERS` added for critical paths.
+- `main` branch protection enabled (PR + Code Owner review + 1 approval; no force-push/deletion).
+- GitHub Actions environments created:
+  - `release` (required reviewer: `petitechose-audio`)
+  - `nightly` (no reviewers)
+
+Baseline CI:
+- `.github/workflows/ci.yml` runs `cargo test` for the distribution repo.
+
 ## Tests
 
 Local (fast):
@@ -122,3 +138,22 @@ CI checks (required):
   - sha256 matches
   - bundle contains expected files
   - channels pointers updated
+
+## Security hardening (recommended)
+
+High ROI measures to protect the signing key:
+
+- Branch protection on `main`:
+  - require PR
+  - require Code Owner review
+  - require 1+ approvals
+  - disallow force-push and deletion
+  - require conversation resolution
+
+- CODEOWNERS:
+  - protect `.github/workflows/**`, `tools/**`, `schemas/**`, `channels/**`
+
+- GitHub Actions environments:
+  - `release` environment requires manual approval
+  - store `MS_DIST_ED25519_SK` only as an environment secret on `release`
+  - (optional) `nightly` environment for nightly-only secrets
