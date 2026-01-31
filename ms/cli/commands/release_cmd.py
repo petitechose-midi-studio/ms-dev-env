@@ -13,6 +13,12 @@ from ms.services.release import config
 from ms.services.release.ci import fetch_green_head_shas
 from ms.services.release.gh import current_user, list_recent_commits
 from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
+from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
+from ms.services.release.remove import (
+    delete_github_releases,
+    remove_distribution_artifacts,
+    validate_remove_tags,
+)
 from ms.services.release.service import (
     ensure_ci_green,
     ensure_release_permissions,
@@ -137,6 +143,18 @@ def _print_plan(*, plan: ReleasePlan, console: ConsoleProtocol) -> None:
         console.print(f"notes: {plan.notes_path}")
 
 
+def _print_replay(*, plan: ReleasePlan, console: ConsoleProtocol, plan_file: Path | None) -> None:
+    repo_args = " ".join([f"--repo {p.repo.id}={p.sha}" for p in plan.pinned])
+    console.newline()
+    console.print("Replay:", Style.DIM)
+    if plan_file is not None:
+        console.print(f"ms release publish --plan {plan_file}", Style.DIM)
+    console.print(
+        f"ms release publish --channel {plan.channel} --tag {plan.tag} --no-interactive {repo_args}",
+        Style.DIM,
+    )
+
+
 @release_app.command("plan")
 def plan_cmd(
     channel: ReleaseChannel = typer.Option(..., "--channel", help="stable or beta"),
@@ -147,6 +165,7 @@ def plan_cmd(
     no_interactive: bool = typer.Option(
         False, "--no-interactive", help="Require explicit --repo overrides"
     ),
+    out: Path | None = typer.Option(None, "--out", help="Write plan JSON to file"),
 ) -> None:
     """Plan a release (no side effects)."""
     ctx = build_context()
@@ -184,13 +203,27 @@ def plan_cmd(
 
     _print_plan(plan=plan_r.value, console=ctx.console)
 
+    if out is not None:
+        plan_file = write_plan_file(
+            path=out,
+            plan=PlanInput(
+                channel=plan_r.value.channel, tag=plan_r.value.tag, pinned=plan_r.value.pinned
+            ),
+        )
+        if isinstance(plan_file, Err):
+            _exit(plan_file.error.message, code=ErrorCode.IO_ERROR)
+        ctx.console.success(str(out))
+
+    _print_replay(plan=plan_r.value, console=ctx.console, plan_file=out)
+
 
 @release_app.command("prepare")
 def prepare_cmd(
-    channel: ReleaseChannel = typer.Option(..., "--channel", help="stable or beta"),
+    channel: ReleaseChannel | None = typer.Option(None, "--channel", help="stable or beta"),
     bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
     tag: str | None = typer.Option(None, "--tag", help="Override tag"),
     repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    plan: Path | None = typer.Option(None, "--plan", help="Use a previously saved plan JSON"),
     notes: str | None = typer.Option(None, "--notes", help="Short release notes"),
     notes_file: Path | None = typer.Option(None, "--notes-file", help="Extra markdown file"),
     allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
@@ -210,13 +243,23 @@ def prepare_cmd(
     if isinstance(ok, Err):
         _exit(ok.error.message, code=ErrorCode.USER_ERROR)
 
-    pinned = _resolve_pinned(
-        workspace_root=ctx.workspace.root,
-        console=ctx.console,
-        repo_overrides=repo,
-        allow_non_green=allow_non_green,
-        interactive=not no_interactive,
-    )
+    if plan is not None:
+        plan_in = read_plan_file(path=plan)
+        if isinstance(plan_in, Err):
+            _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
+        channel = plan_in.value.channel
+        tag = plan_in.value.tag
+        pinned = plan_in.value.pinned
+    else:
+        if channel is None:
+            _exit("missing --channel (or pass --plan)", code=ErrorCode.USER_ERROR)
+        pinned = _resolve_pinned(
+            workspace_root=ctx.workspace.root,
+            console=ctx.console,
+            repo_overrides=repo,
+            allow_non_green=allow_non_green,
+            interactive=not no_interactive,
+        )
 
     plan_r = plan_release(
         workspace_root=ctx.workspace.root,
@@ -237,6 +280,7 @@ def prepare_cmd(
         _exit(green.error.message, code=ErrorCode.USER_ERROR)
 
     _print_plan(plan=plan_r.value, console=ctx.console)
+    _print_replay(plan=plan_r.value, console=ctx.console, plan_file=plan)
     if not dry_run:
         _confirm_tag(plan_r.value.tag)
 
@@ -256,10 +300,11 @@ def prepare_cmd(
 
 @release_app.command("publish")
 def publish_cmd(
-    channel: ReleaseChannel = typer.Option(..., "--channel", help="stable or beta"),
+    channel: ReleaseChannel | None = typer.Option(None, "--channel", help="stable or beta"),
     bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
     tag: str | None = typer.Option(None, "--tag", help="Override tag"),
     repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    plan: Path | None = typer.Option(None, "--plan", help="Use a previously saved plan JSON"),
     notes: str | None = typer.Option(None, "--notes", help="Short release notes"),
     notes_file: Path | None = typer.Option(None, "--notes-file", help="Extra markdown file"),
     allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
@@ -280,13 +325,23 @@ def publish_cmd(
     if isinstance(ok, Err):
         _exit(ok.error.message, code=ErrorCode.USER_ERROR)
 
-    pinned = _resolve_pinned(
-        workspace_root=ctx.workspace.root,
-        console=ctx.console,
-        repo_overrides=repo,
-        allow_non_green=allow_non_green,
-        interactive=not no_interactive,
-    )
+    if plan is not None:
+        plan_in = read_plan_file(path=plan)
+        if isinstance(plan_in, Err):
+            _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
+        channel = plan_in.value.channel
+        tag = plan_in.value.tag
+        pinned = plan_in.value.pinned
+    else:
+        if channel is None:
+            _exit("missing --channel (or pass --plan)", code=ErrorCode.USER_ERROR)
+        pinned = _resolve_pinned(
+            workspace_root=ctx.workspace.root,
+            console=ctx.console,
+            repo_overrides=repo,
+            allow_non_green=allow_non_green,
+            interactive=not no_interactive,
+        )
 
     plan_r = plan_release(
         workspace_root=ctx.workspace.root,
@@ -307,6 +362,7 @@ def publish_cmd(
         _exit(green.error.message, code=ErrorCode.USER_ERROR)
 
     _print_plan(plan=plan_r.value, console=ctx.console)
+    _print_replay(plan=plan_r.value, console=ctx.console, plan_file=plan)
     if not dry_run:
         _confirm_tag(plan_r.value.tag)
 
@@ -338,3 +394,58 @@ def publish_cmd(
         "Next: approve the 'release' environment in GitHub Actions to sign + publish.",
         Style.DIM,
     )
+
+
+@release_app.command("remove")
+def remove_cmd(
+    tag: list[str] = typer.Option([], "--tag", help="Release tag to delete (repeatable)"),
+    force: bool = typer.Option(False, "--force", help="Allow deleting stable tags"),
+    ignore_missing: bool = typer.Option(False, "--ignore-missing", help="Ignore missing releases"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without mutating"),
+) -> None:
+    """Remove releases (cleanup artifacts + delete GitHub Releases)."""
+    ctx = build_context()
+
+    ok = ensure_release_permissions(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        require_write=True,
+    )
+    if isinstance(ok, Err):
+        _exit(ok.error.message, code=ErrorCode.USER_ERROR)
+
+    valid = validate_remove_tags(tags=tag, force=force)
+    if isinstance(valid, Err):
+        _exit(valid.error.message, code=ErrorCode.USER_ERROR)
+    tags = valid.value
+
+    ctx.console.header("Remove Releases")
+    for t in tags:
+        ctx.console.print(f"- {t}")
+    if not dry_run:
+        typed = typer.prompt("Type DELETE to confirm", default="")
+        if typed.strip() != "DELETE":
+            _exit("confirmation mismatch", code=ErrorCode.USER_ERROR)
+
+    # 1) Remove spec/notes artifacts via PR (safe, reversible).
+    artifacts = remove_distribution_artifacts(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        tags=tags,
+        dry_run=dry_run,
+    )
+    if isinstance(artifacts, Err):
+        _exit(artifacts.error.message, code=ErrorCode.IO_ERROR)
+
+    # 2) Delete GitHub releases (irreversible).
+    deleted = delete_github_releases(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        tags=tags,
+        ignore_missing=ignore_missing,
+        dry_run=dry_run,
+    )
+    if isinstance(deleted, Err):
+        _exit(deleted.error.message, code=ErrorCode.NETWORK_ERROR)
+
+    ctx.console.success("done")

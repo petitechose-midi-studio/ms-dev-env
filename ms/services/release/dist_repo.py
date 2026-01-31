@@ -133,14 +133,14 @@ def commit_and_push(
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
     rels = [str(p.relative_to(repo_root)) for p in paths]
-    console.print(f"git add {' '.join(rels)}", Style.DIM)
+    console.print(f"git add -A -- {' '.join(rels)}", Style.DIM)
     console.print(f"git commit -m {message}", Style.DIM)
     console.print(f"git push -u origin {branch}", Style.DIM)
 
     if dry_run:
         return Ok(None)
 
-    add = run_process(["git", "add", *rels], cwd=repo_root)
+    add = run_process(["git", "add", "-A", "--", *rels], cwd=repo_root)
     if isinstance(add, Err):
         e = add.error
         return Err(

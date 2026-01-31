@@ -33,6 +33,7 @@ Subcommands (non-monolithic API surface):
 - No side effects.
 - Produces a fully resolved release plan (channel, tag, SHAs, spec/notes paths).
 - Suitable for contributors to propose a release plan in an issue without publishing.
+- Can export a plan JSON via `--out <path>`.
 
 2) `ms release prepare`
 - Creates/updates the distribution PR:
@@ -40,12 +41,18 @@ Subcommands (non-monolithic API surface):
   - writes `release-notes/<tag>.md` (optional)
   - opens a PR
 - Does not run the publish workflow unless explicitly requested.
+- Can consume a previously exported plan via `--plan <path>`.
 
 3) `ms release publish`
 - Ensures the spec exists on `distribution/main`.
 - Dispatches the `Publish` workflow in `petitechose-midi-studio/distribution`.
 - Does **not** approve the `release` environment.
 - Optionally watches the run and prints the Release URL.
+- Can consume a previously exported plan via `--plan <path>`.
+
+4) `ms release remove`
+- Deletes one or more distribution test releases (PR-cleanup of artifacts + GitHub Release deletion).
+- Must be explicit and confirmable (irreversible part).
 
 Common flags:
 - `--channel stable|beta`
@@ -54,6 +61,8 @@ Common flags:
 - `--repo <id>=<sha>` (non-interactive override; repeatable)
 - `--notes <text>` and/or `--notes-file <path.md>`
 - `--dry-run` (prints actions; no git/gh mutations)
+- `--out <plan.json>` (plan only)
+- `--plan <plan.json>` (prepare/publish)
 
 Interactive behavior (default):
 - show the last N commits per repo and prompt selection
@@ -220,3 +229,4 @@ Regression tests (safety):
 - Refuse to run publish if tag exists.
 - Refuse to run prepare/publish without sufficient GitHub permission.
 - Refuse non-green SHA unless `--allow-non-green`.
+- `remove` refuses deleting stable tags unless `--force`.
