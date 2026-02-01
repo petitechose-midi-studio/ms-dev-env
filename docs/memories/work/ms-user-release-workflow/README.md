@@ -77,6 +77,12 @@ These are prerequisites we rely on.
 - Windows: admin allowed; service points to stable `current/`.
 - oc-bridge remains agnostic; MIDI Studio requires service-name configurability to avoid collisions.
 - ms-manager GUI: Tauri + Svelte.
+- ms-manager supported platforms (v1):
+  - Windows: Windows 10+ (x86_64).
+  - macOS: macOS 13+.
+  - Linux (WebKitGTK 4.1): Debian 13+, Ubuntu 24.04+, Fedora current, RHEL-family 10+.
+  - Not supported: RHEL 9.
+- Windows installer (v1): use WebView2 `downloadBootstrapper`.
 - macOS/Linux symlinks: install to `/usr/local/bin` (sudo) for frictionless CLI usage.
 
 ## Phases (tracking)

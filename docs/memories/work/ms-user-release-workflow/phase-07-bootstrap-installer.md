@@ -21,6 +21,20 @@ Prerequisites:
 - Use Tauri bundler to build installers per platform.
 - The installer ships a known ms-manager build, but ms-manager updates itself on first run.
 
+Platform specifics (v1):
+
+- Windows 10+:
+  - Ship NSIS `-setup.exe`.
+  - WebView2: use `downloadBootstrapper` so WebView2 is installed if missing.
+  - Fallback (offline / locked-down IT): document how to install WebView2 Runtime manually.
+- macOS:
+  - Ship DMG.
+  - For good UX, plan signing + notarization (Gatekeeper).
+- Linux:
+  - Debian/Ubuntu: ship `.deb` and instruct users to install via `apt install ./...deb`.
+  - Fedora/RHEL: ship `.rpm` and instruct users to install via `dnf install ./...rpm`.
+  - Supported matrix for v1 requires WebKitGTK 4.1 (see Phase 04).
+
 ## PATH / CLI
 
 Goal: users can run:
@@ -30,6 +44,9 @@ Goal: users can run:
 
 macOS/Linux:
 - create symlinks to `current/...` in `/usr/local/bin` (sudo).
+
+Note: GUI apps on macOS/Linux do not reliably inherit shell `$PATH`.
+ms-manager must not depend on `$PATH` to find bundled binaries.
 
 Windows:
 - optional: add `current/bin` directory to PATH (machine-wide, admin).
