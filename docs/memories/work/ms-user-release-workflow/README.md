@@ -54,11 +54,10 @@ These are prerequisites we rely on.
 
 - `open-control/bridge` provides:
   - local control plane (`oc-bridge ctl pause|resume|status`)
-  - Windows service install/uninstall (currently hard-coded service name)
-  - Linux systemd user service install (currently hard-coded service name + installs a .desktop)
-  - Note: Linux service install uses `current_exe()` path, which can resolve to a versioned path
-    even when the binary is reached via a `current/` symlink. We must address this to keep
-    service ExecStart stable across upgrades.
+  - Windows/Linux service install/uninstall with configurable `--service-name`
+  - Windows/Linux support `--service-exec <absolute_path>` so installed services/units can point
+    to a stable `current/` path (atomic upgrades)
+  - Linux: `--no-desktop-file` to skip installing a `.desktop` launcher
 
 - `ms-dev-env` already has CI workflows that build and package artifacts (dev-oriented). We will not ship ms-dev-env to end users.
 
@@ -96,7 +95,7 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02b (DONE): Maintainer Release Command (ms release publish)
   - File: `phase-02b-maintainer-release-command.md`
 
-- Phase 03 (TODO): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
+- Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
   - File: `phase-03-oc-bridge-service-names.md`
 
 - Phase 04 (TODO): ms-manager Foundation (Tauri+Svelte) + Fetch/Verify/Cache

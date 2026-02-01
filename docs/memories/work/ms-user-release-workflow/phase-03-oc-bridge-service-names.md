@@ -1,6 +1,6 @@
 # Phase 03: oc-bridge Upstream - Service Name Config + Linux Desktop Toggle
 
-Status: TODO
+Status: DONE
 
 ## Goal
 
@@ -11,10 +11,10 @@ without colliding with other oc-bridge users.
 
 1) Windows service name configurability
 
-- Add CLI flags (recommended):
-  - `oc-bridge install --service-name <name> [--service-display-name <name>] [--service-description <text>]`
-  - `oc-bridge uninstall --service-name <name>`
-  - `oc-bridge ctl ...` remains unchanged (control plane is independent).
+- Implemented CLI flags:
+  - `oc-bridge install [--service-name <name>] [--service-exec <absolute_path>] [--no-desktop-file]`
+  - `oc-bridge uninstall [--service-name <name>]`
+  - `oc-bridge ctl ...` unchanged (control plane is independent).
 
 Constraints:
 - Backwards compatible defaults:
@@ -57,10 +57,32 @@ Recommended values (documented in ms-manager):
 - Linux `--no-desktop-file` works.
 - Existing oc-bridge users are not broken (defaults unchanged).
 
+## Implementation Notes
+
+- Upstream PR: `https://github.com/open-control/bridge/pull/2` (merged)
+- Default behavior preserved:
+  - Windows default service name remains `OpenControlBridge`
+  - Linux default unit name remains `open-control-bridge`
+  - If `--service-exec` is not provided, oc-bridge keeps using `current_exe()`.
+- Validation:
+  - `--service-name` allows only ASCII alnum + `- _ .` and max length 128.
+  - Linux additionally rejects names ending with `.service`.
+  - `--service-exec` must be an absolute path to an existing file.
+- Linux desktop integration:
+  - `.desktop` install is skipped when `--no-desktop-file` is provided.
+- Not implemented (intentional): `--service-display-name` / `--service-description`.
+  - Rationale: keep the surface area minimal until a real use-case appears.
+- macOS: service management is not supported; commands return `PlatformNotSupported`.
+
 ## Tests
 
 Local:
 - `cargo test` in `open-control/bridge`
+
+CI:
+- `cargo fmt`
+- `cargo clippy --all-targets -- -D warnings`
+- `cargo test` (Windows/Linux/macOS)
 
 Windows (manual smoke):
 - `oc-bridge install --service-name MidiStudioBridge`
