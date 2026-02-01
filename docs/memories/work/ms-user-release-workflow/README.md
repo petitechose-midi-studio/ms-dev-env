@@ -70,6 +70,9 @@ These are prerequisites we rely on.
 - Default install + rollback (v1):
   - Stable installs from GitHub Releases `latest` (manifest + signature).
   - Advanced selection/rollback lists tags via GitHub Releases API.
+- Release bundle build (v1):
+  - Rust binaries are built with size-focused release settings.
+  - `midi-studio-loader` in bundles is built without default features (`--no-default-features --features cli`).
 - Nightly selection: per repo, pick the latest commit with CI success; skip nightly if any repo lacks a green commit.
 - macOS/Linux: user services when possible.
 - Windows: admin allowed; service points to stable `current/`.

@@ -112,7 +112,7 @@ Policy (v1):
 - Allow override only with an explicit `--allow-non-green` flag.
 
 Implementation (recommended):
-- Use `gh api` to query workflow runs for the required workflow file and check that the selected SHA appears as a successful `head_sha`.
+- Use `gh run list --workflow <workflow_file> --commit <sha> --status success`.
 
 ## Distribution PR + Notes
 
@@ -180,12 +180,21 @@ Implemented in `ms-dev-env`:
   - `ms release plan`
   - `ms release prepare`
   - `ms release publish`
+  - `ms release remove`
 - Modules: `ms/services/release/*` (semver, planning, CI checks, spec/notes generation, dist PR, workflow dispatch)
 - Guardrails:
   - permission gating via `viewerPermission` on `petitechose-midi-studio/distribution`
   - monotone tags enforced
   - CI green enforced by default; `--allow-non-green` explicit override
   - confirmation required before side effects (retype tag)
+
+Additional features (post-MVP, now shipped):
+- Plan file export/import:
+  - `ms release plan --out plan.json`
+  - `ms release prepare --plan plan.json`
+  - `ms release publish --plan plan.json`
+- Cleanup command:
+  - `ms release remove --tag <tag> [--tag ...] [--ignore-missing] [--yes]`
 
 Scope (v1):
 - repos pinned: `loader`, `oc-bridge`
