@@ -11,6 +11,15 @@ Create the dedicated distribution repo and implement:
 - GitHub Pages demos (per channel)
 - Pages site (schemas + demo placeholders)
 
+Distribution content contract:
+- A tag can contain multiple install profiles via `install_sets`:
+  - `default` = Standalone (core-only)
+  - additional profile ids (future): `bitwig`, `ableton`, `flstudio`, `reaper`, ...
+- Assets are split by kind:
+  - `bundle` (OS/arch): host tools (oc-bridge + loader + config)
+  - `firmware` (platform-independent): one firmware per profile
+  - DAW extensions (platform-independent): e.g. Bitwig `.bwextension`
+
 Default install strategy (v1):
 - Stable update uses GitHub Releases `latest` assets.
 - Advanced selection / rollback lists releases via GitHub Releases API.
@@ -41,13 +50,13 @@ Inputs:
 Steps (high-level):
 1) Checkout distribution repo.
 2) Checkout each pinned repo at exact SHA.
-3) Build matrix (OS/arch):
+3) Build host bundles (OS/arch matrix):
    - `midi-studio-loader`
    - `oc-bridge` (+ config folder)
-   - (later) `ms-manager` (Tauri)
-   - (later) firmware bundles + Bitwig extension
-4) Package zips with deterministic names.
-5) Generate + sign `manifest.json`.
+4) Build integrations (Ubuntu-only):
+   - standalone firmware
+   - one firmware + extension per supported DAW profile (e.g. Bitwig)
+5) Generate + sign `manifest.json` (includes install_sets for profiles).
 6) Create GitHub Release + upload all assets.
 7) Pages site deploy (schemas + placeholder demos).
 
@@ -80,9 +89,9 @@ Implementation detail (recommended):
 
 Use stable filenames, similar to current `ms/services/dist.py` naming:
 
-- `midi-studio-<os>-<arch>-bundle.zip` (contains manager + loader + oc-bridge + config)
-- v1 bundle contains: loader + oc-bridge + config
-- (later) add: ms-manager + firmware + Bitwig extension
+- `midi-studio-<os>-<arch>-bundle.zip` (contains loader + oc-bridge + config)
+- `midi-studio-<profile>-firmware.hex` (platform-independent, one per profile)
+- `midi_studio.<daw-extension>` (platform-independent, e.g. `midi_studio.bwextension`)
 - `manifest.json` + `manifest.json.sig`
 
 Note: keep the “bundle” structure friendly for `current/` layout.
