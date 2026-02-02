@@ -1,6 +1,6 @@
 # Phase 04: ms-manager Foundation (Tauri + Svelte) - Fetch/Verify/Cache
 
-Status: TODO
+Status: IN PROGRESS
 
 ## Goal
 
@@ -170,3 +170,12 @@ Local (full):
 - Tauri dev run:
   - Install simulation using a local fake distribution server.
   - Integration smoke against real tags (beta/nightly) in `petitechose-midi-studio/distribution`.
+
+## Progress (recorded)
+
+- Distribution cleanup: channel pointers removed (merged): https://github.com/petitechose-midi-studio/distribution/pull/22
+- `ms-manager` repo created: https://github.com/petitechose-midi-studio/ms-manager
+- Foundation implemented:
+  - channel selector (exclusive, persisted in UI)
+  - resolve latest manifest per channel (stable uses `releases/latest` with graceful 404)
+  - signature verification (Ed25519) + manifest schema parsing (v2)
