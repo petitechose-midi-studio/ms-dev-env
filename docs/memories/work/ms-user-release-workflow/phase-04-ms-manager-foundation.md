@@ -14,6 +14,19 @@ Create `ms-manager` as the end-user GUI that:
 - verifies manifest signature and asset sha256
 - stages installs into `versions/<tag>/` and switches `current/`
 
+## Intermediate Step (Maintainability Contract)
+
+Before implementing download/cache/extract/install flows, refactor the foundation to keep the
+codebase maintainable long-term (open-source friendly):
+
+- Source of truth: persisted settings live in the backend (not `localStorage`).
+- Split `src-tauri/src/lib.rs` into cohesive modules (commands/services/state).
+- Define a stable IPC contract:
+  - typed responses
+  - structured errors (`code`, `message`, optional `details`)
+- Centralize constants and pure helpers into `ms-manager-core` (DRY across future sidecars).
+- Prepare for Phase 05 (transaction engine): keep a strict plan/apply separation.
+
 This phase focuses on the foundation (network + storage + verification + minimal UI).
 
 ## Repo Setup
@@ -179,3 +192,5 @@ Local (full):
   - channel selector (exclusive, persisted in UI)
   - resolve latest manifest per channel (stable uses `releases/latest` with graceful 404)
   - signature verification (Ed25519) + manifest schema parsing (v2)
+
+- Next up (in this phase): implement the intermediate maintainability step (IPC + module split + backend settings store)
