@@ -161,6 +161,7 @@ Pages:
 Channel pointers:
 - Removed.
 - Rationale: they were operationally costly (manual updates) and not required for trust (manifest signature + sha256).
+- Tracking: distribution PR https://github.com/petitechose-midi-studio/distribution/pull/22
 
 ## Tests
 
