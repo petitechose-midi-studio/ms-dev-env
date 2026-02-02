@@ -63,6 +63,9 @@ uv run ms run bitwig
 uv run ms web core
 uv run ms web bitwig
 
+# Note: `ms run` / `ms web` auto-start a headless `oc-bridge` (dev) using `config.toml` ports.
+# For WASM, use the printed URL (it includes `bridgeWsPort=...`).
+
 # Teensy firmware (PlatformIO env defaults to last build or platformio.ini default_envs)
 uv run ms build core --target teensy
 uv run ms upload core --env dev

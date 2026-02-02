@@ -17,13 +17,15 @@ from pathlib import Path
 from typing import Literal
 
 from ..core.app import resolve
-from ..core.config import CONTROLLER_CORE_NATIVE_PORT
+from ..core.config import CONTROLLER_CORE_NATIVE_PORT, Config
+from ..core.errors import ErrorCode
 from ..core.result import Err, Ok, Result
 from ..output.console import Style
 from ..output.errors import build_error_exit_code, print_build_error
 from ..platform.process import run_silent
 from .checkers.common import get_platform_key, load_hints
 from .base import BaseService
+from .bridge_headless import spec_for, start_headless_bridge
 
 
 # -----------------------------------------------------------------------------
@@ -246,13 +248,39 @@ class BuildService(BaseService):
 
         match result:
             case Ok(exe_path):
-                self._console.print(f"run: {exe_path}", Style.DIM)
-                run_result = run_silent([str(exe_path)], cwd=self._workspace.root)
-                match run_result:
-                    case Ok(_):
+                cfg = self._config or Config()
+                bridge = start_headless_bridge(
+                    workspace=self._workspace,
+                    platform=self._platform,
+                    config=cfg,
+                    console=self._console,
+                    app_name=app_name,
+                    mode="native",
+                )
+                if isinstance(bridge, Err):
+                    self._console.error(bridge.error.message)
+                    if bridge.error.hint:
+                        self._console.print(f"hint: {bridge.error.hint}", Style.DIM)
+                    return int(ErrorCode.ENV_ERROR)
+
+                with bridge.value:
+                    self._console.print(f"run: {exe_path}", Style.DIM)
+                    args = [
+                        str(exe_path),
+                        "1053",
+                        "--bridge-udp-port",
+                        str(bridge.value.spec.controller_port),
+                    ]
+                    try:
+                        run_result = run_silent(args, cwd=self._workspace.root)
+                    except KeyboardInterrupt:
                         return 0
-                    case Err(e):
-                        return e.returncode
+
+                    match run_result:
+                        case Ok(_):
+                            return 0
+                        case Err(e):
+                            return e.returncode
             case Err(error):
                 self._print_build_error(error)
                 return self._error_to_exit_code(error)
@@ -357,17 +385,48 @@ class BuildService(BaseService):
 
         match result:
             case Ok(html_path):
+                cfg = self._config or Config()
+                # Compute expected WS port to avoid HTTP/WS collision on the same TCP port.
+                expected_ws_port = spec_for(cfg, app_name=app_name, mode="wasm").controller_port
+                if int(port) == int(expected_ws_port):
+                    self._console.error(
+                        f"HTTP port {port} conflicts with bridge WS port {expected_ws_port}"
+                    )
+                    return int(ErrorCode.USER_ERROR)
+
+                bridge = start_headless_bridge(
+                    workspace=self._workspace,
+                    platform=self._platform,
+                    config=cfg,
+                    console=self._console,
+                    app_name=app_name,
+                    mode="wasm",
+                )
+                if isinstance(bridge, Err):
+                    self._console.error(bridge.error.message)
+                    if bridge.error.hint:
+                        self._console.print(f"hint: {bridge.error.hint}", Style.DIM)
+                    return int(ErrorCode.ENV_ERROR)
+
                 out_dir = html_path.parent
                 url_path = html_path.name
-                self._console.print(f"serve: http://localhost:{port}/{url_path}", Style.INFO)
+                ws_port = bridge.value.spec.controller_port
+                self._console.print(
+                    f"serve: http://localhost:{port}/{url_path}?bridgeWsPort={ws_port}",
+                    Style.INFO,
+                )
 
-                cmd = [sys.executable, "-m", "http.server", str(port), "-d", str(out_dir)]
-                run_result = run_silent(cmd, cwd=self._workspace.root)
-                match run_result:
-                    case Ok(_):
+                with bridge.value:
+                    cmd = [sys.executable, "-m", "http.server", str(port), "-d", str(out_dir)]
+                    try:
+                        run_result = run_silent(cmd, cwd=self._workspace.root)
+                    except KeyboardInterrupt:
                         return 0
-                    case Err(e):
-                        return e.returncode
+                    match run_result:
+                        case Ok(_):
+                            return 0
+                        case Err(e):
+                            return e.returncode
             case Err(error):
                 self._print_build_error(error)
                 return self._error_to_exit_code(error)
