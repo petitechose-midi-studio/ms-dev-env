@@ -2,6 +2,7 @@
 /open-control/
 /midi-studio/
 /distribution/
+/ms-manager/
  
 # Build artifacts
 *.pyc
