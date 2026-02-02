@@ -33,7 +33,8 @@ Before doing any work:
 - Nightly safety: publish only if all required CI checks are green and the distribution build passes.
 - Never leave the bridge paused: any flash attempt must end with oc-bridge resumed (success/fail/cancel).
 - Minimal end-user friction:
-  - default install = latest stable bundle
+  - default channel = stable
+  - default install/update = latest stable bundle (when stable exists)
   - stable `current/` path for shortcuts and services
 - Open-source friendly:
   - public repos
@@ -66,9 +67,15 @@ These are prerequisites we rely on.
 - Distribution uses a dedicated repo (GitHub Releases + Pages).
 - Bundles are cohesive: end user selects a bundle tag (not per-component versions).
 - Channels: stable/beta/nightly.
-- Default install + rollback (v1):
-  - Stable installs from GitHub Releases `latest` (manifest + signature).
-  - Advanced selection/rollback lists tags via GitHub Releases API.
+- Channel selection UX (v1):
+  - Channel selector is exclusive (stable | beta | nightly).
+  - Default on first launch: stable.
+  - Persist selected channel; updates are received only from the selected channel.
+- Default install/update + rollback (v1):
+  - Resolve "latest" for the selected channel via GitHub Releases API.
+  - Stable may use GitHub Releases `latest` when it exists, but must handle "no stable yet" (404) gracefully.
+  - Advanced selection/rollback lists tags via GitHub Releases API (filtered by channel).
+  - Channel pointers (`channels/*.json`) are removed. They were operationally costly (manual updates) and not required for trust (manifest signature + sha256).
 - Release bundle build (v1):
   - Rust binaries are built with size-focused release settings.
   - `midi-studio-loader` in bundles is built without default features (`--no-default-features --features cli`).

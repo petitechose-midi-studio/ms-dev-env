@@ -43,7 +43,6 @@ Validate the full system and publish the first public stable release.
   - stable release tag
   - signed manifest
   - correct assets
-  - updated channel pointers
   - working Pages demos
 - Documentation is sufficient for contributors.
 

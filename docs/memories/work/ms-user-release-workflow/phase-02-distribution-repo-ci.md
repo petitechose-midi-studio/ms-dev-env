@@ -9,12 +9,7 @@ Create the dedicated distribution repo and implement:
 - Stable/beta publish workflow (manual / workflow_dispatch)
 - Nightly workflow (scheduled, skip if not fully green)
 - GitHub Pages demos (per channel)
-- Pages site (channels + demo placeholders)
-
-Important constraint (today):
-- Org policy prevents GitHub Actions from creating PRs.
-- This repo requires PRs for changes to `main`.
-- Therefore `channels/*.json` cannot be auto-updated by CI.
+- Pages site (schemas + demo placeholders)
 
 Default install strategy (v1):
 - Stable update uses GitHub Releases `latest` assets.
@@ -22,18 +17,11 @@ Default install strategy (v1):
 
 ## Repo Layout (recommended)
 
-- `channels/`
-  - `stable.json`
-  - `beta.json`
-  - `nightly.json`
-  - optional index files can be added later, but v1 uses GitHub Releases API for listing
-
 - `schemas/` (from Phase 01)
 
 - `scripts/`
   - `select_latest_green.py` (nightly selection)
   - `package_bundle.py` (bundle zip)
-  - `update_channel_pointer.py` (manual helper)
 
 - `.github/workflows/`
   - `ci.yml`
@@ -61,8 +49,7 @@ Steps (high-level):
 4) Package zips with deterministic names.
 5) Generate + sign `manifest.json`.
 6) Create GitHub Release + upload all assets.
-7) Emit channel pointer URLs (manual update via PR).
-8) Pages site deploy (channels + placeholder demos).
+7) Pages site deploy (schemas + placeholder demos).
 
 ### B) nightly.yml
 
@@ -115,7 +102,8 @@ The demos are built in CI but are not included in the installed bundle.
 - publish workflow produces a release with signed manifest and correct assets.
 - nightly workflow skips if any repo lacks green CI.
 - pages deploy works.
-- Stable update uses `releases/latest/download/manifest.json` + `.sig`.
+- Stable update can use `releases/latest/download/manifest.json` + `.sig` when a stable exists.
+  - `ms-manager` must handle the "no stable yet" case (404) gracefully.
 - Release listing for rollback is possible via GitHub Releases API.
 
 ## Progress (recorded)
@@ -170,16 +158,9 @@ Pages:
 - GitHub Pages enabled (build_type=workflow).
 - Site: https://petitechose-midi-studio.github.io/distribution/
 
-Channels:
-- `channels/{stable,beta,nightly}.json` created.
-- `schemas/channel-pointer.schema.json` created (includes `key_id`).
-
-Channel pointer updates:
-- Org policy blocks GitHub Actions from creating PRs.
-- `main` requires PRs for changes.
-- Therefore `publish.yml`/`nightly.yml` do not auto-update `channels/*.json` (they print URLs in job summary).
-- Channel pointers can be updated manually via PR (use `scripts/update_channel_pointer.py`).
-- Note: v1 install/rollback does not rely on channel pointers (stable uses `latest`; listing uses Releases API).
+Channel pointers:
+- Removed.
+- Rationale: they were operationally costly (manual updates) and not required for trust (manifest signature + sha256).
 
 ## Tests
 
@@ -191,7 +172,6 @@ CI checks (required):
   - manifest signature verifies
   - sha256 matches
   - bundle contains expected files
-  - channel pointer update instructions are emitted (and/or channel pointers updated manually)
 
 Maintainer UX (next):
 - Prefer publishing stable/beta via the maintainer command in Phase 02b (`ms release ...`).
@@ -207,7 +187,7 @@ High ROI measures to protect the signing key:
   - require conversation resolution
 
 - CODEOWNERS:
-  - protect `.github/workflows/**`, `tools/**`, `schemas/**`, `channels/**`
+  - protect `.github/workflows/**`, `tools/**`, `schemas/**`
 
 - GitHub Actions environments:
   - `release` environment requires manual approval

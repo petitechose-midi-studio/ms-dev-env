@@ -106,9 +106,9 @@ Le manifest doit inclure :
 
 ### Objectif
 
-Un binaire Rust (TUI ou GUI) qui :
+Une app end-user (`ms-manager`, Tauri) qui :
 
-- permet de choisir canal + version (par défaut: `release` + latest)
+- permet de choisir un canal (stable/beta/nightly) + une version (par défaut: stable + latest)
 - installe / met à jour / désinstalle les binaires finaux uniquement
 - gère l'intégration OS (raccourcis + bridge service)
 
@@ -121,4 +121,4 @@ L'installer doit réutiliser ces commandes plutôt que dupliquer la logique.
 
 - CLI: `uv run ms --help`
 - CI: `.github/workflows/ci.yml`, `.github/workflows/builds.yml`
-- Roadmap exécutable: `docs/memories/work/feature-all-distribution-installer/README.md`
+- Roadmap exécutable: `docs/memories/work/ms-user-release-workflow/README.md`

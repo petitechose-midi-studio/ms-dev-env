@@ -21,9 +21,7 @@ This phase is about *release operator safety* and *repeatability*.
 - Authorization is enforced by GitHub:
   - only users with `WRITE/MAINTAIN/ADMIN` on `petitechose-midi-studio/distribution` can merge/spec/publish
   - stable/beta signing requires manual approval of the `release` environment
-- Org policy currently blocks GitHub Actions from creating PRs. Therefore:
-  - channel pointers are not updated by CI
-  - v1 client strategy is: stable uses GitHub Releases `latest`; rollback lists releases via GitHub Releases API
+- Org policy currently blocks GitHub Actions from creating PRs.
 
 ## CLI Contract (v1)
 

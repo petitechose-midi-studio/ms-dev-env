@@ -54,7 +54,8 @@ Windows:
 ## Exit Criteria
 
 - Installers exist for Windows/macOS/Linux.
-- First run installs latest stable bundle via distribution channel pointer.
+- First run installs latest stable bundle (selected channel defaults to stable).
+  - Resolve latest stable via GitHub Releases API (and/or `releases/latest` when available).
 - Shortcuts and PATH behave as expected.
 
 ## Tests

@@ -6,8 +6,10 @@ Status: TODO
 
 Create `ms-manager` as the end-user GUI that:
 
-- installs latest stable bundle by default
-- supports advanced channel + tag selection
+- defaults to the `stable` channel on first launch
+- persists the selected channel (updates are only received from the selected channel)
+- installs the latest release of the selected channel ("latest")
+- supports advanced tag selection within the selected channel (rollback / pin)
 - downloads with caching
 - verifies manifest signature and asset sha256
 - stages installs into `versions/<tag>/` and switches `current/`
@@ -25,19 +27,61 @@ This phase focuses on the foundation (network + storage + verification + minimal
 
 Backend (Rust):
 - `dist_client`:
-  - fetch latest stable manifest via GitHub Releases `latest` endpoint
-  - list available releases for rollback via GitHub Releases API
+  - resolve the latest tag for the selected channel via GitHub Releases API
+    - stable: prefer `releases/latest` when it exists; must handle 404 gracefully
+  - download `manifest.json` + `manifest.json.sig` from `releases/download/<tag>/...`
+  - list available releases (filtered by channel) for rollback
   - download assets (with caching)
+  - rate-limit/NAT resilience:
+    - stable path should not require `api.github.com`
+    - cache release listing/tag resolution (TTL)
+    - fallback to the Releases Atom feed when the API is unavailable/rate-limited
+    - never block install/update on fetching release notes (load lazily)
 - `verify`: Ed25519 signature verify + sha256 verify
 - `storage`: install roots, cache, versions/current
 - `ops`: install/update transactions (Phase 05 will finalize)
 
 Frontend (Svelte):
-- Simple mode: one button “Install latest stable”
+- Default mode:
+  - Channel selector (exclusive): stable | beta | nightly
+  - Default selection on first launch: stable
+  - Persist last selected channel
+  - Primary action: “Install/Update latest” (for the selected channel)
+  - If stable has no published releases yet: show an empty state and offer switching to beta/nightly (no auto-switch)
 - Advanced mode:
-  - select channel
+  - select a tag (within the selected channel)
   - list tags via GitHub Releases API (fallback: installed local versions)
-  - install selected tag
+  - install selected tag (with explicit confirmation when it would downgrade)
+
+## Execution Plan (ordered)
+
+1) Cleanup (prerequisite)
+- Remove legacy channel pointers from the distribution repo (delete `channels/`, channel-pointer schema, helper script).
+- Simplify Actions workflows (publish/nightly/pages) accordingly.
+- Publish schemas on Pages (`/schemas/*.json`).
+
+2) Repo bootstrap
+- Create `petitechose-midi-studio/ms-manager` (Tauri + Svelte) + minimal CI.
+
+3) Verification core
+- Implement manifest signature verification (Ed25519) + asset sha256 verification + test fixtures.
+
+4) "Latest" resolution per channel
+- stable: `releases/latest` when available + graceful 404.
+- beta/nightly: Releases API with caching + Atom fallback.
+
+5) Download + cache + extract
+- Atomic-ish downloads (tmp + rename), cache reuse, extract full bundle, ensure executables on macOS/Linux.
+
+6) Install layout
+- Install into `versions/<tag>/`, switch `current/`, persist app state (selected channel + installed tag).
+
+7) Minimal UX
+- Channel radio (exclusive), stable default on first launch, persist selection, empty state when stable is unavailable.
+
+8) Progressive tests
+- Local fake distribution server.
+- Real-tag smoke against existing beta/nightly releases in the distribution repo.
 
 ## Install Roots (v1)
 
@@ -102,9 +146,8 @@ Build constraints:
 ## Exit Criteria
 
 - App runs on all target OS.
-- Can fetch latest stable manifest from:
-  - `https://github.com/petitechose-midi-studio/distribution/releases/latest/download/manifest.json`
-  - `https://github.com/petitechose-midi-studio/distribution/releases/latest/download/manifest.json.sig`
+- Can resolve and fetch the latest manifest for the selected channel.
+  - Stable must handle the "no stable yet" case gracefully.
 - Verifies manifest signature and asset sha256.
 - Stores downloaded assets in a cache and reuses it.
 
@@ -124,4 +167,6 @@ Local (fast):
 
 Local (full):
 - `cargo test`
-- Tauri dev run + install simulation using local fake distribution server.
+- Tauri dev run:
+  - Install simulation using a local fake distribution server.
+  - Integration smoke against real tags (beta/nightly) in `petitechose-midi-studio/distribution`.
