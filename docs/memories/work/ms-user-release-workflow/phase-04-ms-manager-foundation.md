@@ -193,4 +193,7 @@ Local (full):
   - resolve latest manifest per channel (stable uses `releases/latest` with graceful 404)
   - signature verification (Ed25519) + manifest schema parsing (v2)
 
-- Next up (in this phase): implement the intermediate maintainability step (IPC + module split + backend settings store)
+- Intermediate maintainability step (in progress):
+  - backend settings store (single source of truth for selected channel)
+  - structured IPC errors + typed API wrapper (TS)
+  - split `src-tauri` into commands/services/state modules
