@@ -25,7 +25,8 @@ Implement the end-user operations in ms-manager:
 
 2) Bitwig extension
 
-- Extract extension from bundle asset and copy to detected Bitwig Extensions dir.
+- Install Bitwig extension only when the selected profile includes it (e.g. `install_set.id == bitwig`).
+- Copy the `bitwig-extension` asset to the detected Bitwig Extensions dir.
 - UI:
   - show detected path
   - “open folder”
@@ -33,8 +34,10 @@ Implement the end-user operations in ms-manager:
 
 3) Firmware flash
 
-- Select firmware from the installed bundle:
-  - `current/firmware/.../firmware.hex`
+- Select firmware based on the installed profile:
+  - Standalone profile (`install_set.id == default`) uses the standalone firmware asset.
+  - A DAW profile (e.g. `bitwig`) uses its matching firmware asset.
+  - Firmware assets are installed into `versions/<tag>/firmware/...` so the active version is under `current/firmware/...`.
 - Flash via subprocess:
   - `midi-studio-loader flash ... --json --json-timestamps --json-progress percent`
 - Safety net: after the subprocess exits (success/fail/user-cancel), ensure oc-bridge is not left paused:

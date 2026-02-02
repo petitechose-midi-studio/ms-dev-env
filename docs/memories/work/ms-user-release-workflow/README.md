@@ -76,6 +76,14 @@ These are prerequisites we rely on.
   - Stable may use GitHub Releases `latest` when it exists, but must handle "no stable yet" (404) gracefully.
   - Advanced selection/rollback lists tags via GitHub Releases API (filtered by channel).
   - Channel pointers (`channels/*.json`) are removed. They were operationally costly (manual updates) and not required for trust (manifest signature + sha256).
+
+- Profiles (v1+):
+  - A release tag can expose multiple install "profiles" via `install_sets`.
+  - `install_set.id` is the profile id:
+    - `default` = Standalone (core-only) and is required in every manifest.
+    - additional ids (future): `bitwig`, `ableton`, `flstudio`, `reaper`, ...
+  - Only one profile is installed/active on the controller at a time (device memory constraint).
+  - Runtime behavior: the controller remains usable in standalone mode by default; DAW-specific behavior activates when the DAW/extension is running.
 - Release bundle build (v1):
   - Rust binaries are built with size-focused release settings.
   - `midi-studio-loader` in bundles is built without default features (`--no-default-features --features cli`).

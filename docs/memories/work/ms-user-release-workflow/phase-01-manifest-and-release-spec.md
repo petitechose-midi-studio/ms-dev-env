@@ -123,3 +123,29 @@ Tool commands:
 - Sign: `cargo run -p ms-dist-manifest -- sign --in manifest.json --out manifest.json.sig`
 - Verify: `cargo run -p ms-dist-manifest -- verify --in manifest.json --sig manifest.json.sig`
 - Public key: `cargo run -p ms-dist-manifest -- pubkey`
+### Install sets = profiles (contract)
+
+We treat `install_sets` as explicit installation profiles.
+
+- A manifest can define multiple `install_sets` for the same platform.
+- `install_set.id` is the profile id.
+  - `default` is required and represents the Standalone profile (core-only).
+  - Additional profile ids are DAW-specific, e.g. `bitwig`, `ableton`, `flstudio`, `reaper`.
+
+Why:
+- Device memory only allows one DAW integration at a time. A profile makes this explicit.
+- The signed manifest is the source of truth for which assets belong to which profile.
+
+UI mapping (ms-manager):
+- User selects:
+  - `channel` (stable/beta/nightly)
+  - `profile` (default/bitwig/...) and optionally a `tag`
+- `ms-manager` resolves the install plan by selecting the matching `install_set` for the current platform.
+
+Runtime behavior:
+- Standalone mode remains the default behavior.
+- When a DAW integration is installed, the controller can still be used standalone when the DAW is not running.
+
+Naming rules:
+- Profile ids are lowercase ASCII identifiers (no spaces), stable over time.
+- `default` is reserved.

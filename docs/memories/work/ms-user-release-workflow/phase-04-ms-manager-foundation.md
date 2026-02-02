@@ -10,6 +10,7 @@ Create `ms-manager` as the end-user GUI that:
 - persists the selected channel (updates are only received from the selected channel)
 - installs the latest release of the selected channel ("latest")
 - supports advanced tag selection within the selected channel (rollback / pin)
+- supports a profile selector backed by `install_sets` (Standalone = `default`, DAW profiles like `bitwig`)
 - downloads with caching
 - verifies manifest signature and asset sha256
 - stages installs into `versions/<tag>/` and switches `current/`
@@ -60,6 +61,9 @@ Frontend (Svelte):
   - Default selection on first launch: stable
   - Persist last selected channel
   - Primary action: “Install/Update latest” (for the selected channel)
+  - Profile selector:
+    - Standalone (`default`)
+    - Optional DAW profiles when available (e.g. Bitwig) and/or when the DAW is detected
   - If stable has no published releases yet: show an empty state and offer switching to beta/nightly (no auto-switch)
 - Advanced mode:
   - select a tag (within the selected channel)
