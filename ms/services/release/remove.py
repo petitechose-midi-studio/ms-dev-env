@@ -24,7 +24,6 @@ from ms.services.release.semver import parse_stable_tag
 class RemovePlan:
     tags: tuple[str, ...]
     deleted_files: tuple[Path, ...]
-    updated_files: tuple[Path, ...]
 
 
 def validate_remove_tags(*, tags: list[str], force: bool) -> Result[tuple[str, ...], ReleaseError]:
@@ -84,38 +83,6 @@ def _delete_if_exists(path: Path) -> bool:
     return False
 
 
-def _clear_channel_pointer_if_matches(*, path: Path, tag: str) -> bool:
-    if not path.exists():
-        return False
-
-    import json
-
-    try:
-        obj: object = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
-        return False
-
-    from ms.core.structured import as_str_dict, get_str
-
-    data = as_str_dict(obj)
-    if data is None:
-        return False
-
-    current = get_str(data, "tag")
-    if current != tag:
-        return False
-
-    data["tag"] = None
-    data["manifest_url"] = None
-    data["signature_url"] = None
-
-    try:
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    except OSError:
-        return False
-    return True
-
-
 def remove_distribution_artifacts(
     *,
     workspace_root: Path,
@@ -138,7 +105,6 @@ def remove_distribution_artifacts(
         return pull
 
     deleted: list[Path] = []
-    updated: list[Path] = []
 
     for tag in tags:
         spec = dist_root / f"{config.DIST_SPEC_DIR}/{tag}.json"
@@ -149,31 +115,15 @@ def remove_distribution_artifacts(
         if not dry_run and _delete_if_exists(notes):
             deleted.append(notes)
 
-        # Update channel pointers only if they reference this tag.
-        for channel_file in (
-            dist_root / "channels/stable.json",
-            dist_root / "channels/beta.json",
-            dist_root / "channels/nightly.json",
-        ):
-            if not dry_run and _clear_channel_pointer_if_matches(path=channel_file, tag=tag):
-                updated.append(channel_file)
-
     if dry_run:
         # In dry-run, still report the target paths.
         for tag in tags:
             deleted.append(dist_root / f"{config.DIST_SPEC_DIR}/{tag}.json")
             deleted.append(dist_root / f"{config.DIST_NOTES_DIR}/{tag}.md")
-        updated.extend(
-            [
-                dist_root / "channels/stable.json",
-                dist_root / "channels/beta.json",
-                dist_root / "channels/nightly.json",
-            ]
-        )
-        return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted), updated_files=tuple(updated)))
+        return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted)))
 
     if not _has_git_changes(dist_root):
-        return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted), updated_files=tuple(updated)))
+        return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted)))
 
     # Commit via PR.
     first = tags[0] if tags else "unknown"
@@ -182,7 +132,7 @@ def remove_distribution_artifacts(
     if isinstance(br, Err):
         return br
 
-    changed_paths = list({*deleted, *updated})
+    changed_paths = list({*deleted})
     msg = "cleanup: remove test releases" if len(tags) > 1 else f"cleanup: remove {first}"
     committed = commit_and_push(
         repo_root=dist_root,
@@ -221,7 +171,7 @@ def remove_distribution_artifacts(
         )
 
     console.success(f"PR merged: {pr.value}")
-    return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted), updated_files=tuple(updated)))
+    return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted)))
 
 
 def delete_github_releases(
