@@ -197,3 +197,5 @@ Success metrics:
 - `petitechose-midi-studio/plugin-bitwig`:
   - `platformio.ini` includes `../core/oc-sdk.ini` via `extra_configs`
   - `env:release` consumes `${oc_sdk_deps.lib_deps}` and removed duplicated OpenControl pins
+- `petitechose-midi-studio/ms-dev-env`:
+  - `ms release` runs an OpenControl preflight and blocks `prepare` if any `open-control/*` repo is dirty
