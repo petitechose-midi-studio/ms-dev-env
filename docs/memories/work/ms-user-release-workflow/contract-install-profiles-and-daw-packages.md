@@ -31,7 +31,9 @@ Key constraints and goals:
   - `default` profile ships a standalone-only firmware (core).
   - `bitwig` profile ships a firmware that includes standalone + Bitwig integration.
 - Tags are cohesive: every tag contains all supported profiles.
-- Asset reuse is enabled via `assets[].url` (same-channel only).
+- Asset reuse is supported via `assets[].url` (same-channel only).
+  - stable/beta are published as self-contained tags (copy reuse).
+  - nightly may use `assets[].url` to reference prior nightly assets.
 
 ## The core idea: install_sets == profiles
 
@@ -94,8 +96,12 @@ We allow a tag to reuse unchanged assets from an earlier tag.
 
 Implementation:
 
-- Set `manifest.assets[].url` to point at an existing release asset URL.
-- The new manifest still includes `size` + `sha256` so verification remains local.
+- stable/beta: copy reuse (self-contained)
+  - unchanged assets are copied from an earlier tag and re-uploaded to the current tag
+  - `assets[].url` is typically omitted
+- nightly: URL reuse (quota-efficient)
+  - set `manifest.assets[].url` to point at an existing release asset URL
+  - the new manifest still includes `size` + `sha256` so verification remains local
 
 Policy:
 

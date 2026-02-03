@@ -200,7 +200,7 @@ Scope (v1):
 
 Follow-up (now planned):
 
-- Phase 02c expands the release spec to include `core` firmware, `plugin-bitwig` firmware + `.bwextension`, and asset reuse via `assets[].url`.
+- Phase 02c expands the release spec to include `core` firmware, `plugin-bitwig` firmware + `.bwextension`, and asset reuse (stable/beta copy reuse; nightly via `assets[].url`).
 
 Distribution integration:
 - `petitechose-midi-studio/distribution` `publish.yml` uses `release-notes/<tag>.md` as the release body when present.

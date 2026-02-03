@@ -102,7 +102,9 @@ Le manifest (schema=2) inclut :
 - `assets[]` (size + sha256) + `install_sets[]` (profiles)
 - signature Ed25519 (`manifest.json.sig`)
 
-Optimisation locked: reuse d'assets inchangés via `assets[].url` (même canal uniquement).
+Optimisation locked:
+- stable/beta: reuse par copie (tags self-contained)
+- nightly: reuse via `assets[].url` (même canal uniquement)
 
 ## Installer end-user (implémenté progressivement)
 

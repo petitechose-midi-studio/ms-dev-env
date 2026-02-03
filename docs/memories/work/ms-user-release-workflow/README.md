@@ -82,8 +82,9 @@ These are prerequisites we rely on.
   - Bundle zips must ship config under `bin/config/**`.
   - Previous layout `bridge/config/**` is invalid for oc-bridge.
 
-- Asset reuse (locked): unchanged assets can be reused without rebuilding/reuploading.
-  - Use `manifest.assets[].url` to reference a prior release asset.
+- Asset reuse (locked): unchanged assets can be reused without rebuilding.
+  - stable/beta: copy reuse (self-contained tags; assets are re-uploaded)
+  - nightly: URL reuse (quota-efficient) via `manifest.assets[].url`
   - Reuse is same-channel only (stable->stable, beta->beta, nightly->nightly).
   - stable/beta must never reference nightly assets.
 
