@@ -66,6 +66,12 @@ Selection rules:
 - For each required repo, query GitHub API for the latest successful `CI` workflow run on `main`.
 - If any repo has no successful run: SKIP nightly.
 
+Idempotency rules:
+- If the nightly tag already exists: do nothing.
+- If the resolved pins are unchanged vs the previous published nightly:
+  - compute the reuse plan against the previous nightly
+  - if the plan results in "no builds" (everything reusable): publish nothing
+
 Then run the same pipeline as publish.yml with:
 - channel=nightly
 - tag=`nightly-YYYY-MM-DD`

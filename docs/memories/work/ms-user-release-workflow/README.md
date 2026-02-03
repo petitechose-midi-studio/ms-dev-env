@@ -103,6 +103,9 @@ Reference:
   - Rust binaries are built with size-focused release settings.
   - `midi-studio-loader` in bundles is built without default features (`--no-default-features --features cli`).
 - Nightly selection: per repo, pick the latest commit with CI success; skip nightly if any repo lacks a green commit.
+- Nightly publish is conditional:
+  - if the resolved pinned SHAs are unchanged vs the previous published nightly (reuse plan => no builds), publish nothing.
+  - if the nightly tag already exists (rerun), publish nothing.
 - macOS/Linux: user services when possible.
 - Windows: admin allowed; service points to stable `current/`.
 - oc-bridge remains agnostic; MIDI Studio requires service-name configurability to avoid collisions.
