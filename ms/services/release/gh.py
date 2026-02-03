@@ -179,6 +179,31 @@ def list_recent_commits(
     return Ok(out)
 
 
+def get_ref_head_sha(*, workspace_root: Path, repo: str, ref: str) -> Result[str, ReleaseError]:
+    obj = gh_api_json(workspace_root=workspace_root, endpoint=f"repos/{repo}/commits/{ref}")
+    if isinstance(obj, Err):
+        return obj
+
+    data = as_str_dict(obj.value)
+    if data is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"unexpected commit payload: {repo}@{ref}",
+            )
+        )
+
+    sha = get_str(data, "sha")
+    if sha is None or len(sha) != 40:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"invalid sha in commit payload: {repo}@{ref}",
+            )
+        )
+    return Ok(sha)
+
+
 def list_distribution_releases(
     *,
     workspace_root: Path,

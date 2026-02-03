@@ -137,8 +137,11 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02c (IN PROGRESS): Distribution - Full Assets + Bundle Layout Fix + Asset Reuse
   - File: `phase-02c-distribution-full-assets-and-asset-reuse.md`
 
-- Phase 02d (TODO): OpenControl SDK Lock (Firmware Dependency BOM)
+- Phase 02d (DONE): OpenControl SDK Lock (Firmware Dependency BOM)
   - File: `phase-02d-open-control-sdk-lock.md`
+
+- Phase 02e (IN PROGRESS): ms release --auto (strict)
+  - File: `phase-02e-ms-release-auto-strict.md`
 
 - Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
   - File: `phase-03-oc-bridge-service-names.md`
