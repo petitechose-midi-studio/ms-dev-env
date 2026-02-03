@@ -3,7 +3,7 @@
 Ce document décrit l'architecture d'installation pour :
 
 1) le dev environment (`ms-dev-env`, bootstrap via `uv` + `ms`)
-2) la distribution end-user (nightly/release + installer Rust)
+2) la distribution end-user (stable/beta/nightly + ms-manager + ms-updater)
 
 ## Principes
 
@@ -47,6 +47,7 @@ ms-dev-env/
 Notes:
 
 - Les repos requis pour build/run sont pin dans `ms/data/repos.toml`.
+- Pour un workspace "maintainer" (distribution + ms-manager + extras), utiliser `ms/data/repos.maintainer.toml` via `uv run ms sync --repos --profile maintainer`.
 - Les versions toolchains sont pin dans `ms/data/toolchains.toml`.
 
 ### Bundled vs system deps
@@ -79,30 +80,31 @@ Il y a 2 workflows distincts :
   - wasm: Ubuntu uniquement
   - Pages: déploie les artefacts WASM sous `/demo/<app>/latest/`
 
-## Distribution (à implémenter)
+## Distribution (implémentée)
 
 ### Objectif
 
-Deux canaux, un seul contrat: un manifest décrit exactement les binaires installables.
+Un seul contrat, trois canaux: un manifest signé décrit exactement les assets installables.
 
-- Canal `nightly`:
-  - build automatique 1x/jour uniquement si changement dans `ms-dev-env` OU dans un repo syncé (`ms/data/repos.toml`)
-  - publie un manifest + assets (pré-release)
+- Repo source-of-truth: `petitechose-midi-studio/distribution` (GitHub Releases + Pages).
 
-- Canal `release`:
-  - déclenché manuellement
-  - release unique (tag immuable) + manifest + assets
+- Canaux:
+  - `nightly`: pré-release (automatique, skip si pas full green)
+  - `beta`: pré-release (manual)
+  - `stable`: release (manual)
 
-### Manifest (contrat)
+### Manifest (contrat end-user)
 
-Le manifest doit inclure :
+Le manifest (schema=2) inclut :
 
-- channel (`nightly`/`release`), build id (date/sha)
-- sha `ms-dev-env`
-- sha de chaque repo syncé (`open-control/*`, `midi-studio/*`)
-- liste d'assets + sha256 (bridge, simulateurs, wasm, extension, firmware, uploader)
+- `channel` (`stable|beta|nightly`) + `tag`
+- `repos[]` (pins des SHAs pour audit)
+- `assets[]` (size + sha256) + `install_sets[]` (profiles)
+- signature Ed25519 (`manifest.json.sig`)
 
-## Installer end-user (à implémenter)
+Optimisation locked: reuse d'assets inchangés via `assets[].url` (même canal uniquement).
+
+## Installer end-user (implémenté progressivement)
 
 ### Objectif
 
@@ -114,8 +116,10 @@ Une app end-user (`ms-manager`, Tauri) qui :
 
 ### Intégration bridge service
 
-Le bridge (`oc-bridge`) implémente déjà des commandes service (Windows/Linux).
-L'installer doit réutiliser ces commandes plutôt que dupliquer la logique.
+Le bridge (`oc-bridge`) fournit des primitives (service name + exec override + ctl pause/resume).
+
+Pour fiabilité/atomicité, la gestion de service et des upgrades doit être orchestrée par un helper (`ms-updater`)
+plutôt que de dépendre uniquement des commandes `oc-bridge install/uninstall`.
 
 ## Source de vérité
 

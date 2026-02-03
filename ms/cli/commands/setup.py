@@ -8,11 +8,17 @@ from ms.core.result import Err, Ok
 from ms.core.user_workspace import remember_default_workspace_root
 from ms.output.console import Style
 from ms.platform.process import run_silent
+from ms.services.repo_profiles import RepoProfile
 from ms.services.setup import SetupService
 
 
 def setup(
     mode: str = typer.Option("dev", "--mode", help="Setup mode (dev only)"),
+    profile: RepoProfile = typer.Option(
+        RepoProfile.dev,
+        "--profile",
+        help="Repo profile (dev | maintainer)",
+    ),
     skip_repos: bool = typer.Option(False, "--skip-repos", help="Skip repository sync"),
     skip_tools: bool = typer.Option(False, "--skip-tools", help="Skip toolchain sync"),
     skip_python: bool = typer.Option(False, "--skip-python", help="Skip Python deps sync"),
@@ -59,6 +65,7 @@ def setup(
 
     result = service.setup_dev(
         mode=mode,
+        repo_profile=profile,
         skip_repos=skip_repos,
         skip_tools=skip_tools,
         skip_python=skip_python,

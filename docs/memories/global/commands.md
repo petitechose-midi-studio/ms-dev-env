@@ -52,6 +52,9 @@ uv run protocol-codegen --help
 ## Git
 
 ```bash
+# Sync all repos (maintainer profile: includes ms-manager + distribution + examples)
+uv run ms sync --repos --profile maintainer
+
 # Voir tous les repos
 WS=~/ms-dev-env
 find "$WS" -maxdepth 3 -name ".git" -type d

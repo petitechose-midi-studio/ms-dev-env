@@ -14,6 +14,7 @@ from ms.platform.process import run_silent
 from ms.services.check import CheckService
 from ms.services.bridge import BridgeService
 from ms.services.repos import RepoService
+from ms.services.repo_profiles import RepoProfile, repo_manifest_path
 from ms.services.prereqs import PrereqsService
 from ms.services.toolchains import ToolchainService
 
@@ -63,6 +64,7 @@ class SetupService:
         self,
         *,
         mode: str,
+        repo_profile: RepoProfile = RepoProfile.dev,
         skip_repos: bool,
         skip_tools: bool,
         skip_python: bool,
@@ -124,7 +126,12 @@ class SetupService:
 
         if not skip_repos:
             self._console.header("Repos")
-            result = RepoService(workspace=self._workspace, console=self._console).sync_all(
+            manifest_path = repo_manifest_path(repo_profile)
+            result = RepoService(
+                workspace=self._workspace,
+                console=self._console,
+                manifest_path=manifest_path,
+            ).sync_all(
                 dry_run=dry_run,
             )
             if isinstance(result, Err):

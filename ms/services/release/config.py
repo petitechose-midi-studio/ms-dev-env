@@ -26,4 +26,16 @@ RELEASE_REPOS: tuple[ReleaseRepo, ...] = (
         ref="main",
         required_ci_workflow_file=".github/workflows/ci.yml",
     ),
+    ReleaseRepo(
+        id="core",
+        slug="petitechose-midi-studio/core",
+        ref="main",
+        required_ci_workflow_file=None,
+    ),
+    ReleaseRepo(
+        id="plugin-bitwig",
+        slug="petitechose-midi-studio/plugin-bitwig",
+        ref="main",
+        required_ci_workflow_file=None,
+    ),
 )

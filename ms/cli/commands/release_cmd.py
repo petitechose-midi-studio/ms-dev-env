@@ -86,25 +86,28 @@ def _resolve_pinned(
         if not commits:
             _exit(f"no commits found for {repo.slug}", code=ErrorCode.NETWORK_ERROR)
 
-        green_r = fetch_green_head_shas(
-            workspace_root=workspace_root,
-            repo=repo.slug,
-            workflow_file=repo.required_ci_workflow_file,
-            branch=repo.ref,
-            limit=100,
-        )
-        if isinstance(green_r, Err):
-            _exit(green_r.error.message, code=ErrorCode.NETWORK_ERROR)
-        green = green_r.value
+        green = None
+        if repo.required_ci_workflow_file is not None:
+            green_r = fetch_green_head_shas(
+                workspace_root=workspace_root,
+                repo=repo.slug,
+                workflow_file=repo.required_ci_workflow_file,
+                branch=repo.ref,
+                limit=100,
+            )
+            if isinstance(green_r, Err):
+                _exit(green_r.error.message, code=ErrorCode.NETWORK_ERROR)
+            green = green_r.value
 
         default_idx = 1
-        for i, c in enumerate(commits, start=1):
-            if green.is_green(c.sha):
-                default_idx = i
-                break
+        if green is not None:
+            for i, c in enumerate(commits, start=1):
+                if green.is_green(c.sha):
+                    default_idx = i
+                    break
 
         for i, c in enumerate(commits, start=1):
-            status = "OK" if green.is_green(c.sha) else "--"
+            status = "NA" if green is None else ("OK" if green.is_green(c.sha) else "--")
             date = c.date_utc or ""
             console.print(f"{i:2}. [{status}] {c.short_sha} {date} {c.message}", Style.DIM)
 
@@ -120,7 +123,7 @@ def _resolve_pinned(
                 continue
 
             chosen = commits[idx - 1]
-            if not green.is_green(chosen.sha) and not allow_non_green:
+            if green is not None and (not green.is_green(chosen.sha)) and (not allow_non_green):
                 console.error("selected commit CI is not green (use --allow-non-green to override)")
                 continue
 

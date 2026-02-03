@@ -25,7 +25,7 @@ test_patterns:
 
 **Created:** 2026-01-07
 
-**Status (2026-01-29):** planned. No implementation work is scheduled until the dev environment distribution (nightly/release + installer) is solid.
+**Status (2026-01-29):** planned. No implementation work is scheduled until the end-user distribution (stable/beta/nightly + ms-manager/ms-updater) is solid.
 
 ## Overview
 

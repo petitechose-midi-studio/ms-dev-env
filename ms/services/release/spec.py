@@ -29,15 +29,15 @@ def _spec_obj(
 ) -> dict[str, object]:
     repos: list[dict[str, object]] = []
     for p in pinned:
-        repos.append(
-            {
-                "id": p.repo.id,
-                "url": f"https://github.com/{p.repo.slug}",
-                "ref": p.repo.ref,
-                "sha": p.sha,
-                "required_ci_workflow_file": p.repo.required_ci_workflow_file,
-            }
-        )
+        repo_obj: dict[str, object] = {
+            "id": p.repo.id,
+            "url": f"https://github.com/{p.repo.slug}",
+            "ref": p.repo.ref,
+            "sha": p.sha,
+        }
+        if p.repo.required_ci_workflow_file is not None:
+            repo_obj["required_ci_workflow_file"] = p.repo.required_ci_workflow_file
+        repos.append(repo_obj)
 
     assets: list[dict[str, object]] = [
         {
@@ -68,6 +68,21 @@ def _spec_obj(
             "arch": "x86_64",
             "filename": "midi-studio-linux-x86_64-bundle.zip",
         },
+        {
+            "id": "firmware-default",
+            "kind": "firmware",
+            "filename": "midi-studio-default-firmware.hex",
+        },
+        {
+            "id": "firmware-bitwig",
+            "kind": "firmware",
+            "filename": "midi-studio-bitwig-firmware.hex",
+        },
+        {
+            "id": "bitwig-extension",
+            "kind": "bitwig-extension",
+            "filename": "midi_studio.bwextension",
+        },
     ]
 
     install_sets: list[dict[str, object]] = [
@@ -75,25 +90,49 @@ def _spec_obj(
             "id": "default",
             "os": "windows",
             "arch": "x86_64",
-            "assets": ["bundle-windows-x86_64"],
+            "assets": ["bundle-windows-x86_64", "firmware-default"],
         },
         {
             "id": "default",
             "os": "macos",
             "arch": "x86_64",
-            "assets": ["bundle-macos-x86_64"],
+            "assets": ["bundle-macos-x86_64", "firmware-default"],
         },
         {
             "id": "default",
             "os": "macos",
             "arch": "arm64",
-            "assets": ["bundle-macos-arm64"],
+            "assets": ["bundle-macos-arm64", "firmware-default"],
         },
         {
             "id": "default",
             "os": "linux",
             "arch": "x86_64",
-            "assets": ["bundle-linux-x86_64"],
+            "assets": ["bundle-linux-x86_64", "firmware-default"],
+        },
+        {
+            "id": "bitwig",
+            "os": "windows",
+            "arch": "x86_64",
+            "assets": ["bundle-windows-x86_64", "firmware-bitwig", "bitwig-extension"],
+        },
+        {
+            "id": "bitwig",
+            "os": "macos",
+            "arch": "x86_64",
+            "assets": ["bundle-macos-x86_64", "firmware-bitwig", "bitwig-extension"],
+        },
+        {
+            "id": "bitwig",
+            "os": "macos",
+            "arch": "arm64",
+            "assets": ["bundle-macos-arm64", "firmware-bitwig", "bitwig-extension"],
+        },
+        {
+            "id": "bitwig",
+            "os": "linux",
+            "arch": "x86_64",
+            "assets": ["bundle-linux-x86_64", "firmware-bitwig", "bitwig-extension"],
         },
     ]
 

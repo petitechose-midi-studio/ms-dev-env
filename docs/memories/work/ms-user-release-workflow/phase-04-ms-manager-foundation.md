@@ -15,6 +15,12 @@ Create `ms-manager` as the end-user GUI that:
 - verifies manifest signature and asset sha256
 - stages installs into `versions/<tag>/` and switches `current/`
 
+Hard dependency:
+
+- Do not implement the full install/apply/upgrade flows until the distribution contract is locked and implemented:
+  - `docs/memories/work/ms-user-release-workflow/contract-distribution-v1.md`
+  - `docs/memories/work/ms-user-release-workflow/phase-02c-distribution-full-assets-and-asset-reuse.md`
+
 ## Intermediate Step (Maintainability Contract)
 
 Before implementing download/cache/extract/install flows, refactor the foundation to keep the
@@ -88,7 +94,9 @@ Frontend (Svelte):
 - beta/nightly: Releases API with caching + Atom fallback.
 
 5) Download + cache + extract
-- Atomic-ish downloads (tmp + rename), cache reuse, extract full bundle, ensure executables on macOS/Linux.
+- Atomic-ish downloads (tmp + rename), cache reuse.
+- Must support `assets[].url` (asset reuse) and fall back to current tag assets when `url` is missing.
+- Extract full bundle, ensure executables on macOS/Linux.
 
 6) Install layout
 - Install into `versions/<tag>/`, switch `current/`, persist app state (selected channel + installed tag).

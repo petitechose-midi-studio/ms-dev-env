@@ -69,11 +69,7 @@ class RepoStatus:
     def has_changes(self) -> bool:
         if self.status is None:
             return False
-        return (
-            not self.status.is_clean
-            or self.status.ahead > 0
-            or self.status.behind > 0
-        )
+        return not self.status.is_clean or self.status.ahead > 0 or self.status.behind > 0
 
     @property
     def counts(self) -> ChangeCounts:
@@ -89,6 +85,12 @@ def _collect_repos(root: Path, midi_studio: Path, open_control: Path) -> list[tu
 
     if (root / ".git").exists():
         repos.append(("ms", root))
+
+    # Optional root-level repos (maintainer profile)
+    for name in ("distribution", "ms-manager"):
+        p = root / name
+        if p.is_dir() and (p / ".git").exists():
+            repos.append((name, p))
 
     if midi_studio.exists():
         for d in sorted(midi_studio.iterdir()):
@@ -180,9 +182,7 @@ def _render_changed_repo(r: RepoStatus, detailed: bool) -> Text:
     return lines
 
 
-def _generate_plain_text(
-    changed: list[RepoStatus], clean: list[RepoStatus], detailed: bool
-) -> str:
+def _generate_plain_text(changed: list[RepoStatus], clean: list[RepoStatus], detailed: bool) -> str:
     """Generate plain text output for clipboard."""
     lines: list[str] = []
 
@@ -203,7 +203,13 @@ def _generate_plain_text(
 
                 if detailed and st.entries:
                     for entry in st.entries:
-                        char = "?" if entry.xy == "??" else entry.xy[0] if entry.xy[0] != " " else entry.xy[1]
+                        char = (
+                            "?"
+                            if entry.xy == "??"
+                            else entry.xy[0]
+                            if entry.xy[0] != " "
+                            else entry.xy[1]
+                        )
                         lines.append(f"  {char} {entry.path}")
 
             lines.append("")

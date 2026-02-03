@@ -1,6 +1,6 @@
 # Contract: Install Profiles (install_sets) + Multi-DAW Integrations
 
-Status: DRAFT (aligned in conversation)
+Status: LOCKED
 Date: 2026-02-03
 
 ## Context
@@ -23,6 +23,15 @@ Key constraints and goals:
 - Manifest: `manifest.json` v2 + `manifest.json.sig` (Ed25519 detached signature).
 - Asset: a file referenced by the manifest (bundle, firmware, DAW package).
 - Install set: an entry in `install_sets[]` in the manifest.
+
+## Locked v1 decisions
+
+- Supported profiles: `default` and `bitwig`.
+- Firmware model:
+  - `default` profile ships a standalone-only firmware (core).
+  - `bitwig` profile ships a firmware that includes standalone + Bitwig integration.
+- Tags are cohesive: every tag contains all supported profiles.
+- Asset reuse is enabled via `assets[].url` (same-channel only).
 
 ## The core idea: install_sets == profiles
 
@@ -57,8 +66,7 @@ We publish multiple assets and assemble them via `install_sets`:
 
 Notes:
 - The current schema already includes `firmware` and `bitwig-extension` kinds.
-- For multi-DAW scaling, prefer a generic kind such as `daw-package` (future schema extension),
-  instead of multiplying kinds (`ableton-extension`, `flstudio-extension`, ...).
+- v1 uses a direct Bitwig asset (`midi_studio.bwextension`). Future DAWs may require a more generic packaging approach.
 
 ### install_sets selection rule
 
@@ -80,21 +88,20 @@ That install set lists the asset ids to download/install.
 - Downgrade/pin is allowed only in Advanced UI with explicit confirmation.
 - Avoid relying on Nightly releases as long-term base artifacts.
 
-## Future: avoid rebuilding/reuploading everything (asset reuse)
+## Asset reuse (LOCKED)
 
-Short term: republishing full bundles is acceptable.
+We allow a tag to reuse unchanged assets from an earlier tag.
 
-Long term: to support fast-moving DAWs (e.g. FL Studio) without rebuilding/reuploading all OS bundles:
-- We still publish a new tag (keeps UX simple: one version == one tag).
-- We allow a tag to reuse unchanged assets from earlier tags.
+Implementation:
 
-Implementation approach (future):
-- Manifest assets may set `asset.url` to point at an existing release asset.
+- Set `manifest.assets[].url` to point at an existing release asset URL.
 - The new manifest still includes `size` + `sha256` so verification remains local.
 
-Operational constraint:
-- Only reuse assets from stable/beta tags we do not delete.
-- Do not reuse nightly artifacts for long-term linking.
+Policy:
+
+- Reuse is same-channel only (stable->stable, beta->beta, nightly->nightly).
+- stable/beta must never reference nightly assets.
+- Do not rely on nightly artifacts as long-term dependencies.
 
 ## Installing DAW resources: keep ms-manager generic
 
@@ -112,10 +119,8 @@ Benefits:
 - Keeps execution safe (no arbitrary shell scripts).
 - Reuses the same progress/event patterns already used by loader operations.
 
-## Pending decisions to lock
+## Pending decisions (post-v1)
 
-1) Tag composition:
-- Preferred: each tag contains all supported profiles (default + all DAWs).
-
-2) DAW integration packaging:
-- Confirm the "package + declarative descriptor executed by midi-studio-loader" approach.
+- Multi-DAW scaling strategy:
+  - likely add a generic `daw-package` kind in schemas.
+  - keep ms-manager generic by installing “DAW packages” declaratively.

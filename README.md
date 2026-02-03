@@ -74,9 +74,12 @@ uv run ms monitor core --env dev
 # Bridge (installs prebuilt if needed, then runs)
 uv run ms bridge
 
-# Workspace health + repo status
-uv run ms check
-uv run ms status
+ # Workspace health + repo status
+ uv run ms check
+ uv run ms status
+
+ # Maintainer: sync all repos (includes ms-manager + distribution + examples)
+ uv run ms sync --repos --profile maintainer
 ```
 
 Optional: install `ms` globally (user-level) via `uv tool`:
@@ -126,4 +129,4 @@ Notes:
 ## Roadmap
 
 - Internal work notes live in `docs/memories/`.
-- Distribution (nightly/release) + end-user installer plan: `docs/memories/work/feature-all-distribution-installer/README.md`
+- Distribution (stable/beta/nightly) + end-user installer plan: `docs/memories/work/ms-user-release-workflow/README.md`

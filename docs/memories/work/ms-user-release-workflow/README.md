@@ -48,6 +48,7 @@ These are prerequisites we rely on.
 - `midi-studio/loader` has an installer-friendly JSON contract:
   - `list --json` emits a single `{schema,event:"list"}` event.
   - `flash`/`reboot` emit `operation_summary` at the end.
+    - Note: `flash --dry-run` intentionally ends at `dry_run` (no `operation_summary`).
   - JSON supports `--json-timestamps` and `--json-progress`.
   - Recent loader commits (baseline):
     - `eb56bc0` feat!: simplify JSON contract for list and target records
@@ -75,7 +76,16 @@ These are prerequisites we rely on.
   - Resolve "latest" for the selected channel via GitHub Releases API.
   - Stable may use GitHub Releases `latest` when it exists, but must handle "no stable yet" (404) gracefully.
   - Advanced selection/rollback lists tags via GitHub Releases API (filtered by channel).
-  - Channel pointers (`channels/*.json`) are removed. They were operationally costly (manual updates) and not required for trust (manifest signature + sha256).
+- Channel pointers (`channels/*.json`) are removed. They were operationally costly (manual updates) and not required for trust (manifest signature + sha256).
+
+- Bundle layout (locked): oc-bridge config must be discoverable by oc-bridge.
+  - Bundle zips must ship config under `bin/config/**`.
+  - Previous layout `bridge/config/**` is invalid for oc-bridge.
+
+- Asset reuse (locked): unchanged assets can be reused without rebuilding/reuploading.
+  - Use `manifest.assets[].url` to reference a prior release asset.
+  - Reuse is same-channel only (stable->stable, beta->beta, nightly->nightly).
+  - stable/beta must never reference nightly assets.
 
 - Profiles (v1+):
   - A release tag can expose multiple install "profiles" via `install_sets`.
@@ -87,6 +97,7 @@ These are prerequisites we rely on.
 
 Reference:
 - `docs/memories/work/ms-user-release-workflow/contract-install-profiles-and-daw-packages.md`
+- `docs/memories/work/ms-user-release-workflow/contract-distribution-v1.md`
 - Release bundle build (v1):
   - Rust binaries are built with size-focused release settings.
   - `midi-studio-loader` in bundles is built without default features (`--no-default-features --features cli`).
@@ -119,10 +130,13 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02b (DONE): Maintainer Release Command (ms release publish)
   - File: `phase-02b-maintainer-release-command.md`
 
+- Phase 02c (IN PROGRESS): Distribution - Full Assets + Bundle Layout Fix + Asset Reuse
+  - File: `phase-02c-distribution-full-assets-and-asset-reuse.md`
+
 - Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
   - File: `phase-03-oc-bridge-service-names.md`
 
-- Phase 04 (TODO): ms-manager Foundation (Tauri+Svelte) + Fetch/Verify/Cache
+- Phase 04 (IN PROGRESS): ms-manager Foundation (Tauri+Svelte) + Fetch/Verify/Cache
   - File: `phase-04-ms-manager-foundation.md`
 
 - Phase 05 (TODO): Transaction Engine (Updater/Helper) + Atomic current/ Swap + Rollback
@@ -144,6 +158,9 @@ Status values: TODO | IN PROGRESS | DONE
 
 - Phase 03 is a prerequisite for Phases 05/06/07.
   - Rationale: atomic `current/` upgrades and bridge lifecycle management require a stable service name and a stable service exec path (not a versioned `current_exe()` result).
+
+- Phase 02c is a prerequisite for Phases 05/06/07/08.
+  - Rationale: without a correct bundle layout and a stable asset/reuse contract, the transaction engine and end-user ops would be built on ambiguous assumptions.
 
 ## Notes (ongoing)
 

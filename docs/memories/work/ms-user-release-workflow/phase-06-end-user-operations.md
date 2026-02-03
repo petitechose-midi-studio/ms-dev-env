@@ -35,14 +35,20 @@ Implement the end-user operations in ms-manager:
 3) Firmware flash
 
 - Select firmware based on the installed profile:
-  - Standalone profile (`install_set.id == default`) uses the standalone firmware asset.
-  - A DAW profile (e.g. `bitwig`) uses its matching firmware asset.
+ - Select firmware based on the installed profile:
+   - `install_set.id == default` uses `midi-studio-default-firmware.hex`.
+   - `install_set.id == bitwig` uses `midi-studio-bitwig-firmware.hex`.
   - Firmware assets are installed into `versions/<tag>/firmware/...` so the active version is under `current/firmware/...`.
 - Flash via subprocess:
   - `midi-studio-loader flash ... --json --json-timestamps --json-progress percent`
 - Safety net: after the subprocess exits (success/fail/user-cancel), ensure oc-bridge is not left paused:
   - run `oc-bridge ctl status`
   - if paused: run `oc-bridge ctl resume` and record the action in logs/diagnostics
+
+Notes:
+
+- `oc-bridge ctl` is only available when the running bridge uses Serial controller transport.
+  The default shipped config must keep Serial transport for hardware installs.
 - UI:
   - list targets
   - choose target

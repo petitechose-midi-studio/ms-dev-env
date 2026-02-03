@@ -55,15 +55,21 @@ Also verify a critical upgrade detail:
   ExecStart may be written with a versioned path. That breaks “switch current => restart service”.
   Record current behavior and treat it as a must-fix in Phase 03 (service exec path override).
 
-3) Inventory what the end-user bundle will include (v1)
+3) Inventory what the end-user system will include (v1)
 
-Record the exact “v1 payload set” we will ship in the distribution bundle:
+Record the exact “v1 payload set”, split into:
 
-- `ms-manager` (GUI)
-- `midi-studio-loader` (firmware flashing)
-- `oc-bridge` + `bridge/config/default.toml` + `bridge/config/devices/teensy.toml`
-- Bitwig extension: `midi_studio.bwextension`
-- Teensy firmware bundles
+- Bootstrap installer payload (rarely changes):
+  - `ms-manager` (GUI)
+  - `ms-updater` (apply helper)
+
+- Distribution payload (downloaded via signed manifest):
+  - `midi-studio-loader` (firmware flashing)
+  - `oc-bridge` + `bin/config/default.toml` + `bin/config/devices/teensy.toml`
+  - Bitwig extension: `midi_studio.bwextension`
+  - Firmware:
+    - `default` (standalone)
+    - `bitwig` (standalone + bitwig)
 
 4) Freeze OS/arch matrix (v1)
 
@@ -93,13 +99,17 @@ Record the exact “v1 payload set” we will ship in the distribution bundle:
 
 ## Results (recorded)
 
-v1 payload set (bundle contents):
-- `ms-manager` (GUI)
-- `ms-updater` (helper, used for atomic updates)
-- `midi-studio-loader` (firmware flashing)
-- `oc-bridge` + config folder
-- Bitwig extension: `midi_studio.bwextension`
-- Firmware bundles (Teensy)
+v1 payload set (recorded):
+
+- Bootstrap installer payload:
+  - `ms-manager` (GUI)
+  - `ms-updater` (helper, used for atomic updates)
+
+- Distribution payload:
+  - `midi-studio-loader` (firmware flashing)
+  - `oc-bridge` + config folder (must be under `bin/config/**` in bundles)
+  - Bitwig extension: `midi_studio.bwextension`
+  - Firmware (Teensy): `default` + `bitwig`
 
 OS/arch matrix (v1):
 - Windows x86_64
@@ -137,3 +147,4 @@ Full checks (local):
 
 - `flash --dry-run` currently ends at `dry_run` (no `operation_summary`). For `operation_summary` verification without flashing, use a safe failure (`--device halfkay:NOT_A_DEVICE`).
 - On Windows in ms-dev-env today, oc-bridge service id is `OpenControlBridge` and the binary is `bin/bridge/oc-bridge.exe`.
+ - Bundle layout requirement: oc-bridge discovers config next to the executable, so distribution bundles must place config under `bin/config/**`.

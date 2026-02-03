@@ -9,12 +9,18 @@ from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
 from ms.output.console import Style
 from ms.services.repos import RepoService
+from ms.services.repo_profiles import RepoProfile, repo_manifest_path
 from ms.services.toolchains import ToolchainService
 
 
 def sync(
     tools: bool = typer.Option(False, "--tools", help="Sync tools only"),
     repos: bool = typer.Option(False, "--repos", help="Sync repos only"),
+    profile: RepoProfile = typer.Option(
+        RepoProfile.dev,
+        "--profile",
+        help="Repo profile (dev | maintainer)",
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without modifying"),
 ) -> None:
     """Sync repos and/or tools."""
@@ -23,7 +29,12 @@ def sync(
 
     if sync_all or repos:
         ctx.console.header("Repos")
-        result = RepoService(workspace=ctx.workspace, console=ctx.console).sync_all(dry_run=dry_run)
+        manifest_path = repo_manifest_path(profile)
+        result = RepoService(
+            workspace=ctx.workspace,
+            console=ctx.console,
+            manifest_path=manifest_path,
+        ).sync_all(dry_run=dry_run)
         match result:
             case Err(e):
                 ctx.console.error(e.message)
