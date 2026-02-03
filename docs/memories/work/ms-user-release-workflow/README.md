@@ -84,6 +84,9 @@ These are prerequisites we rely on.
     - additional ids (future): `bitwig`, `ableton`, `flstudio`, `reaper`, ...
   - Only one profile is installed/active on the controller at a time (device memory constraint).
   - Runtime behavior: the controller remains usable in standalone mode by default; DAW-specific behavior activates when the DAW/extension is running.
+
+Reference:
+- `docs/memories/work/ms-user-release-workflow/contract-install-profiles-and-daw-packages.md`
 - Release bundle build (v1):
   - Rust binaries are built with size-focused release settings.
   - `midi-studio-loader` in bundles is built without default features (`--no-default-features --features cli`).
