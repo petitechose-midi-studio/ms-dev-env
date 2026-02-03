@@ -130,6 +130,10 @@ Add a preflight in `ms release` (stable/beta) that:
 - warns if the local OpenControl HEAD SHAs differ from the `oc-sdk.ini` pins used by `env:release`
 - blocks by default for stable/beta (override flag required)
 
+Implementation note:
+
+- CLI override flag: `ms release prepare --allow-open-control-dirty`
+
 Goal: prevent "dev symlink tests != CI release build" surprises.
 
 ## Work Items (ordered, testable)
