@@ -133,6 +133,9 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02c (IN PROGRESS): Distribution - Full Assets + Bundle Layout Fix + Asset Reuse
   - File: `phase-02c-distribution-full-assets-and-asset-reuse.md`
 
+- Phase 02d (TODO): OpenControl SDK Lock (Firmware Dependency BOM)
+  - File: `phase-02d-open-control-sdk-lock.md`
+
 - Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
   - File: `phase-03-oc-bridge-service-names.md`
 
@@ -161,6 +164,9 @@ Status values: TODO | IN PROGRESS | DONE
 
 - Phase 02c is a prerequisite for Phases 05/06/07/08.
   - Rationale: without a correct bundle layout and a stable asset/reuse contract, the transaction engine and end-user ops would be built on ambiguous assumptions.
+
+- Phase 02d is strongly recommended before Phase 08.
+  - Rationale: it reduces dependency drift and makes releases more reproducible and maintainable as profiles/DAWs grow.
 
 ## Notes (ongoing)
 
