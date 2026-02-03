@@ -13,6 +13,11 @@ from ms.services.release import config
 from ms.services.release.ci import fetch_green_head_shas
 from ms.services.release.gh import current_user, list_recent_commits
 from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
+from ms.services.release.auto import (
+    RepoReadiness,
+    probe_release_readiness,
+    resolve_pinned_auto_strict,
+)
 from ms.services.release.open_control import OpenControlPreflightReport, preflight_open_control
 from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
 from ms.services.release.remove import (
@@ -53,25 +58,54 @@ def _resolve_pinned(
     workspace_root: Path,
     console: ConsoleProtocol,
     repo_overrides: list[str],
+    ref_overrides: list[str],
+    auto: bool,
     allow_non_green: bool,
     interactive: bool,
 ) -> tuple[PinnedRepo, ...]:
-    overrides: dict[str, str] = {}
-    for item in repo_overrides:
-        if "=" not in item:
-            _exit(f"invalid --repo (expected id=sha): {item}", code=ErrorCode.USER_ERROR)
-        repo_id, sha = item.split("=", 1)
-        repo_id = repo_id.strip()
-        sha = sha.strip()
-        if not repo_id or not sha:
-            _exit(f"invalid --repo (expected id=sha): {item}", code=ErrorCode.USER_ERROR)
-        overrides[repo_id] = sha
+    def parse_overrides(items: list[str], *, flag: str) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for item in items:
+            if "=" not in item:
+                _exit(f"invalid {flag} (expected id=value): {item}", code=ErrorCode.USER_ERROR)
+            k, v = item.split("=", 1)
+            k = k.strip()
+            v = v.strip()
+            if not k or not v:
+                _exit(f"invalid {flag} (expected id=value): {item}", code=ErrorCode.USER_ERROR)
+            out[k] = v
+        return out
+
+    overrides = parse_overrides(repo_overrides, flag="--repo")
+    refs = parse_overrides(ref_overrides, flag="--ref")
+
+    if interactive and not auto:
+        _print_release_preflight(console=console, workspace_root=workspace_root, refs=refs)
+
+    if auto:
+        if overrides:
+            _exit("--auto cannot be combined with --repo overrides", code=ErrorCode.USER_ERROR)
+        if allow_non_green:
+            _exit("--auto is strict: remove --allow-non-green", code=ErrorCode.USER_ERROR)
+
+        resolved = resolve_pinned_auto_strict(
+            workspace_root=workspace_root,
+            repos=config.RELEASE_REPOS,
+            ref_overrides=refs,
+        )
+        if isinstance(resolved, Err):
+            _print_auto_blockers(console=console, blockers=resolved.error)
+            _exit("auto release is blocked", code=ErrorCode.USER_ERROR)
+        console.success("auto pins: OK")
+        return resolved.value
 
     pinned: list[PinnedRepo] = []
     for repo in config.RELEASE_REPOS:
         if repo.id in overrides:
             pinned.append(PinnedRepo(repo=repo, sha=overrides[repo.id]))
             continue
+
+        ref = refs.get(repo.id, repo.ref)
 
         if not interactive:
             _exit(
@@ -83,7 +117,7 @@ def _resolve_pinned(
         commits_r = list_recent_commits(
             workspace_root=workspace_root,
             repo=repo.slug,
-            ref=repo.ref,
+            ref=ref,
             limit=20,
         )
         if isinstance(commits_r, Err):
@@ -98,7 +132,7 @@ def _resolve_pinned(
                 workspace_root=workspace_root,
                 repo=repo.slug,
                 workflow_file=repo.required_ci_workflow_file,
-                branch=repo.ref,
+                branch=ref,
                 limit=100,
             )
             if isinstance(green_r, Err):
@@ -134,10 +168,177 @@ def _resolve_pinned(
                 continue
 
             pinned.append(PinnedRepo(repo=repo, sha=chosen.sha))
-            console.success(f"{repo.id}={chosen.sha}")
+            console.success(f"{repo.id}={chosen.sha} (ref={ref})")
             break
 
     return tuple(pinned)
+
+
+def _print_release_preflight(
+    *,
+    console: ConsoleProtocol,
+    workspace_root: Path,
+    refs: dict[str, str],
+) -> None:
+    issues: list[RepoReadiness] = []
+    for repo in config.RELEASE_REPOS:
+        ref = refs.get(repo.id, repo.ref)
+        rr = probe_release_readiness(workspace_root=workspace_root, repo=repo, ref=ref)
+        if isinstance(rr, Err):
+            # Treat as an issue so the user sees it.
+            issues.append(
+                RepoReadiness(
+                    repo=repo,
+                    ref=ref,
+                    local_path=workspace_root,
+                    local_exists=False,
+                    status=None,
+                    local_head_sha=None,
+                    remote_head_sha=None,
+                    head_green=None,
+                    error=rr.error.message,
+                )
+            )
+            continue
+        r = rr.value
+        if r.is_ready():
+            continue
+        issues.append(r)
+
+    if not issues:
+        return
+
+    console.header("Release preflight")
+    console.print("Non-blocking warnings (interactive mode).", Style.DIM)
+    console.print("Use --auto to enforce strict readiness.", Style.DIM)
+    for r in issues:
+        console.print(f"- {r.repo.id}: {_gh_repo_url(r.repo.slug)}", Style.DIM)
+        if not r.local_exists:
+            console.print(f"  missing checkout: {r.local_path}", Style.DIM)
+            continue
+        if r.status is None:
+            console.print("  status unavailable", Style.DIM)
+            continue
+        if not r.status.is_clean:
+            console.print("  dirty", Style.DIM)
+            for e in r.status.entries[:10]:
+                console.print(f"    {e.pretty_xy()} {e.path}", Style.DIM)
+                if r.status.upstream is not None and r.status.ahead == 0 and r.status.behind == 0:
+                    console.print(
+                        f"      {_gh_blob_url(r.repo.slug, r.status.branch, e.path)}",
+                        Style.DIM,
+                    )
+        if r.status.upstream is None:
+            console.print("  no upstream", Style.DIM)
+        else:
+            if r.status.ahead:
+                console.print(f"  ahead {r.status.ahead} (push)", Style.DIM)
+                base = r.status.upstream.split("/", 1)[-1]
+                console.print(f"  {_gh_compare_url(r.repo.slug, base, r.status.branch)}", Style.DIM)
+            if r.status.behind:
+                console.print(f"  behind {r.status.behind} (pull)", Style.DIM)
+        if r.local_head_sha and r.remote_head_sha and r.local_head_sha != r.remote_head_sha:
+            console.print(
+                f"  local {r.local_head_sha[:7]} != remote {r.remote_head_sha[:7]}",
+                Style.DIM,
+            )
+        if r.repo.required_ci_workflow_file is None:
+            console.print("  not CI-gated (auto will refuse)", Style.DIM)
+        else:
+            console.print(
+                f"  ci: {_gh_actions_workflow_url(r.repo.slug, r.repo.required_ci_workflow_file)}",
+                Style.DIM,
+            )
+            if r.remote_head_sha is not None and r.head_green is not True:
+                console.print("  ci: HEAD not green", Style.DIM)
+    console.newline()
+
+
+def _gh_repo_url(slug: str) -> str:
+    return f"https://github.com/{slug}"
+
+
+def _gh_actions_workflow_url(slug: str, workflow_file: str) -> str:
+    return f"https://github.com/{slug}/actions/workflows/{workflow_file}"
+
+
+def _gh_blob_url(slug: str, ref: str, path: str) -> str:
+    return f"https://github.com/{slug}/blob/{ref}/{path}"
+
+
+def _gh_compare_url(slug: str, base: str, head: str) -> str:
+    return f"https://github.com/{slug}/compare/{base}...{head}"
+
+
+def _print_auto_blockers(*, console: ConsoleProtocol, blockers: tuple[RepoReadiness, ...]) -> None:
+    console.header("Auto Release Blocked")
+    console.print("--auto is strict by default.", Style.DIM)
+    console.print("Fix the issues below, then rerun.", Style.DIM)
+    console.newline()
+
+    for r in blockers:
+        console.header(f"{r.repo.id} ({r.repo.slug})")
+        console.print(_gh_repo_url(r.repo.slug), Style.DIM)
+        console.print(str(r.local_path), Style.DIM)
+        console.print(f"ref: {r.ref}", Style.DIM)
+        if r.error is not None:
+            console.error(r.error)
+            continue
+
+        if not r.local_exists:
+            console.error("repo not found in workspace")
+            console.print("hint: run `ms sync --repos --profile maintainer`", Style.DIM)
+            continue
+
+        st = r.status
+        if st is None:
+            console.error("repo status unavailable")
+            continue
+
+        if not st.is_clean:
+            console.error("working tree is dirty")
+            for e in st.entries[:20]:
+                console.print(f"- {e.pretty_xy()} {Path(r.local_path, e.path)}", Style.DIM)
+                if st.upstream is not None and st.ahead == 0 and st.behind == 0:
+                    console.print(f"  {_gh_blob_url(r.repo.slug, st.branch, e.path)}", Style.DIM)
+            if len(st.entries) > 20:
+                console.print(f"... ({len(st.entries) - 20} more)", Style.DIM)
+            console.print("hint: commit/stash changes before auto release", Style.DIM)
+
+        if st.upstream is None:
+            console.error("no upstream configured")
+            console.print("hint: set upstream and push the branch", Style.DIM)
+        else:
+            if st.ahead:
+                console.error(f"ahead of upstream by {st.ahead} commit(s)")
+                console.print("hint: push to remote and wait for CI", Style.DIM)
+                base = st.upstream.split("/", 1)[-1]
+                console.print(_gh_compare_url(r.repo.slug, base, st.branch), Style.DIM)
+            if st.behind:
+                console.error(f"behind upstream by {st.behind} commit(s)")
+                console.print("hint: pull/rebase to sync before auto release", Style.DIM)
+
+        if r.local_head_sha is not None and r.remote_head_sha is not None:
+            if r.local_head_sha != r.remote_head_sha:
+                console.error(
+                    f"local HEAD {r.local_head_sha[:7]} != remote HEAD {r.remote_head_sha[:7]}"
+                )
+                console.print("hint: push/pull so local matches remote", Style.DIM)
+
+        if r.repo.required_ci_workflow_file is None:
+            console.error("repo is not CI-gated")
+            console.print(
+                "hint: add a CI workflow to the repo and set required_ci_workflow_file in ms release config",
+                Style.DIM,
+            )
+        else:
+            console.print(
+                _gh_actions_workflow_url(r.repo.slug, r.repo.required_ci_workflow_file),
+                Style.DIM,
+            )
+            if r.remote_head_sha is not None and (r.head_green is not True):
+                console.error("remote HEAD is not green")
+                console.print("hint: wait for CI success on the branch HEAD", Style.DIM)
 
 
 def _print_plan(*, plan: ReleasePlan, console: ConsoleProtocol) -> None:
@@ -211,7 +412,9 @@ def plan_cmd(
     channel: ReleaseChannel = typer.Option(..., "--channel", help="stable or beta"),
     bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
     tag: str | None = typer.Option(None, "--tag", help="Override tag"),
+    auto: bool = typer.Option(False, "--auto", help="Auto-select pins (strict)"),
     repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    ref: list[str] = typer.Option([], "--ref", help="Override repo ref (id=ref)"),
     allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
     allow_open_control_dirty: bool = typer.Option(
         False,
@@ -243,6 +446,8 @@ def plan_cmd(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
         repo_overrides=repo,
+        ref_overrides=ref,
+        auto=auto,
         allow_non_green=allow_non_green,
         interactive=not no_interactive,
     )
@@ -289,7 +494,9 @@ def prepare_cmd(
     channel: ReleaseChannel | None = typer.Option(None, "--channel", help="stable or beta"),
     bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
     tag: str | None = typer.Option(None, "--tag", help="Override tag"),
+    auto: bool = typer.Option(False, "--auto", help="Auto-select pins (strict)"),
     repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    ref: list[str] = typer.Option([], "--ref", help="Override repo ref (id=ref)"),
     plan: Path | None = typer.Option(None, "--plan", help="Use a previously saved plan JSON"),
     notes: str | None = typer.Option(None, "--notes", help="Short release notes"),
     notes_file: Path | None = typer.Option(None, "--notes-file", help="Extra markdown file"),
@@ -321,6 +528,8 @@ def prepare_cmd(
         _exit(ok.error.message, code=ErrorCode.USER_ERROR)
 
     if plan is not None:
+        if auto or repo or ref:
+            _exit("--plan cannot be combined with --auto/--repo/--ref", code=ErrorCode.USER_ERROR)
         plan_in = read_plan_file(path=plan)
         if isinstance(plan_in, Err):
             _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
@@ -334,6 +543,8 @@ def prepare_cmd(
             workspace_root=ctx.workspace.root,
             console=ctx.console,
             repo_overrides=repo,
+            ref_overrides=ref,
+            auto=auto,
             allow_non_green=allow_non_green,
             interactive=not no_interactive,
         )
@@ -391,7 +602,9 @@ def publish_cmd(
     channel: ReleaseChannel | None = typer.Option(None, "--channel", help="stable or beta"),
     bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
     tag: str | None = typer.Option(None, "--tag", help="Override tag"),
+    auto: bool = typer.Option(False, "--auto", help="Auto-select pins (strict)"),
     repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    ref: list[str] = typer.Option([], "--ref", help="Override repo ref (id=ref)"),
     plan: Path | None = typer.Option(None, "--plan", help="Use a previously saved plan JSON"),
     notes: str | None = typer.Option(None, "--notes", help="Short release notes"),
     notes_file: Path | None = typer.Option(None, "--notes-file", help="Extra markdown file"),
@@ -424,6 +637,8 @@ def publish_cmd(
         _exit(ok.error.message, code=ErrorCode.USER_ERROR)
 
     if plan is not None:
+        if auto or repo or ref:
+            _exit("--plan cannot be combined with --auto/--repo/--ref", code=ErrorCode.USER_ERROR)
         plan_in = read_plan_file(path=plan)
         if isinstance(plan_in, Err):
             _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
@@ -437,6 +652,8 @@ def publish_cmd(
             workspace_root=ctx.workspace.root,
             console=ctx.console,
             repo_overrides=repo,
+            ref_overrides=ref,
+            auto=auto,
             allow_non_green=allow_non_green,
             interactive=not no_interactive,
         )

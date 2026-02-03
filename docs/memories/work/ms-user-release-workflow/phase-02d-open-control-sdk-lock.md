@@ -1,6 +1,11 @@
 # Phase 02d: OpenControl SDK Lock (Minimal BOM For Firmware Builds)
 
-Status: IN PROGRESS
+Status: DONE
+
+Merged:
+
+- `petitechose-midi-studio/core`: oc-sdk lock added (`oc-sdk.ini`) and `platformio.ini` consumes it via `extra_configs`.
+- `petitechose-midi-studio/plugin-bitwig`: `platformio.ini` consumes `../core/oc-sdk.ini`.
 
 ## Goal
 
