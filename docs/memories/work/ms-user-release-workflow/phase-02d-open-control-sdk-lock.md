@@ -1,6 +1,6 @@
 # Phase 02d: OpenControl SDK Lock (Minimal BOM For Firmware Builds)
 
-Status: TODO
+Status: IN PROGRESS
 
 ## Goal
 
@@ -184,3 +184,12 @@ Success metrics:
 - CI firmware builds use only pinned SHAs (no floating branches).
 - Bumping OpenControl for MIDI Studio requires editing one file (the lock) and is auditable.
 - ms release warns/blocks when local symlink dev diverges from release pins.
+
+## Progress (recorded)
+
+- `petitechose-midi-studio/core`:
+  - added `oc-sdk.ini`
+  - `platformio.ini` `env:release` reads `${oc_sdk_deps.lib_deps}` via `extra_configs`
+- `petitechose-midi-studio/plugin-bitwig`:
+  - `platformio.ini` includes `../core/oc-sdk.ini` via `extra_configs`
+  - `env:release` consumes `${oc_sdk_deps.lib_deps}` and removed duplicated OpenControl pins
