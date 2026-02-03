@@ -121,12 +121,21 @@ Where:
 
 ## Asset Reuse (LOCKED)
 
-We support “reuse unchanged assets” to avoid rebuilding/reuploading everything when only some repos change.
+We support “reuse unchanged assets” to avoid rebuilding everything when only some repos change.
 
-Mechanism:
+We use two strategies depending on the channel:
 
-- A new tag may reuse an earlier tag’s assets by setting `assets[].url`.
-- The new manifest is still signed and still contains `sha256` + `size` for every asset.
+- stable/beta: **copy reuse**
+  - unchanged assets are downloaded from a previous tag and **re-uploaded** to the current tag
+  - every stable/beta tag is **self-contained** (no long-term dependency chain between tags)
+- nightly: **URL reuse**
+  - unchanged assets are **not** re-uploaded
+  - the manifest uses `assets[].url` to point to an earlier nightly tag’s assets (quota-efficient)
+
+Mechanism (schema):
+
+- A tag may reuse an earlier tag’s assets by setting `assets[].url`.
+- The manifest is still signed and still contains `sha256` + `size` for every asset.
 
 URL format (GitHub Releases assets):
 
@@ -140,12 +149,14 @@ Policy:
   - nightly reuses nightly
 - stable/beta must never reference nightly assets.
 - Do not treat nightly assets as long-term stable dependencies.
+- stable/beta releases should be self-contained (prefer copy reuse over `assets[].url`).
 
-Operational note:
+Operational notes:
 
-- A release tag is considered “complete” if the **manifest** contains all required assets.
-- The GitHub Release page for that tag may upload only the changed assets + `manifest.json(.sig)`.
-  Reused assets may live on earlier tags and be fetched via `assets[].url`.
+- A tag is considered “complete” if the **manifest** contains all required assets.
+- For stable/beta, we publish all assets on the tag (built or copied).
+- For nightly, the GitHub Release for that tag may upload only the changed assets + `manifest.json(.sig)`.
+  Reused assets may live on earlier nightly tags and be fetched via `assets[].url`.
 
 Client rule (ms-manager):
 
@@ -175,11 +186,12 @@ Recipe fingerprint (guardrail):
   - `scripts/package_bundle.py`
   - `.github/workflows/publish.yml`
   - `.github/workflows/nightly.yml`
-  - `tools/ms-dist-manifest/Cargo.lock`
+  - `Cargo.lock`
 
 If fingerprint differs: force rebuild for all assets (no reuse).
 
 ## Implementation Notes
 
 - The reuse planner must verify the previous manifest signature before copying `sha256/size` into the new manifest.
-- A tag may publish only changed assets + the new manifest + signature. Reused assets are not reuploaded.
+- For stable/beta, unchanged assets are copied from a previous tag and reuploaded so the tag is self-contained.
+- For nightly, unchanged assets are typically not reuploaded; the manifest uses `assets[].url`.

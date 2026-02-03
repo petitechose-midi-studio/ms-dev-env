@@ -22,7 +22,9 @@ Two hard requirements surfaced during audit:
 
 2) We must support selective rebuilds.
    - Example: `plugin-bitwig` changes frequently while `core` stays unchanged.
-   - We want new tags to include all assets, but reuse unchanged ones via `assets[].url`.
+   - We want new tags to include all assets.
+     - stable/beta: self-contained tags via copy reuse (no dependency chain)
+     - nightly: quota-efficient URL reuse via `assets[].url`
 
 ## Deliverables
 
@@ -62,7 +64,13 @@ Implement a reuse planner that:
 - decides build vs reuse per asset group
 - emits a new signed manifest with:
   - reused assets copied with `sha256/size` from the previous manifest
-  - reused assets setting `assets[].url` to the previous release asset URL
+  - nightly-only: reused assets setting `assets[].url` to the previous release asset URL
+
+For stable/beta, we use **copy reuse**:
+
+- download the reused assets from a previous tag
+- re-upload them to the current tag
+- build the manifest from the local files (so assets are fetched from the current tag)
 
 ## Implementation Plan (ordered)
 
@@ -122,9 +130,8 @@ Then the workflow:
 
 - signs the manifest (`ms-dist-manifest sign`)
 - verifies signature (`ms-dist-manifest verify`)
-- publishes only:
-  - changed assets
-  - `manifest.json` + `manifest.json.sig`
+- stable/beta: publishes all assets (built or copied) + `manifest.json(.sig)`
+- nightly: may publish only changed assets + `manifest.json(.sig)` (reused via `assets[].url`)
 
 5) Documentation updates
 
@@ -145,7 +152,8 @@ Then the workflow:
   - changing only `plugin-bitwig` rebuilds only `firmware-bitwig` + `.bwextension`
   - changing only `core` rebuilds `firmware-default` and `firmware-bitwig`
   - changing only `loader` or `oc-bridge` rebuilds only bundles
-  - unchanged assets are referenced via `assets[].url`
+  - nightly: unchanged assets are referenced via `assets[].url`
+  - stable/beta: unchanged assets are copied + reuploaded (tag is self-contained)
 
 ## Tests
 
@@ -154,6 +162,11 @@ Required CI checks:
 - Validate produced `manifest.json` against `schemas/manifest.schema.json`.
 - Verify signature on the produced manifest.
 - Smoke: unzip one bundle and check expected paths exist.
+
+CI helper scripts:
+
+- `distribution/scripts/validate_dist.py` validates the dist directory against the release spec and bundle layout.
+- `distribution/scripts/verify_manifest_assets.py` validates a dist directory against `manifest.json` (sha256/size + bundle layout).
 
 Manual smoke (one OS is enough for contract validation):
 
@@ -171,7 +184,7 @@ Manual smoke (one OS is enough for contract validation):
     - adds a `plan` job (reuse vs build)
     - adds `build_integrations` (PlatformIO firmware + Bitwig extension)
     - builds manifest via `build_manifest_with_reuse.py build`
-    - publishes only changed assets + `manifest.json(.sig)`
+    - stable/beta: copy reuse (materialize reused assets + publish self-contained tags)
   - `distribution/.github/workflows/nightly.yml`:
     - same reuse plan + integrations build + manifest-with-reuse
   - `distribution/release-specs/nightly.template.json` expanded (core + plugin-bitwig + firmware + bitwig extension)
