@@ -10,12 +10,12 @@ We want:
 
 - deterministic CI builds (still pinned by commit, not floating branches)
 - a single source of truth for the OpenControl pins (no duplication between firmwares)
-- a human-friendly semver label for the set (a compatibility set, not “one version for all repos”)
+- a human-friendly semver label for the set (a compatibility set, not "one version for all repos")
 
 This phase is a follow-up to Phase 02c:
 
 - Phase 02c introduced `platformio` `env:release` in `core` and `plugin-bitwig` with pinned OpenControl deps.
-- Phase 02d refactors those pins into one shared “oc-sdk lock” file.
+- Phase 02d refactors those pins into one shared "oc-sdk lock" file.
 
 ## Scope
 
@@ -35,7 +35,7 @@ Explicitly out of scope:
 
 ## Key Idea
 
-Treat “OC SDK” as a **compatibility set** (BOM/lockfile):
+Treat "OC SDK" as a **compatibility set** (BOM/lockfile):
 
 - OpenControl repos keep independent history and tags.
 - MIDI Studio firmware builds consume a tested set of SHAs.
@@ -117,7 +117,7 @@ This does not constrain OpenControl repo semver/tagging.
 
 - In CI, PlatformIO `env:release` resolves OpenControl deps from the lock file contained in the pinned `core@sha`.
 
-So “which OpenControl set did we ship” is fully determined by:
+So "which OpenControl set did we ship" is fully determined by:
 
 - `core@sha` (contains `oc-sdk.ini`)
 - `plugin-bitwig@sha` (contains Bitwig firmware sources)
@@ -130,7 +130,7 @@ Add a preflight in `ms release` (stable/beta) that:
 - warns if the local OpenControl HEAD SHAs differ from the `oc-sdk.ini` pins used by `env:release`
 - blocks by default for stable/beta (override flag required)
 
-Goal: prevent “dev symlink tests ≠ CI release build” surprises.
+Goal: prevent "dev symlink tests != CI release build" surprises.
 
 ## Work Items (ordered, testable)
 
@@ -172,7 +172,7 @@ Success metrics:
 
 - Add a helper command/script that updates `oc-sdk.ini` pins from:
   - local workspace OpenControl HEADs, or
-  - “latest green” selection (if/when OpenControl CI gating is standardized)
+  - "latest green" selection (if/when OpenControl CI gating is standardized)
 
 Success metrics:
 
