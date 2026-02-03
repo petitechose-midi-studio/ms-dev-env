@@ -386,6 +386,11 @@ def publish_cmd(
     notes: str | None = typer.Option(None, "--notes", help="Short release notes"),
     notes_file: Path | None = typer.Option(None, "--notes-file", help="Extra markdown file"),
     allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
+    allow_open_control_dirty: bool = typer.Option(
+        False,
+        "--allow-open-control-dirty",
+        help="Allow dirty open-control repos (dev symlink drift)",
+    ),
     no_interactive: bool = typer.Option(
         False, "--no-interactive", help="Require explicit --repo overrides"
     ),
@@ -419,6 +424,17 @@ def publish_cmd(
             repo_overrides=repo,
             allow_non_green=allow_non_green,
             interactive=not no_interactive,
+        )
+
+    report = _render_open_control_preflight(
+        workspace_root=ctx.workspace.root,
+        pinned=pinned,
+        console=ctx.console,
+    )
+    if report is not None and report.dirty_repos() and not allow_open_control_dirty:
+        _exit(
+            "open-control has uncommitted changes (release builds may differ from dev symlink)",
+            code=ErrorCode.USER_ERROR,
         )
 
     plan_r = plan_release(
