@@ -1,0 +1,96 @@
+name: Integration Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_wasm:
+        description: "Build WASM outputs (Linux only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libsdl2-dev libasound2-dev libudev-dev libusb-1.0-0-dev
+
+      - name: Sync Python deps
+        run: uv sync --frozen --extra dev
+
+      - name: Setup workspace (real)
+        run: uv run ms setup --skip-prereqs --yes
+
+      - name: Build midi-studio-loader (rust)
+        shell: bash
+        working-directory: midi-studio/loader
+        run: |
+          set -euo pipefail
+          cargo build --release
+
+      - name: Build core firmware (teensy)
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ms build core --target teensy --env release
+
+      - name: Build bitwig firmware (teensy)
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ms build bitwig --target teensy --env release
+
+      - name: Build bitwig extension
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ms build bitwig --target extension --extensions-dir _bitwig_extensions
+
+      - name: Build core (wasm)
+        if: runner.os == 'Linux' && inputs.build_wasm
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ms build core --target wasm
+
+      - name: Build bitwig (wasm)
+        if: runner.os == 'Linux' && inputs.build_wasm
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run ms build bitwig --target wasm
