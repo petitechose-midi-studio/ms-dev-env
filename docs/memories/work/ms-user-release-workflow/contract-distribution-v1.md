@@ -131,6 +131,7 @@ We use two strategies depending on the channel:
 - nightly: **URL reuse**
   - unchanged assets are **not** re-uploaded
   - the manifest uses `assets[].url` to point to an earlier nightly tag’s assets (quota-efficient)
+  - nightly is not guaranteed to publish every day; if pins are unchanged vs the previous nightly, publish nothing
 
 Mechanism (schema):
 

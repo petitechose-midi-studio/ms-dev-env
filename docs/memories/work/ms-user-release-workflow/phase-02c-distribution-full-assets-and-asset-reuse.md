@@ -188,6 +188,7 @@ Manual smoke (one OS is enough for contract validation):
     - fix: ensure the gated release job still runs when build jobs are skipped (reuse-only releases)
   - `distribution/.github/workflows/nightly.yml`:
     - same reuse plan + integrations build + manifest-with-reuse
+    - publish only if the reuse plan requires any builds (skip if pins unchanged)
   - `distribution/release-specs/nightly.template.json` expanded (core + plugin-bitwig + firmware + bitwig extension)
   - `distribution/scripts/select_latest_green.py` supports repos without CI gating by pinning the branch head SHA
 - Maintainer release command updated in `ms-dev-env`:
