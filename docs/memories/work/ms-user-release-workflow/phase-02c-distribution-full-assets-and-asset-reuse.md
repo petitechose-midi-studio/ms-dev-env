@@ -185,6 +185,7 @@ Manual smoke (one OS is enough for contract validation):
     - adds `build_integrations` (PlatformIO firmware + Bitwig extension)
     - builds manifest via `build_manifest_with_reuse.py build`
     - stable/beta: copy reuse (materialize reused assets + publish self-contained tags)
+    - fix: ensure the gated release job still runs when build jobs are skipped (reuse-only releases)
   - `distribution/.github/workflows/nightly.yml`:
     - same reuse plan + integrations build + manifest-with-reuse
   - `distribution/release-specs/nightly.template.json` expanded (core + plugin-bitwig + firmware + bitwig extension)
