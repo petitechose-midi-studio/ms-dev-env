@@ -22,17 +22,18 @@ Target UX:
 - `ms release` supports interactive commit selection with CI markers for CI-gated repos.
 - `ms release` supports a non-interactive mode via `--no-interactive` + `--repo id=sha` overrides.
 - `ms release publish` uses `--confirm-tag` for safe non-interactive confirmation.
+- `ms release plan/prepare/publish` supports:
+  - `--auto` (strict): pins = remote HEAD for each repo/ref, and must be CI green
+  - `--ref id=branch`: override the ref used per repo (for feature branches)
+  - interactive preflight warnings (dirty/ahead/behind/CI) with clickable GitHub URLs
 - Distribution CI:
   - beta/stable: copy reuse + manual approval (environment `release`)
   - nightly: URL reuse + fully automated + skip publish when unchanged
 
-Missing for strict auto:
+Missing for strict auto (still blocking real use):
 
-- A release readiness preflight that:
-  - detects dirty repos and lists changed files
-  - detects repos that are ahead/behind and need push/pull
-  - checks that the remote HEAD commit is green for each CI-gated repo
-- CI gating for all pinned repos (at least core + plugin-bitwig).
+- CI gating for all pinned repos:
+  - `core` and `plugin-bitwig` still lack a canonical CI workflow, so `--auto` must refuse.
 
 ## Strict Auto Rules (LOCKED)
 
@@ -55,6 +56,39 @@ When auto is blocked, print actionable steps:
 
 ## Next Actions
 
-- Implement `--auto` selection for `ms release plan/prepare/publish`.
-- Add a shared preflight routine used by interactive and auto modes.
-- Add CI gating for core + plugin-bitwig, then mark auto mode as fully supported.
+
+### A) CI ownership audit (required)
+
+We must have exactly one canonical end-user release pipeline.
+
+- Canonical end-user pipeline: `petitechose-midi-studio/distribution`
+  - stable/beta/nightly publish + manifest signing + asset reuse
+- Canonical "is this commit good?" signal: per-repo CI
+  - each pinned repo must publish its own CI success result
+  - `ms release --auto` consumes that signal
+
+Action:
+
+- Remove ms-dev-env workflows that publish end-user-like artifacts (avoid dual sources of truth).
+- Keep ms-dev-env CI for the `ms` tool itself (typing/tests) and optional smoke builds that do NOT publish.
+
+### B) Add canonical CI workflows to missing repos
+
+Implement minimal CI workflows in:
+
+- `petitechose-midi-studio/core`
+  - build PlatformIO `env:release` (firmware)
+- `petitechose-midi-studio/plugin-bitwig`
+  - build PlatformIO `env:release` (firmware)
+  - optionally build `.bwextension` (if feasible/reliable in CI)
+
+Then:
+
+- Update `ms/services/release/config.py` to set `required_ci_workflow_file` for `core` and `plugin-bitwig`.
+- Update `distribution/release-specs/nightly.template.json` to CI-gate `core` and `plugin-bitwig`.
+
+### C) Validate strict auto end-to-end
+
+- On a feature branch per repo: push commits, wait for CI green.
+- Run: `ms release plan --auto --channel beta --ref core=feature/... --ref plugin-bitwig=feature/...`.
+- Expect: auto selects remote HEAD pins, then `ms release publish --auto ...` prepares + dispatches.
