@@ -113,10 +113,14 @@ def ensure_ci_green(
     allow_non_green: bool,
 ) -> Result[None, ReleaseError]:
     for p in pinned:
+        wf = p.repo.required_ci_workflow_file
+        if wf is None:
+            # No CI gating configured for this repo.
+            continue
         ok = is_ci_green_for_sha(
             workspace_root=workspace_root,
             repo=p.repo.slug,
-            workflow=p.repo.required_ci_workflow_file,
+            workflow=wf,
             sha=p.sha,
         )
         if isinstance(ok, Err):

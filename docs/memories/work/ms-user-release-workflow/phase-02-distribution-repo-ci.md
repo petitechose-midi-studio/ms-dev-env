@@ -17,8 +17,8 @@ Distribution content contract:
   - additional profile ids (future): `bitwig`, `ableton`, `flstudio`, `reaper`, ...
 - Assets are split by kind:
   - `bundle` (OS/arch): host tools (oc-bridge + loader + config)
-  - `firmware` (platform-independent): one firmware per profile
-  - DAW extensions (platform-independent): e.g. Bitwig `.bwextension`
+  - `firmware` (platform-independent): one firmware per profile (Phase 02c)
+  - DAW extensions (platform-independent): e.g. Bitwig `.bwextension` (Phase 02c)
 
 Default install strategy (v1):
 - Stable update uses GitHub Releases `latest` assets.
@@ -53,9 +53,7 @@ Steps (high-level):
 3) Build host bundles (OS/arch matrix):
    - `midi-studio-loader`
    - `oc-bridge` (+ config folder)
-4) Build integrations (Ubuntu-only):
-   - standalone firmware
-   - one firmware + extension per supported DAW profile (e.g. Bitwig)
+4) Build integrations (Ubuntu-only): deferred to Phase 02c
 5) Generate + sign `manifest.json` (includes install_sets for profiles).
 6) Create GitHub Release + upload all assets.
 7) Pages site deploy (schemas + placeholder demos).
@@ -90,8 +88,7 @@ Implementation detail (recommended):
 Use stable filenames, similar to current `ms/services/dist.py` naming:
 
 - `midi-studio-<os>-<arch>-bundle.zip` (contains loader + oc-bridge + config)
-- `midi-studio-<profile>-firmware.hex` (platform-independent, one per profile)
-- `midi_studio.<daw-extension>` (platform-independent, e.g. `midi_studio.bwextension`)
+- Firmware + DAW extension assets: deferred to Phase 02c
 - `manifest.json` + `manifest.json.sig`
 
 Note: keep the “bundle” structure friendly for `current/` layout.
@@ -108,7 +105,7 @@ The demos are built in CI but are not included in the installed bundle.
 ## Exit Criteria
 
 - Distribution repo exists and is public.
-- publish workflow produces a release with signed manifest and correct assets.
+- publish workflow produces a release with signed manifest and correct assets (Phase 02 scope: bundles + manifest).
 - nightly workflow skips if any repo lacks green CI.
 - pages deploy works.
 - Stable update can use `releases/latest/download/manifest.json` + `.sig` when a stable exists.

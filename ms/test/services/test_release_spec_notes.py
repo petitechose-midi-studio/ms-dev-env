@@ -12,10 +12,7 @@ def _pinned() -> tuple[PinnedRepo, ...]:
     from ms.services.release.config import RELEASE_REPOS
 
     # Fixed SHAs for tests.
-    return (
-        PinnedRepo(repo=RELEASE_REPOS[0], sha="0" * 40),
-        PinnedRepo(repo=RELEASE_REPOS[1], sha="1" * 40),
-    )
+    return tuple(PinnedRepo(repo=r, sha=str(i) * 40) for i, r in enumerate(RELEASE_REPOS))
 
 
 def test_write_release_spec(tmp_path: Path) -> None:
@@ -33,6 +30,8 @@ def test_write_release_spec(tmp_path: Path) -> None:
     assert '"channel": "stable"' in text
     assert '"tag": "v1.2.3"' in text
     assert "midi-studio-windows-x86_64-bundle.zip" in text
+    assert "midi-studio-default-firmware.hex" in text
+    assert "midi_studio.bwextension" in text
 
 
 def test_write_release_notes_includes_pins_and_user_content(tmp_path: Path) -> None:

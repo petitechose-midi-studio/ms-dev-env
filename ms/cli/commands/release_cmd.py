@@ -13,6 +13,7 @@ from ms.services.release import config
 from ms.services.release.ci import fetch_green_head_shas
 from ms.services.release.gh import current_user, list_recent_commits
 from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
+from ms.services.release.open_control import OpenControlPreflightReport, preflight_open_control
 from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
 from ms.services.release.remove import (
     delete_github_releases,
@@ -86,25 +87,28 @@ def _resolve_pinned(
         if not commits:
             _exit(f"no commits found for {repo.slug}", code=ErrorCode.NETWORK_ERROR)
 
-        green_r = fetch_green_head_shas(
-            workspace_root=workspace_root,
-            repo=repo.slug,
-            workflow_file=repo.required_ci_workflow_file,
-            branch=repo.ref,
-            limit=100,
-        )
-        if isinstance(green_r, Err):
-            _exit(green_r.error.message, code=ErrorCode.NETWORK_ERROR)
-        green = green_r.value
+        green = None
+        if repo.required_ci_workflow_file is not None:
+            green_r = fetch_green_head_shas(
+                workspace_root=workspace_root,
+                repo=repo.slug,
+                workflow_file=repo.required_ci_workflow_file,
+                branch=repo.ref,
+                limit=100,
+            )
+            if isinstance(green_r, Err):
+                _exit(green_r.error.message, code=ErrorCode.NETWORK_ERROR)
+            green = green_r.value
 
         default_idx = 1
-        for i, c in enumerate(commits, start=1):
-            if green.is_green(c.sha):
-                default_idx = i
-                break
+        if green is not None:
+            for i, c in enumerate(commits, start=1):
+                if green.is_green(c.sha):
+                    default_idx = i
+                    break
 
         for i, c in enumerate(commits, start=1):
-            status = "OK" if green.is_green(c.sha) else "--"
+            status = "NA" if green is None else ("OK" if green.is_green(c.sha) else "--")
             date = c.date_utc or ""
             console.print(f"{i:2}. [{status}] {c.short_sha} {date} {c.message}", Style.DIM)
 
@@ -120,7 +124,7 @@ def _resolve_pinned(
                 continue
 
             chosen = commits[idx - 1]
-            if not green.is_green(chosen.sha) and not allow_non_green:
+            if green is not None and (not green.is_green(chosen.sha)) and (not allow_non_green):
                 console.error("selected commit CI is not green (use --allow-non-green to override)")
                 continue
 
@@ -155,6 +159,48 @@ def _print_replay(*, plan: ReleasePlan, console: ConsoleProtocol, plan_file: Pat
     )
 
 
+def _render_open_control_preflight(
+    *,
+    workspace_root: Path,
+    pinned: tuple[PinnedRepo, ...],
+    console: ConsoleProtocol,
+) -> OpenControlPreflightReport | None:
+    core = next((p for p in pinned if p.repo.id == "core"), None)
+    if core is None:
+        return None
+
+    report = preflight_open_control(workspace_root=workspace_root, core_sha=core.sha)
+
+    if not any(r.exists for r in report.repos):
+        console.header("OpenControl preflight")
+        console.print("skip (no open-control workspace)", Style.DIM)
+        return report
+
+    console.header("OpenControl preflight")
+    if report.oc_sdk.lock is None:
+        err = report.oc_sdk.error or "oc-sdk lock unavailable"
+        console.print(f"oc-sdk: unavailable ({err})", Style.DIM)
+    else:
+        src = report.oc_sdk.source or "?"
+        console.print(f"oc-sdk: v{report.oc_sdk.lock.version} ({src})", Style.DIM)
+
+    dirty = report.dirty_repos()
+    if dirty:
+        console.print(f"dirty: {len(dirty)} repo(s)", Style.DIM)
+        for r in dirty:
+            console.print(f"- open-control/{r.repo}", Style.DIM)
+
+    if report.mismatches:
+        console.print(f"mismatch: {len(report.mismatches)} repo(s)", Style.DIM)
+        for m in report.mismatches:
+            console.print(
+                f"- {m.repo}: local {m.local_sha[:7]} != pinned {m.pinned_sha[:7]}",
+                Style.DIM,
+            )
+
+    return report
+
+
 @release_app.command("plan")
 def plan_cmd(
     channel: ReleaseChannel = typer.Option(..., "--channel", help="stable or beta"),
@@ -162,6 +208,11 @@ def plan_cmd(
     tag: str | None = typer.Option(None, "--tag", help="Override tag"),
     repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
     allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
+    allow_open_control_dirty: bool = typer.Option(
+        False,
+        "--allow-open-control-dirty",
+        help="Allow dirty open-control repos (dev symlink drift)",
+    ),
     no_interactive: bool = typer.Option(
         False, "--no-interactive", help="Require explicit --repo overrides"
     ),
@@ -190,6 +241,17 @@ def plan_cmd(
         allow_non_green=allow_non_green,
         interactive=not no_interactive,
     )
+
+    report = _render_open_control_preflight(
+        workspace_root=ctx.workspace.root,
+        pinned=pinned,
+        console=ctx.console,
+    )
+    if report is not None and report.dirty_repos() and not allow_open_control_dirty:
+        ctx.console.print(
+            "warning: open-control has uncommitted changes; dev symlink tests may not reflect release builds",
+            Style.DIM,
+        )
 
     plan_r = plan_release(
         workspace_root=ctx.workspace.root,
@@ -227,6 +289,11 @@ def prepare_cmd(
     notes: str | None = typer.Option(None, "--notes", help="Short release notes"),
     notes_file: Path | None = typer.Option(None, "--notes-file", help="Extra markdown file"),
     allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
+    allow_open_control_dirty: bool = typer.Option(
+        False,
+        "--allow-open-control-dirty",
+        help="Allow dirty open-control repos (dev symlink drift)",
+    ),
     no_interactive: bool = typer.Option(
         False, "--no-interactive", help="Require explicit --repo overrides"
     ),
@@ -259,6 +326,17 @@ def prepare_cmd(
             repo_overrides=repo,
             allow_non_green=allow_non_green,
             interactive=not no_interactive,
+        )
+
+    report = _render_open_control_preflight(
+        workspace_root=ctx.workspace.root,
+        pinned=pinned,
+        console=ctx.console,
+    )
+    if report is not None and report.dirty_repos() and not allow_open_control_dirty:
+        _exit(
+            "open-control has uncommitted changes (release builds may differ from dev symlink)",
+            code=ErrorCode.USER_ERROR,
         )
 
     plan_r = plan_release(

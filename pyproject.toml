@@ -27,6 +27,9 @@ package = true
 [tool.setuptools.packages.find]
 include = ["ms", "ms.*"]
 
+[tool.setuptools.package-data]
+ms = ["data/*.toml"]
+
 [tool.pytest.ini_options]
 testpaths = ["ms/test"]
 python_files = ["test_*.py"]

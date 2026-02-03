@@ -1,0 +1,207 @@
+# Extended repository manifest for maintainers.
+#
+# Use when you want a "full" workspace (dev repos + app manager + distribution + examples):
+#
+#   uv run ms sync --repos --profile maintainer
+#
+# Notes:
+# - Still git-only (no gh required for clone/update).
+# - RepoService will skip dirty repos and repos on a different branch.
+
+# -----------------------------------------------------------------------------
+# open-control (core)
+# -----------------------------------------------------------------------------
+
+[[repos]]
+org = "open-control"
+name = ".github"
+url = "https://github.com/open-control/.github"
+path = "open-control/.github"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "bridge"
+url = "https://github.com/open-control/bridge"
+path = "open-control/bridge"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "framework"
+url = "https://github.com/open-control/framework"
+path = "open-control/framework"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "hal-common"
+url = "https://github.com/open-control/hal-common"
+path = "open-control/hal-common"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "hal-midi"
+url = "https://github.com/open-control/hal-midi"
+path = "open-control/hal-midi"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "hal-net"
+url = "https://github.com/open-control/hal-net"
+path = "open-control/hal-net"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "hal-sdl"
+url = "https://github.com/open-control/hal-sdl"
+path = "open-control/hal-sdl"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "hal-teensy"
+url = "https://github.com/open-control/hal-teensy"
+path = "open-control/hal-teensy"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "protocol-codegen"
+url = "https://github.com/open-control/protocol-codegen"
+path = "open-control/protocol-codegen"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "ui-lvgl"
+url = "https://github.com/open-control/ui-lvgl"
+path = "open-control/ui-lvgl"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "ui-lvgl-cli-tools"
+url = "https://github.com/open-control/ui-lvgl-cli-tools"
+path = "open-control/ui-lvgl-cli-tools"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "ui-lvgl-components"
+url = "https://github.com/open-control/ui-lvgl-components"
+path = "open-control/ui-lvgl-components"
+branch = "main"
+
+# -----------------------------------------------------------------------------
+# open-control (extras)
+# -----------------------------------------------------------------------------
+
+[[repos]]
+org = "open-control"
+name = "cli-tools"
+url = "https://github.com/open-control/cli-tools"
+path = "open-control/cli-tools"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "tools"
+url = "https://github.com/open-control/tools"
+path = "open-control/tools"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "example-00-architecture"
+url = "https://github.com/open-control/example-00-architecture"
+path = "open-control/example-00-architecture"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "example-teensy41-01-midi-output"
+url = "https://github.com/open-control/example-teensy41-01-midi-output"
+path = "open-control/example-teensy41-01-midi-output"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "example-teensy41-02-encoders"
+url = "https://github.com/open-control/example-teensy41-02-encoders"
+path = "open-control/example-teensy41-02-encoders"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "example-teensy41-03-buttons"
+url = "https://github.com/open-control/example-teensy41-03-buttons"
+path = "open-control/example-teensy41-03-buttons"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "example-teensy41-lvgl"
+url = "https://github.com/open-control/example-teensy41-lvgl"
+path = "open-control/example-teensy41-lvgl"
+branch = "main"
+
+[[repos]]
+org = "open-control"
+name = "example-teensy41-minimal"
+url = "https://github.com/open-control/example-teensy41-minimal"
+path = "open-control/example-teensy41-minimal"
+branch = "main"
+
+# -----------------------------------------------------------------------------
+# petitechose-midi-studio (core dev repos)
+# -----------------------------------------------------------------------------
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "core"
+url = "https://github.com/petitechose-midi-studio/core"
+path = "midi-studio/core"
+branch = "main"
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "plugin-bitwig"
+url = "https://github.com/petitechose-midi-studio/plugin-bitwig"
+path = "midi-studio/plugin-bitwig"
+branch = "main"
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "loader"
+url = "https://github.com/petitechose-midi-studio/loader"
+path = "midi-studio/loader"
+branch = "main"
+
+# -----------------------------------------------------------------------------
+# petitechose-midi-studio (extras)
+# -----------------------------------------------------------------------------
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "hardware"
+url = "https://github.com/petitechose-midi-studio/hardware"
+path = "midi-studio/hardware"
+branch = "main"
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "distribution"
+url = "https://github.com/petitechose-midi-studio/distribution"
+path = "distribution"
+branch = "main"
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "ms-manager"
+url = "https://github.com/petitechose-midi-studio/ms-manager"
+path = "ms-manager"
+branch = "main"

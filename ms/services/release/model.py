@@ -15,7 +15,8 @@ class ReleaseRepo:
     id: str
     slug: str  # owner/name
     ref: str
-    required_ci_workflow_file: str
+    # Optional: some repos have no CI gating yet.
+    required_ci_workflow_file: str | None
 
 
 @dataclass(frozen=True, slots=True)
