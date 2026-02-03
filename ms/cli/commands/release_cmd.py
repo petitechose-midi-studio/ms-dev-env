@@ -37,7 +37,12 @@ def _exit(err: str, *, code: ErrorCode) -> NoReturn:
     raise typer.Exit(code=int(code))
 
 
-def _confirm_tag(tag: str) -> None:
+def _confirm_tag(tag: str, *, confirm_tag: str | None) -> None:
+    if confirm_tag is not None:
+        if confirm_tag.strip() != tag:
+            _exit("confirmation mismatch", code=ErrorCode.USER_ERROR)
+        return
+
     typed = typer.prompt("Type the tag to confirm", default="")
     if typed.strip() != tag:
         _exit("confirmation mismatch", code=ErrorCode.USER_ERROR)
@@ -294,6 +299,11 @@ def prepare_cmd(
         "--allow-open-control-dirty",
         help="Allow dirty open-control repos (dev symlink drift)",
     ),
+    confirm_tag: str | None = typer.Option(
+        None,
+        "--confirm-tag",
+        help="Skip confirmation prompt by providing the tag",
+    ),
     no_interactive: bool = typer.Option(
         False, "--no-interactive", help="Require explicit --repo overrides"
     ),
@@ -360,7 +370,7 @@ def prepare_cmd(
     _print_plan(plan=plan_r.value, console=ctx.console)
     _print_replay(plan=plan_r.value, console=ctx.console, plan_file=plan)
     if not dry_run:
-        _confirm_tag(plan_r.value.tag)
+        _confirm_tag(plan_r.value.tag, confirm_tag=confirm_tag)
 
     pr = prepare_distribution_pr(
         workspace_root=ctx.workspace.root,
@@ -390,6 +400,11 @@ def publish_cmd(
         False,
         "--allow-open-control-dirty",
         help="Allow dirty open-control repos (dev symlink drift)",
+    ),
+    confirm_tag: str | None = typer.Option(
+        None,
+        "--confirm-tag",
+        help="Skip confirmation prompt by providing the tag",
     ),
     no_interactive: bool = typer.Option(
         False, "--no-interactive", help="Require explicit --repo overrides"
@@ -458,7 +473,7 @@ def publish_cmd(
     _print_plan(plan=plan_r.value, console=ctx.console)
     _print_replay(plan=plan_r.value, console=ctx.console, plan_file=plan)
     if not dry_run:
-        _confirm_tag(plan_r.value.tag)
+        _confirm_tag(plan_r.value.tag, confirm_tag=confirm_tag)
 
     pr = prepare_distribution_pr(
         workspace_root=ctx.workspace.root,
