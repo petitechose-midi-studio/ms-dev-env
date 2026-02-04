@@ -12,11 +12,18 @@ from ms.output.console import ConsoleProtocol, Style
 from ms.services.release import config
 from ms.services.release.ci import fetch_green_head_shas
 from ms.services.release.gh import current_user, list_recent_commits
-from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
+from ms.services.release.model import (
+    PinnedRepo,
+    ReleaseBump,
+    ReleaseChannel,
+    ReleasePlan,
+    ReleaseRepo,
+)
 from ms.services.release.auto import (
+    AutoSuggestion,
     RepoReadiness,
     probe_release_readiness,
-    resolve_pinned_auto_strict,
+    resolve_pinned_auto_smart,
 )
 from ms.services.release.open_control import OpenControlPreflightReport, preflight_open_control
 from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
@@ -57,6 +64,7 @@ def _resolve_pinned(
     *,
     workspace_root: Path,
     console: ConsoleProtocol,
+    channel: ReleaseChannel,
     repo_overrides: list[str],
     ref_overrides: list[str],
     auto: bool,
@@ -88,24 +96,35 @@ def _resolve_pinned(
         if allow_non_green:
             _exit("--auto is strict: remove --allow-non-green", code=ErrorCode.USER_ERROR)
 
-        resolved = resolve_pinned_auto_strict(
+        resolved = resolve_pinned_auto_smart(
             workspace_root=workspace_root,
+            channel=channel,
+            dist_repo=config.DIST_REPO_SLUG,
             repos=config.RELEASE_REPOS,
             ref_overrides=refs,
+            head_repo_ids=frozenset({"core", "plugin-bitwig"}),
         )
         if isinstance(resolved, Err):
             _print_auto_blockers(console=console, blockers=resolved.error)
             _exit("auto release is blocked", code=ErrorCode.USER_ERROR)
+        pinned_auto, suggestions = resolved.value
         console.success("auto pins: OK")
-        return resolved.value
+        _print_auto_suggestions(console=console, suggestions=suggestions)
+        return pinned_auto
 
     pinned: list[PinnedRepo] = []
     for repo in config.RELEASE_REPOS:
-        if repo.id in overrides:
-            pinned.append(PinnedRepo(repo=repo, sha=overrides[repo.id]))
-            continue
-
         ref = refs.get(repo.id, repo.ref)
+        repo_sel = ReleaseRepo(
+            id=repo.id,
+            slug=repo.slug,
+            ref=ref,
+            required_ci_workflow_file=repo.required_ci_workflow_file,
+        )
+
+        if repo.id in overrides:
+            pinned.append(PinnedRepo(repo=repo_sel, sha=overrides[repo.id]))
+            continue
 
         if not interactive:
             _exit(
@@ -167,7 +186,7 @@ def _resolve_pinned(
                 console.error("selected commit CI is not green (use --allow-non-green to override)")
                 continue
 
-            pinned.append(PinnedRepo(repo=repo, sha=chosen.sha))
+            pinned.append(PinnedRepo(repo=repo_sel, sha=chosen.sha))
             console.success(f"{repo.id}={chosen.sha} (ref={ref})")
             break
 
@@ -341,6 +360,33 @@ def _print_auto_blockers(*, console: ConsoleProtocol, blockers: tuple[RepoReadin
                 console.print("hint: wait for CI success on the branch HEAD", Style.DIM)
 
 
+def _print_auto_suggestions(
+    *, console: ConsoleProtocol, suggestions: tuple[AutoSuggestion, ...]
+) -> None:
+    if not suggestions:
+        return
+
+    console.header("Optional bumps")
+    for s in suggestions:
+        if s.kind == "bump":
+            console.print(
+                f"- {s.repo.id} ({s.repo.slug}): {s.from_sha[:7]} -> {s.to_sha[:7]} ({s.reason})",
+                Style.DIM,
+            )
+            if not s.applyable:
+                console.print(
+                    "  note: local repo not clean/synced; bump will be safer after cleanup/push",
+                    Style.DIM,
+                )
+            continue
+
+        # kind == "local"
+        console.print(
+            f"- {s.repo.id} ({s.repo.slug}): local state ({s.reason}); auto keeps {s.from_sha[:7]}",
+            Style.DIM,
+        )
+
+
 def _print_plan(*, plan: ReleasePlan, console: ConsoleProtocol) -> None:
     console.header("Release Plan")
     console.print(f"channel: {plan.channel}")
@@ -445,6 +491,7 @@ def plan_cmd(
     pinned = _resolve_pinned(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
+        channel=channel,
         repo_overrides=repo,
         ref_overrides=ref,
         auto=auto,
@@ -542,6 +589,7 @@ def prepare_cmd(
         pinned = _resolve_pinned(
             workspace_root=ctx.workspace.root,
             console=ctx.console,
+            channel=channel,
             repo_overrides=repo,
             ref_overrides=ref,
             auto=auto,
@@ -651,6 +699,7 @@ def publish_cmd(
         pinned = _resolve_pinned(
             workspace_root=ctx.workspace.root,
             console=ctx.console,
+            channel=channel,
             repo_overrides=repo,
             ref_overrides=ref,
             auto=auto,
