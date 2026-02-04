@@ -76,3 +76,7 @@ until at least 2 maintainers exist (GitHub does not allow approving your own PR)
 - `ms release prepare/publish` merges distribution spec PRs.
 - Since distribution main now requires CI status checks, `ms` waits for PR merge to land
   before dispatching `Publish`.
+
+Operational note:
+
+- `distribution` has auto-merge enabled so `ms` can use `gh pr merge --auto`.
