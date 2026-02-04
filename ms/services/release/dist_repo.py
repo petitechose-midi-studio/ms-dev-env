@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.core.structured import as_str_dict
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
 from ms.services.release.config import DIST_DEFAULT_BRANCH, DIST_LOCAL_DIR, DIST_REPO_SLUG
@@ -247,6 +250,7 @@ def merge_pr(
         DIST_REPO_SLUG,
         "--squash",
         "--delete-branch",
+        "--auto",
     ]
     console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
     if dry_run:
@@ -263,4 +267,73 @@ def merge_pr(
             )
         )
 
-    return Ok(None)
+    # Branch protection may require CI to complete; wait for merge to land.
+    deadline = time.monotonic() + 10 * 60
+    while time.monotonic() < deadline:
+        view = run_process(
+            [
+                "gh",
+                "pr",
+                "view",
+                pr_url,
+                "--repo",
+                DIST_REPO_SLUG,
+                "--json",
+                "state,merged",
+            ],
+            cwd=workspace_root,
+        )
+        if isinstance(view, Err):
+            e = view.error
+            return Err(
+                ReleaseError(
+                    kind="dist_repo_failed",
+                    message="failed to query distribution PR state",
+                    hint=e.stderr.strip() or pr_url,
+                )
+            )
+
+        try:
+            obj: object = json.loads(view.value)
+        except json.JSONDecodeError as e:
+            return Err(
+                ReleaseError(
+                    kind="dist_repo_failed",
+                    message=f"invalid JSON from gh pr view: {e}",
+                    hint=pr_url,
+                )
+            )
+
+        data = as_str_dict(obj)
+        if data is None:
+            return Err(
+                ReleaseError(
+                    kind="dist_repo_failed",
+                    message="unexpected gh pr view payload",
+                    hint=pr_url,
+                )
+            )
+
+        merged = data.get("merged") is True
+        state = data.get("state")
+        if merged:
+            return Ok(None)
+
+        if isinstance(state, str) and state != "OPEN":
+            return Err(
+                ReleaseError(
+                    kind="dist_repo_failed",
+                    message=f"distribution PR is {state.lower()} without merge",
+                    hint=pr_url,
+                )
+            )
+
+        time.sleep(5)
+
+    return Err(
+        ReleaseError(
+            kind="dist_repo_failed",
+            message="timed out waiting for distribution PR merge",
+            hint=pr_url,
+        )
+    )
