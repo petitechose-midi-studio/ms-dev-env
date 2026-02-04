@@ -143,6 +143,9 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02e (IN PROGRESS): ms release --auto (strict)
   - File: `phase-02e-ms-release-auto-strict.md`
 
+- Phase 02f (DONE): Governance, permissions, and safety
+  - File: `phase-02f-governance-and-permissions.md`
+
 - Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
   - File: `phase-03-oc-bridge-service-names.md`
 
