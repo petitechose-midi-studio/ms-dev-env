@@ -8,7 +8,7 @@ from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_list, get_str
 from ms.services.release import config
 from ms.services.release.errors import ReleaseError
-from ms.services.release.model import PinnedRepo, ReleaseChannel
+from ms.services.release.model import PinnedRepo, ReleaseChannel, ReleaseRepo
 
 
 PLAN_SCHEMA = 1
@@ -26,7 +26,7 @@ def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError
         "schema": PLAN_SCHEMA,
         "channel": plan.channel,
         "tag": plan.tag,
-        "repos": [{"id": p.repo.id, "sha": p.sha} for p in plan.pinned],
+        "repos": [{"id": p.repo.id, "sha": p.sha, "ref": p.repo.ref} for p in plan.pinned],
     }
 
     try:
@@ -136,6 +136,7 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
             continue
         repo_id = get_str(d, "id")
         sha = get_str(d, "sha")
+        ref = get_str(d, "ref")
         if repo_id is None or sha is None:
             continue
         if repo_id in seen:
@@ -160,7 +161,15 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
                 )
             )
 
-        pinned.append(PinnedRepo(repo=repo, sha=sha))
+        # Preserve a non-default ref if present.
+        repo_ref = ref or repo.ref
+        repo_sel = ReleaseRepo(
+            id=repo.id,
+            slug=repo.slug,
+            ref=repo_ref,
+            required_ci_workflow_file=repo.required_ci_workflow_file,
+        )
+        pinned.append(PinnedRepo(repo=repo_sel, sha=sha))
 
     missing = [r.id for r in config.RELEASE_REPOS if r.id not in {p.repo.id for p in pinned}]
     if missing:

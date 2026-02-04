@@ -22,6 +22,7 @@ Target UX:
 
 - `ms release` supports interactive commit selection with CI markers for CI-gated repos.
 - `ms release` supports a non-interactive mode via `--no-interactive` + `--repo id=sha` overrides.
+- Plan files now preserve optional repo refs (so feature-branch releases remain traceable).
 - `ms release publish` uses `--confirm-tag` for safe non-interactive confirmation.
 - `ms release plan/prepare/publish` supports:
   - `--auto` (strict):
