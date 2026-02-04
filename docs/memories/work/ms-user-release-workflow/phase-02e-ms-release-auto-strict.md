@@ -14,8 +14,9 @@ Target UX:
 "Auto" must be **strict by default**:
 
 - Every pinned repo must be CI-gated (workflow configured).
-- The selected SHA must be **the remote HEAD** of the selected branch (ref) and must be **green**.
-- Local workspaces must be clean and in sync with upstream (no dirty/ahead/behind) to avoid accidentally releasing something other than what the maintainer sees locally.
+- Product repos (core + plugin-bitwig): pin **remote HEAD** of the selected ref, and it must be **green**.
+- Runtime repos (loader + oc-bridge): pin a **known-good** SHA by default (carry from previous release), and it must be **green**.
+- Local workspaces must be clean and in sync with upstream for repos that are pinned to their remote HEAD.
 
 ## Current State (as of today)
 
@@ -23,7 +24,9 @@ Target UX:
 - `ms release` supports a non-interactive mode via `--no-interactive` + `--repo id=sha` overrides.
 - `ms release publish` uses `--confirm-tag` for safe non-interactive confirmation.
 - `ms release plan/prepare/publish` supports:
-  - `--auto` (strict): pins = remote HEAD for each repo/ref, and must be CI green
+  - `--auto` (strict):
+    - core/plugin-bitwig: pin remote HEAD (must be green)
+    - loader/oc-bridge: carry previous release pins by default; propose bumps when newer green commits exist
   - `--ref id=branch`: override the ref used per repo (for feature branches)
   - interactive preflight warnings (dirty/ahead/behind/CI) with clickable GitHub URLs
 - Distribution CI:
@@ -41,17 +44,29 @@ Implemented:
 Missing for strict auto (still blocking real use):
 
 - None at the mechanism level.
-  - `--auto` will still block whenever any repo's remote HEAD is not CI green (by design).
+  - `--auto` will still block when the selected HEAD-pinned repos are not green (by design).
 
 ## Strict Auto Rules (LOCKED)
 
 Given a repo entry (id, slug, ref, required_ci_workflow_file):
 
-- Resolve `ref` to the remote head SHA.
 - If `required_ci_workflow_file` is missing: **auto is blocked**.
-- If the head SHA has no successful CI run for the required workflow on that branch:
-  - **auto is blocked**
-  - the CLI must explain how to proceed: push changes, wait for CI green, rerun
+
+Pin selection:
+
+- core/plugin-bitwig:
+  - resolve `ref` to the **remote HEAD SHA**
+  - require CI success on that exact SHA
+- loader/oc-bridge:
+  - default: carry pins from the previous release (same channel when possible)
+  - require CI success on the carried SHA
+  - if newer green commits exist on the default ref, `ms` should propose the bump (optional)
+
+Feature branches:
+
+- If a repo is explicitly targeted via `--ref id=feature/...`, treat it as HEAD-pinned:
+  - pin remote HEAD of that branch
+  - require CI green for that exact SHA
 
 ## Helpful Output (DX)
 
@@ -61,6 +76,11 @@ When auto is blocked, print actionable steps:
 - Which repos need push (ahead of upstream)
 - Which repos are behind (need pull)
 - Which repos are not CI-gated (and the workflow file + config field to add)
+
+When auto succeeds, but optional bumps exist:
+
+- Show proposed bumps for loader/oc-bridge (latest green commit on the ref).
+- If the local repo is dirty/ahead/behind, surface that as a warning (because it usually means "push + wait CI").
 
 ## Next Actions
 

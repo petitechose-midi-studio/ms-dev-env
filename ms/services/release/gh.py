@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import base64
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +11,13 @@ from ms.core.structured import as_obj_list, as_str_dict, get_str, get_table
 from ms.platform.process import run as run_process
 from ms.services.release.errors import ReleaseError
 from ms.services.release.model import DistributionRelease, RepoCommit
+
+
+@dataclass(frozen=True, slots=True)
+class GhCompare:
+    status: str
+    ahead_by: int
+    behind_by: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,6 +74,107 @@ def gh_api_json(*, workspace_root: Path, endpoint: str) -> Result[object, Releas
         )
 
     return Ok(obj)
+
+
+def get_repo_file_text(
+    *,
+    workspace_root: Path,
+    repo: str,
+    path: str,
+    ref: str,
+) -> Result[str, ReleaseError]:
+    # Use Contents API to avoid requiring a local checkout.
+    endpoint = f"repos/{repo}/contents/{path}?ref={ref}"
+    obj = gh_api_json(workspace_root=workspace_root, endpoint=endpoint)
+    if isinstance(obj, Err):
+        return obj
+
+    data = as_str_dict(obj.value)
+    if data is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"unexpected contents payload: {repo}/{path}",
+                hint=endpoint,
+            )
+        )
+
+    enc = get_str(data, "encoding")
+    content = get_str(data, "content")
+    if enc != "base64" or content is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"unexpected contents encoding for {repo}/{path}",
+                hint=endpoint,
+            )
+        )
+
+    try:
+        raw = base64.b64decode(content, validate=False)
+    except Exception as e:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"failed to decode contents: {e}",
+                hint=endpoint,
+            )
+        )
+
+    try:
+        return Ok(raw.decode("utf-8"))
+    except UnicodeDecodeError as e:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"invalid UTF-8 in contents: {e}",
+                hint=endpoint,
+            )
+        )
+
+
+def compare_commits(
+    *,
+    workspace_root: Path,
+    repo: str,
+    base: str,
+    head: str,
+) -> Result[GhCompare, ReleaseError]:
+    obj = gh_api_json(
+        workspace_root=workspace_root, endpoint=f"repos/{repo}/compare/{base}...{head}"
+    )
+    if isinstance(obj, Err):
+        return obj
+
+    data = as_str_dict(obj.value)
+    if data is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"unexpected compare payload: {repo}",
+            )
+        )
+
+    status = get_str(data, "status")
+    if status is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"missing compare status: {repo}",
+            )
+        )
+
+    ahead_by = data.get("ahead_by")
+    behind_by = data.get("behind_by")
+    if not isinstance(ahead_by, int) or not isinstance(behind_by, int):
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"invalid compare ahead/behind: {repo}",
+            )
+        )
+
+    return Ok(GhCompare(status=status, ahead_by=ahead_by, behind_by=behind_by))
 
 
 def viewer_permission(*, workspace_root: Path, repo: str) -> Result[str, ReleaseError]:
