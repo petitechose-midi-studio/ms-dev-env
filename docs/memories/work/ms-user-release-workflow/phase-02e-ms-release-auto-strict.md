@@ -1,6 +1,6 @@
 # Phase 02e: `ms release --auto` (Strict, Low-Friction)
 
-Status: IN PROGRESS
+Status: DONE
 
 ## Goal
 
@@ -86,7 +86,7 @@ When auto succeeds, but optional bumps exist:
 ## Next Actions
 
 
-### A) CI ownership audit (required)
+### A) CI ownership audit (done)
 
 We must have exactly one canonical end-user release pipeline.
 
@@ -101,7 +101,7 @@ Action:
 - Remove ms-dev-env workflows that publish end-user-like artifacts (avoid dual sources of truth).
 - Keep ms-dev-env CI for the `ms` tool itself (typing/tests) and optional smoke builds that do NOT publish.
 
-### B) Add canonical CI workflows to missing repos
+### B) Add canonical CI workflows to missing repos (done)
 
 Implement minimal CI workflows in:
 
@@ -116,8 +116,15 @@ Then:
 - Update `ms/services/release/config.py` to set `required_ci_workflow_file` for `core` and `plugin-bitwig`.
 - Update `distribution/release-specs/nightly.template.json` to CI-gate `core` and `plugin-bitwig`.
 
-### C) Validate strict auto end-to-end
+### C) Validate strict auto end-to-end (done)
 
 - On a feature branch per repo: push commits, wait for CI green.
 - Run: `ms release plan --auto --channel beta --ref core=feature/... --ref plugin-bitwig=feature/...`.
 - Expect: auto selects remote HEAD pins, then `ms release publish --auto ...` prepares + dispatches.
+
+## Notes
+
+- To reduce coupling on beta/stable, `--auto` pins:
+  - `core` + `plugin-bitwig` to remote HEAD (must be green)
+  - `loader` + `oc-bridge` by carrying the previous distribution release pins (must be green)
+  - optional bumps are suggested when newer green commits exist for runtime repos

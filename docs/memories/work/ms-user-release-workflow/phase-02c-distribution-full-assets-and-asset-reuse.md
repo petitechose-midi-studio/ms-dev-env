@@ -1,6 +1,6 @@
 # Phase 02c: Distribution - Full Assets + Bundle Layout Fix + Asset Reuse
 
-Status: IN PROGRESS
+Status: DONE
 
 ## Goal
 
@@ -154,6 +154,16 @@ Then the workflow:
   - changing only `loader` or `oc-bridge` rebuilds only bundles
   - nightly: unchanged assets are referenced via `assets[].url`
   - stable/beta: unchanged assets are copied + reuploaded (tag is self-contained)
+
+Validated:
+
+- beta full build (all v1 assets published):
+  - `petitechose-midi-studio/distribution` tag `v0.0.1-beta.6`
+- beta copy reuse (builds skipped, assets copied from previous tag, manifest has no `assets[].url`):
+  - `petitechose-midi-studio/distribution` tag `v0.0.1-beta.8`
+- nightly behavior:
+  - skip publish when unchanged vs previous nightly
+  - `assets[].url` reuse enabled for quota efficiency
 
 ## Tests
 
