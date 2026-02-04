@@ -376,6 +376,13 @@ def resolve_pinned_auto_smart(
     ref_overrides: dict[str, str],
     head_repo_ids: frozenset[str],
 ) -> Result[tuple[tuple[PinnedRepo, ...], tuple[AutoSuggestion, ...]], tuple[RepoReadiness, ...]]:
+    dist_repo_entry = ReleaseRepo(
+        id="distribution",
+        slug=dist_repo,
+        ref="main",
+        required_ci_workflow_file=None,
+    )
+
     # 1) Probe local status + remote HEAD (for UX / blockers on head-mode repos).
     diagnostics: dict[str, RepoReadiness] = {}
     checked: list[RepoReadiness] = []
@@ -406,21 +413,18 @@ def resolve_pinned_auto_smart(
     )
     if isinstance(releases_r, Err):
         return Err(
-            tuple(
-                checked
-                + [
-                    RepoReadiness(
-                        repo=repos[0],
-                        ref=repos[0].ref,
-                        local_path=_local_repo_path(workspace_root=workspace_root, repo=repos[0]),
-                        local_exists=False,
-                        status=None,
-                        local_head_sha=None,
-                        remote_head_sha=None,
-                        head_green=None,
-                        error=releases_r.error.message,
-                    )
-                ]
+            (
+                RepoReadiness(
+                    repo=dist_repo_entry,
+                    ref=dist_repo_entry.ref,
+                    local_path=workspace_root / "distribution",
+                    local_exists=False,
+                    status=None,
+                    local_head_sha=None,
+                    remote_head_sha=None,
+                    head_green=None,
+                    error=releases_r.error.message,
+                ),
             )
         )
 
@@ -432,19 +436,19 @@ def resolve_pinned_auto_smart(
             workspace_root=workspace_root, dist_repo=dist_repo, tag=prev_tag
         )
         if isinstance(prev_pins_r, Err):
-            # Represent as a blocker entry; without previous pins we can still proceed, but we'll
-            # fall back to latest green for carry repos.
-            checked.append(
-                RepoReadiness(
-                    repo=repos[0],
-                    ref=repos[0].ref,
-                    local_path=_local_repo_path(workspace_root=workspace_root, repo=repos[0]),
-                    local_exists=False,
-                    status=None,
-                    local_head_sha=None,
-                    remote_head_sha=None,
-                    head_green=None,
-                    error=f"failed to load previous pins for {prev_tag}: {prev_pins_r.error.message}",
+            return Err(
+                (
+                    RepoReadiness(
+                        repo=dist_repo_entry,
+                        ref=dist_repo_entry.ref,
+                        local_path=workspace_root / "distribution",
+                        local_exists=False,
+                        status=None,
+                        local_head_sha=None,
+                        remote_head_sha=None,
+                        head_green=None,
+                        error=f"failed to load previous pins for {prev_tag}: {prev_pins_r.error.message}",
+                    ),
                 )
             )
         else:
