@@ -26,6 +26,12 @@ Organization: `petitechose-midi-studio`
 - `contributors`:
   - intended for triage permissions (issues/PR support), without merge rights
 
+Repo permissions (team baseline):
+
+- `maintainers`: `maintain` on the org repos (including `distribution`, `ms-dev-env`, `core`, `plugin-bitwig`, `loader`).
+- `release-managers`: `maintain` on `distribution`.
+- `contributors`: `triage` on the org repos (no push).
+
 ## Distribution: Release Permissions
 
 Environments:
@@ -36,6 +42,10 @@ Environments:
   - admin bypass: disabled
 - `nightly`:
   - no reviewers (fully automated)
+  - branch policy: `main` only
+  - admin bypass: disabled
+
+- `github-pages`:
   - branch policy: `main` only
   - admin bypass: disabled
 
