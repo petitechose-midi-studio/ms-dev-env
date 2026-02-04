@@ -30,10 +30,18 @@ Target UX:
   - beta/stable: copy reuse + manual approval (environment `release`)
   - nightly: URL reuse + fully automated + skip publish when unchanged
 
+Implemented:
+
+- Canonical CI gating added for:
+  - `petitechose-midi-studio/core` (`.github/workflows/ci.yml`)
+  - `petitechose-midi-studio/plugin-bitwig` (`.github/workflows/ci.yml`)
+- `ms release` config now treats `core` and `plugin-bitwig` as CI-gated.
+- ms-dev-env CI is now tool-only + integration-smoke (no publishing); end-user publishing is distribution-only.
+
 Missing for strict auto (still blocking real use):
 
-- CI gating for all pinned repos:
-  - `core` and `plugin-bitwig` still lack a canonical CI workflow, so `--auto` must refuse.
+- None at the mechanism level.
+  - `--auto` will still block whenever any repo's remote HEAD is not CI green (by design).
 
 ## Strict Auto Rules (LOCKED)
 
