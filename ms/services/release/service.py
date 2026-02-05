@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_str_dict
+from ms.core.structured import as_obj_list, as_str_dict
 from ms.output.console import ConsoleProtocol, Style
 from ms.services.release import config
 from ms.services.release.ci import is_ci_green_for_sha
@@ -269,13 +269,14 @@ def _distribution_artifacts_match_plan(*, dist_root: Path, plan: ReleasePlan) ->
     if spec.get("channel") != plan.channel:
         return False
 
-    repos_obj = spec.get("repos")
-    if not isinstance(repos_obj, list):
+    repos_obj = as_obj_list(spec.get("repos"))
+    if repos_obj is None:
         return False
 
     repo_map: dict[str, str] = {}
-    for r in repos_obj:
-        if not isinstance(r, dict):
+    for obj in repos_obj:
+        r = as_str_dict(obj)
+        if r is None:
             continue
         rid = r.get("id")
         sha = r.get("sha")
