@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.core.structured import as_obj_list, as_str_dict
 from ms.output.console import ConsoleProtocol, Style
 from ms.services.release import config
 from ms.services.release.ci import is_ci_green_for_sha
@@ -165,6 +167,12 @@ def prepare_distribution_pr(
     if isinstance(pull, Err):
         return pull
 
+    # Idempotency: if the spec/notes already exist on the default branch and match the plan,
+    # skip PR creation and proceed.
+    if not dry_run and _distribution_artifacts_match_plan(dist_root=dist.value.root, plan=plan):
+        console.print("distribution spec already present on main; skipping PR", Style.DIM)
+        return Ok(f"(already merged) {plan.spec_path}")
+
     branch = f"release/{plan.tag}"
     br = create_branch(repo_root=dist.value.root, branch=branch, console=console, dry_run=dry_run)
     if isinstance(br, Err):
@@ -235,6 +243,51 @@ def prepare_distribution_pr(
         )
 
     return Ok(pr.value)
+
+
+def _distribution_artifacts_match_plan(*, dist_root: Path, plan: ReleasePlan) -> bool:
+    spec_path = dist_root / plan.spec_path
+    if not spec_path.exists():
+        return False
+
+    if plan.notes_path is not None:
+        notes_path = dist_root / plan.notes_path
+        if not notes_path.exists():
+            return False
+
+    try:
+        obj: object = json.loads(spec_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    spec = as_str_dict(obj)
+    if spec is None:
+        return False
+
+    if spec.get("tag") != plan.tag:
+        return False
+    if spec.get("channel") != plan.channel:
+        return False
+
+    repos_obj = as_obj_list(spec.get("repos"))
+    if repos_obj is None:
+        return False
+
+    repo_map: dict[str, str] = {}
+    for obj in repos_obj:
+        r = as_str_dict(obj)
+        if r is None:
+            continue
+        rid = r.get("id")
+        sha = r.get("sha")
+        if isinstance(rid, str) and isinstance(sha, str):
+            repo_map[rid] = sha
+
+    for p in plan.pinned:
+        if repo_map.get(p.repo.id) != p.sha:
+            return False
+
+    return True
 
 
 def publish_distribution_release(
