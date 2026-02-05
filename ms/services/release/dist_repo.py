@@ -279,7 +279,7 @@ def merge_pr(
                 "--repo",
                 DIST_REPO_SLUG,
                 "--json",
-                "state,merged",
+                "state,mergedAt",
             ],
             cwd=workspace_root,
         )
@@ -314,8 +314,12 @@ def merge_pr(
                 )
             )
 
-        merged = data.get("merged") is True
         state = data.get("state")
+        merged_at = data.get("mergedAt")
+
+        merged = (isinstance(state, str) and state == "MERGED") or (
+            isinstance(merged_at, str) and merged_at.strip() != ""
+        )
         if merged:
             return Ok(None)
 
