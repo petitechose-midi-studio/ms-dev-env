@@ -1,6 +1,6 @@
 # Phase 02g: Unified Release Control Plane (Build Once + Promote)
 
-Status: TODO
+Status: IN PROGRESS
 
 ## Goal
 
@@ -23,6 +23,23 @@ Migrate to a single release operating model across content and app:
 ## Full audit snapshot
 
 Date: 2026-02-06
+
+### Progress log
+
+Completed in this phase so far:
+
+- Added release PR non-squash behavior in `ms release` distribution merge path:
+  - `ms/services/release/dist_repo.py` now uses `gh pr merge --rebase --auto`.
+- Added workflow run cancellation (`concurrency.cancel-in-progress: true`) in:
+  - `distribution`: `CI`, `Publish`, `Nightly`
+  - `ms-manager`: `CI`, `Release`
+  - `loader`: `CI`, `Release`
+  - `open-control/bridge`: `CI`, `Release`
+- Reduced duplicate loader CI work by scoping push CI to `main` only.
+- Enabled/updated branch protection on:
+  - `petitechose-midi-studio/ms-manager` `main`
+  - `open-control/bridge` `main`
+  with strict required checks + required PR review + conversation resolution + no force push/deletion.
 
 ### What is already strong
 

@@ -152,7 +152,7 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02f (DONE): Governance, permissions, and safety
   - File: `phase-02f-governance-and-permissions.md`
 
-- Phase 02g (TODO): Unified Release Control Plane (Build Once + Promote)
+- Phase 02g (IN PROGRESS): Unified Release Control Plane (Build Once + Promote)
   - File: `phase-02g-unified-release-control-plane.md`
 
 - Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
