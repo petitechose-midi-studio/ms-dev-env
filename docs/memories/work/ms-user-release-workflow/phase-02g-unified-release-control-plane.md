@@ -39,7 +39,11 @@ Completed in this phase so far:
 - Enabled/updated branch protection on:
   - `petitechose-midi-studio/ms-manager` `main`
   - `open-control/bridge` `main`
-  with strict required checks + required PR review + conversation resolution + no force push/deletion.
+  with strict required checks + conversation resolution + no force push/deletion.
+- Added first candidate-factory workflows (build once, durable draft RC release) in:
+  - `midi-studio/loader`: `.github/workflows/candidate.yml`
+  - `open-control/bridge`: `.github/workflows/candidate.yml`
+  producing `rc-<sha>` draft releases with artifacts + `candidate.json` + `checksums.txt`.
 
 ### What is already strong
 
