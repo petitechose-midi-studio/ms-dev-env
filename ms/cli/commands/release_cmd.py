@@ -41,7 +41,25 @@ from ms.services.release.service import (
 )
 
 
-release_app = typer.Typer(add_completion=False, no_args_is_help=True)
+release_app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help=(
+        "Release orchestration.\n"
+        "Prefer `ms release content ...` for distribution/content releases.\n"
+        "Top-level commands (`ms release plan|prepare|publish|remove`) are kept for compatibility."
+    ),
+)
+release_content_app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help="Content release commands (distribution).",
+)
+release_product_app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help="Application release commands (ms-manager).",
+)
 
 
 def _exit(err: str, *, code: ErrorCode) -> NoReturn:
@@ -404,9 +422,9 @@ def _print_replay(*, plan: ReleasePlan, console: ConsoleProtocol, plan_file: Pat
     console.newline()
     console.print("Replay:", Style.DIM)
     if plan_file is not None:
-        console.print(f"ms release publish --plan {plan_file}", Style.DIM)
+        console.print(f"ms release content publish --plan {plan_file}", Style.DIM)
     console.print(
-        f"ms release publish --channel {plan.channel} --tag {plan.tag} --no-interactive {repo_args}",
+        f"ms release content publish --channel {plan.channel} --tag {plan.tag} --no-interactive {repo_args}",
         Style.DIM,
     )
 
@@ -825,3 +843,45 @@ def remove_cmd(
         _exit(deleted.error.message, code=ErrorCode.NETWORK_ERROR)
 
     ctx.console.success("done")
+
+
+def _app_not_implemented(*, command: str) -> NoReturn:
+    _exit(
+        (
+            f"`ms release app {command}` is not implemented yet.\n"
+            "Current flow:\n"
+            "1) create version bump PR in petitechose-midi-studio/ms-manager\n"
+            "2) merge PR to main\n"
+            "3) create/push tag vX.Y.Z\n"
+            "4) Release workflow runs (approval required on environment `app-release`)"
+        ),
+        code=ErrorCode.USER_ERROR,
+    )
+
+
+@release_product_app.command("plan")
+def app_plan_cmd() -> None:
+    """Plan an ms-manager app release (placeholder)."""
+    _app_not_implemented(command="plan")
+
+
+@release_product_app.command("prepare")
+def app_prepare_cmd() -> None:
+    """Prepare an ms-manager app release (placeholder)."""
+    _app_not_implemented(command="prepare")
+
+
+@release_product_app.command("publish")
+def app_publish_cmd() -> None:
+    """Publish an ms-manager app release (placeholder)."""
+    _app_not_implemented(command="publish")
+
+
+# New structured release namespace.
+release_content_app.command("plan")(plan_cmd)
+release_content_app.command("prepare")(prepare_cmd)
+release_content_app.command("publish")(publish_cmd)
+release_content_app.command("remove")(remove_cmd)
+
+release_app.add_typer(release_content_app, name="content")
+release_app.add_typer(release_product_app, name="app")

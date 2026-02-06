@@ -55,11 +55,15 @@ If a maintainer attempts direct push to protected `main`, GitHub blocks it.
 Use `ms release` commands:
 
 1. Plan:
-   - `ms release plan --channel <stable|beta> --auto`
+   - `ms release content plan --channel <stable|beta> --auto`
 2. Prepare PR in `distribution`:
-   - `ms release prepare --channel <stable|beta> --auto`
+   - `ms release content prepare --channel <stable|beta> --auto`
 3. Publish:
-   - `ms release publish --channel <stable|beta> --auto --watch`
+   - `ms release content publish --channel <stable|beta> --auto --watch`
+
+Compatibility aliases still work:
+
+- `ms release plan|prepare|publish` (mapped to `content`)
 
 What happens:
 
@@ -73,6 +77,9 @@ No approval = no stable/beta publication.
 ## App release flow (ms-manager)
 
 Current flow:
+
+- `ms release app plan|prepare|publish` exists as command namespace but is currently a placeholder.
+- Until app orchestration is fully implemented, use the manual steps below:
 
 1. Version bump PR (package/Cargo/tauri versions).
 2. Merge to `main`.

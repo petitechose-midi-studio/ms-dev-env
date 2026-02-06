@@ -54,6 +54,10 @@ Completed in this phase so far:
   - environment `app-release` with required reviewers `release-managers`
   - branch policy `main`
   - `ms-manager/.github/workflows/release.yml` now requires `environment: app-release`
+- Added structured release CLI namespace in `ms`:
+  - `ms release content plan|prepare|publish|remove`
+  - backward-compatible aliases kept: `ms release plan|prepare|publish|remove`
+  - `ms release app plan|prepare|publish` scaffold added (placeholder while app orchestration service is built)
 
 ### What is already strong
 
@@ -76,21 +80,21 @@ Completed in this phase so far:
 - `ms-manager` CI runs heavy Tauri build matrix (`--no-bundle`) and release workflow rebuilds again.
 - `distribution` publish rebuilds loader/bridge/core/plugin-bitwig outputs from source checkouts at publish time.
 
-2) Missing run cancellation in several repos
+2) Missing run cancellation in part of the fleet
 
-- No `concurrency.cancel-in-progress` in:
-  - `ms-manager/.github/workflows/ci.yml`
-  - `ms-manager/.github/workflows/release.yml`
-  - `distribution/.github/workflows/publish.yml`
-  - `distribution/.github/workflows/nightly.yml`
-  - `midi-studio/loader/.github/workflows/*.yml`
-  - `open-control/bridge/.github/workflows/*.yml`
+- `concurrency.cancel-in-progress` is now in place for:
+  - `distribution` (`CI`, `Publish`, `Nightly`)
+  - `ms-manager` (`CI`, `Release`)
+  - `loader` (`CI`, `Release`)
+  - `open-control/bridge` (`CI`, `Release`)
+- Remaining standardization target:
+  - `core/.github/workflows/*.yml`
+  - `plugin-bitwig/.github/workflows/*.yml`
 
 3) Governance drift
 
-- `ms-manager` main branch is currently not protected.
-- `open-control/bridge` main branch is currently not protected.
-- No repo rulesets are configured (including tag rulesets).
+- `ms-manager` and `open-control/bridge` main branch protections are now enabled and aligned.
+- No repo rulesets are configured yet (including tag rulesets).
 
 4) Provenance and run correlation gaps
 
