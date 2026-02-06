@@ -12,6 +12,19 @@ DIST_NOTES_DIR = "release-notes"
 
 DIST_PUBLISH_WORKFLOW = "publish.yml"
 
+APP_REPO_SLUG = "petitechose-midi-studio/ms-manager"
+APP_LOCAL_DIR = "ms-manager"
+APP_DEFAULT_BRANCH = "main"
+APP_RELEASE_WORKFLOW = "release.yml"
+APP_RELEASE_ENV = "app-release"
+
+APP_RELEASE_REPO = ReleaseRepo(
+    id="ms-manager",
+    slug=APP_REPO_SLUG,
+    ref=APP_DEFAULT_BRANCH,
+    required_ci_workflow_file=".github/workflows/ci.yml",
+)
+
 
 RELEASE_REPOS: tuple[ReleaseRepo, ...] = (
     ReleaseRepo(

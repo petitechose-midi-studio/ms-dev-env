@@ -24,6 +24,7 @@ from ms.services.release.auto import (
     RepoReadiness,
     probe_release_readiness,
     resolve_pinned_auto_smart,
+    resolve_pinned_auto_strict,
 )
 from ms.services.release.open_control import OpenControlPreflightReport, preflight_open_control
 from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
@@ -33,10 +34,14 @@ from ms.services.release.remove import (
     validate_remove_tags,
 )
 from ms.services.release.service import (
+    ensure_app_release_permissions,
     ensure_ci_green,
     ensure_release_permissions,
+    plan_app_release,
     plan_release,
+    prepare_app_pr,
     prepare_distribution_pr,
+    publish_app_release,
     publish_distribution_release,
 )
 
@@ -544,7 +549,10 @@ def plan_cmd(
         plan_file = write_plan_file(
             path=out,
             plan=PlanInput(
-                channel=plan_r.value.channel, tag=plan_r.value.tag, pinned=plan_r.value.pinned
+                product="content",
+                channel=plan_r.value.channel,
+                tag=plan_r.value.tag,
+                pinned=plan_r.value.pinned,
             ),
         )
         if isinstance(plan_file, Err):
@@ -598,6 +606,8 @@ def prepare_cmd(
         plan_in = read_plan_file(path=plan)
         if isinstance(plan_in, Err):
             _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
+        if plan_in.value.product != "content":
+            _exit("--plan product mismatch: expected content plan", code=ErrorCode.USER_ERROR)
         channel = plan_in.value.channel
         tag = plan_in.value.tag
         pinned = plan_in.value.pinned
@@ -708,6 +718,8 @@ def publish_cmd(
         plan_in = read_plan_file(path=plan)
         if isinstance(plan_in, Err):
             _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
+        if plan_in.value.product != "content":
+            _exit("--plan product mismatch: expected content plan", code=ErrorCode.USER_ERROR)
         channel = plan_in.value.channel
         tag = plan_in.value.tag
         pinned = plan_in.value.pinned
@@ -845,36 +857,438 @@ def remove_cmd(
     ctx.console.success("done")
 
 
-def _app_not_implemented(*, command: str) -> NoReturn:
-    _exit(
-        (
-            f"`ms release app {command}` is not implemented yet.\n"
-            "Current flow:\n"
-            "1) create version bump PR in petitechose-midi-studio/ms-manager\n"
-            "2) merge PR to main\n"
-            "3) create/push tag vX.Y.Z\n"
-            "4) Release workflow runs (approval required on environment `app-release`)"
-        ),
-        code=ErrorCode.USER_ERROR,
+def _resolve_pinned_app(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    repo_overrides: list[str],
+    ref_overrides: list[str],
+    auto: bool,
+    allow_non_green: bool,
+    interactive: bool,
+) -> tuple[PinnedRepo, ...]:
+    def parse_overrides(items: list[str], *, flag: str) -> dict[str, str]:
+        out: dict[str, str] = {}
+        for item in items:
+            if "=" not in item:
+                _exit(f"invalid {flag} (expected id=value): {item}", code=ErrorCode.USER_ERROR)
+            k, v = item.split("=", 1)
+            k = k.strip()
+            v = v.strip()
+            if not k or not v:
+                _exit(f"invalid {flag} (expected id=value): {item}", code=ErrorCode.USER_ERROR)
+            out[k] = v
+        return out
+
+    overrides = parse_overrides(repo_overrides, flag="--repo")
+    refs = parse_overrides(ref_overrides, flag="--ref")
+
+    repo = config.APP_RELEASE_REPO
+    ref = refs.get(repo.id, repo.ref)
+    repo_sel = ReleaseRepo(
+        id=repo.id,
+        slug=repo.slug,
+        ref=ref,
+        required_ci_workflow_file=repo.required_ci_workflow_file,
+    )
+
+    if auto:
+        if overrides:
+            _exit("--auto cannot be combined with --repo overrides", code=ErrorCode.USER_ERROR)
+        if allow_non_green:
+            _exit("--auto is strict: remove --allow-non-green", code=ErrorCode.USER_ERROR)
+
+        resolved = resolve_pinned_auto_strict(
+            workspace_root=workspace_root,
+            repos=(repo_sel,),
+            ref_overrides={repo.id: ref},
+        )
+        if isinstance(resolved, Err):
+            _print_auto_blockers(console=console, blockers=resolved.error)
+            _exit("auto release is blocked", code=ErrorCode.USER_ERROR)
+        console.success("auto pins: OK")
+        return resolved.value
+
+    if repo.id in overrides:
+        return (PinnedRepo(repo=repo_sel, sha=overrides[repo.id]),)
+
+    if not interactive:
+        _exit(
+            f"missing --repo {repo.id}=<sha> (or run without --no-interactive)",
+            code=ErrorCode.USER_ERROR,
+        )
+
+    console.header(f"Select commit: {repo.id} ({repo.slug})")
+    commits_r = list_recent_commits(
+        workspace_root=workspace_root,
+        repo=repo.slug,
+        ref=ref,
+        limit=20,
+    )
+    if isinstance(commits_r, Err):
+        _exit(commits_r.error.message, code=ErrorCode.NETWORK_ERROR)
+    commits = commits_r.value
+    if not commits:
+        _exit(f"no commits found for {repo.slug}", code=ErrorCode.NETWORK_ERROR)
+
+    green = None
+    if repo.required_ci_workflow_file is not None:
+        green_r = fetch_green_head_shas(
+            workspace_root=workspace_root,
+            repo=repo.slug,
+            workflow_file=repo.required_ci_workflow_file,
+            branch=ref,
+            limit=100,
+        )
+        if isinstance(green_r, Err):
+            _exit(green_r.error.message, code=ErrorCode.NETWORK_ERROR)
+        green = green_r.value
+
+    default_idx = 1
+    if green is not None:
+        for i, c in enumerate(commits, start=1):
+            if green.is_green(c.sha):
+                default_idx = i
+                break
+
+    for i, c in enumerate(commits, start=1):
+        status = "NA" if green is None else ("OK" if green.is_green(c.sha) else "--")
+        date = c.date_utc or ""
+        console.print(f"{i:2}. [{status}] {c.short_sha} {date} {c.message}", Style.DIM)
+
+    while True:
+        raw = typer.prompt("Pick commit number", default=str(default_idx))
+        try:
+            idx = int(raw)
+        except ValueError:
+            console.error("invalid number")
+            continue
+        if idx < 1 or idx > len(commits):
+            console.error("out of range")
+            continue
+
+        chosen = commits[idx - 1]
+        if green is not None and (not green.is_green(chosen.sha)) and (not allow_non_green):
+            console.error("selected commit CI is not green (use --allow-non-green to override)")
+            continue
+
+        console.success(f"{repo.id}={chosen.sha} (ref={ref})")
+        return (PinnedRepo(repo=repo_sel, sha=chosen.sha),)
+
+
+def _print_app_plan(
+    *,
+    channel: ReleaseChannel,
+    tag: str,
+    version: str,
+    pinned: tuple[PinnedRepo, ...],
+    console: ConsoleProtocol,
+) -> None:
+    console.header("App Release Plan")
+    console.print(f"channel: {channel}")
+    console.print(f"tag: {tag}")
+    console.print(f"version: {version}")
+    console.print("repos:")
+    for p in pinned:
+        console.print(f"- {p.repo.id}: {p.sha}")
+
+
+def _print_app_replay(
+    *,
+    channel: ReleaseChannel,
+    tag: str,
+    pinned: tuple[PinnedRepo, ...],
+    console: ConsoleProtocol,
+    plan_file: Path | None,
+) -> None:
+    repo_args = " ".join([f"--repo {p.repo.id}={p.sha}" for p in pinned])
+    console.newline()
+    console.print("Replay:", Style.DIM)
+    if plan_file is not None:
+        console.print(f"ms release app publish --plan {plan_file}", Style.DIM)
+    console.print(
+        f"ms release app publish --channel {channel} --tag {tag} --no-interactive {repo_args}",
+        Style.DIM,
     )
 
 
 @release_product_app.command("plan")
-def app_plan_cmd() -> None:
-    """Plan an ms-manager app release (placeholder)."""
-    _app_not_implemented(command="plan")
+def app_plan_cmd(
+    channel: ReleaseChannel = typer.Option(..., "--channel", help="stable or beta"),
+    bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
+    tag: str | None = typer.Option(None, "--tag", help="Override tag"),
+    auto: bool = typer.Option(False, "--auto", help="Auto-select pins (strict)"),
+    repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    ref: list[str] = typer.Option([], "--ref", help="Override repo ref (id=ref)"),
+    allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
+    no_interactive: bool = typer.Option(
+        False, "--no-interactive", help="Require explicit --repo overrides"
+    ),
+    out: Path | None = typer.Option(None, "--out", help="Write plan JSON to file"),
+) -> None:
+    """Plan an ms-manager app release (no side effects)."""
+    ctx = build_context()
+
+    ok = ensure_app_release_permissions(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        require_write=False,
+    )
+    if isinstance(ok, Err):
+        _exit(ok.error.message, code=ErrorCode.ENV_ERROR)
+
+    who = current_user(workspace_root=ctx.workspace.root)
+    if isinstance(who, Err):
+        _exit(who.error.message, code=ErrorCode.NETWORK_ERROR)
+    ctx.console.print(f"gh user: {who.value.login}", Style.DIM)
+
+    pinned = _resolve_pinned_app(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        repo_overrides=repo,
+        ref_overrides=ref,
+        auto=auto,
+        allow_non_green=allow_non_green,
+        interactive=not no_interactive,
+    )
+
+    planned = plan_app_release(
+        workspace_root=ctx.workspace.root,
+        channel=channel,
+        bump=bump,
+        tag_override=tag,
+        pinned=pinned,
+    )
+    if isinstance(planned, Err):
+        _exit(planned.error.message, code=ErrorCode.USER_ERROR)
+    app_tag, version = planned.value
+
+    _print_app_plan(
+        channel=channel, tag=app_tag, version=version, pinned=pinned, console=ctx.console
+    )
+
+    if out is not None:
+        plan_file = write_plan_file(
+            path=out,
+            plan=PlanInput(product="app", channel=channel, tag=app_tag, pinned=pinned),
+        )
+        if isinstance(plan_file, Err):
+            _exit(plan_file.error.message, code=ErrorCode.IO_ERROR)
+        ctx.console.success(str(out))
+
+    _print_app_replay(
+        channel=channel, tag=app_tag, pinned=pinned, console=ctx.console, plan_file=out
+    )
 
 
 @release_product_app.command("prepare")
-def app_prepare_cmd() -> None:
-    """Prepare an ms-manager app release (placeholder)."""
-    _app_not_implemented(command="prepare")
+def app_prepare_cmd(
+    channel: ReleaseChannel | None = typer.Option(None, "--channel", help="stable or beta"),
+    bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
+    tag: str | None = typer.Option(None, "--tag", help="Override tag"),
+    auto: bool = typer.Option(False, "--auto", help="Auto-select pins (strict)"),
+    repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    ref: list[str] = typer.Option([], "--ref", help="Override repo ref (id=ref)"),
+    plan: Path | None = typer.Option(None, "--plan", help="Use a previously saved plan JSON"),
+    allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
+    confirm_tag: str | None = typer.Option(
+        None,
+        "--confirm-tag",
+        help="Skip confirmation prompt by providing the tag",
+    ),
+    no_interactive: bool = typer.Option(
+        False, "--no-interactive", help="Require explicit --repo overrides"
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without mutating"),
+) -> None:
+    """Create + merge the ms-manager PR for a version bump."""
+    ctx = build_context()
+
+    ok = ensure_app_release_permissions(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        require_write=True,
+    )
+    if isinstance(ok, Err):
+        _exit(ok.error.message, code=ErrorCode.USER_ERROR)
+
+    if plan is not None:
+        if auto or repo or ref:
+            _exit("--plan cannot be combined with --auto/--repo/--ref", code=ErrorCode.USER_ERROR)
+        plan_in = read_plan_file(path=plan)
+        if isinstance(plan_in, Err):
+            _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
+        if plan_in.value.product != "app":
+            _exit("--plan product mismatch: expected app plan", code=ErrorCode.USER_ERROR)
+        channel = plan_in.value.channel
+        tag = plan_in.value.tag
+        pinned = plan_in.value.pinned
+    else:
+        if channel is None:
+            _exit("missing --channel (or pass --plan)", code=ErrorCode.USER_ERROR)
+        pinned = _resolve_pinned_app(
+            workspace_root=ctx.workspace.root,
+            console=ctx.console,
+            repo_overrides=repo,
+            ref_overrides=ref,
+            auto=auto,
+            allow_non_green=allow_non_green,
+            interactive=not no_interactive,
+        )
+
+    planned = plan_app_release(
+        workspace_root=ctx.workspace.root,
+        channel=channel,
+        bump=bump,
+        tag_override=tag,
+        pinned=pinned,
+    )
+    if isinstance(planned, Err):
+        _exit(planned.error.message, code=ErrorCode.USER_ERROR)
+    app_tag, version = planned.value
+
+    green = ensure_ci_green(
+        workspace_root=ctx.workspace.root,
+        pinned=pinned,
+        allow_non_green=allow_non_green,
+    )
+    if isinstance(green, Err):
+        _exit(green.error.message, code=ErrorCode.USER_ERROR)
+
+    _print_app_plan(
+        channel=channel, tag=app_tag, version=version, pinned=pinned, console=ctx.console
+    )
+    _print_app_replay(
+        channel=channel, tag=app_tag, pinned=pinned, console=ctx.console, plan_file=plan
+    )
+    if not dry_run:
+        _confirm_tag(app_tag, confirm_tag=confirm_tag)
+
+    pr = prepare_app_pr(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        tag=app_tag,
+        version=version,
+        pinned=pinned,
+        dry_run=dry_run,
+    )
+    if isinstance(pr, Err):
+        _exit(pr.error.message, code=ErrorCode.IO_ERROR)
+
+    ctx.console.success(f"PR: {pr.value}")
 
 
 @release_product_app.command("publish")
-def app_publish_cmd() -> None:
-    """Publish an ms-manager app release (placeholder)."""
-    _app_not_implemented(command="publish")
+def app_publish_cmd(
+    channel: ReleaseChannel | None = typer.Option(None, "--channel", help="stable or beta"),
+    bump: ReleaseBump = typer.Option("patch", "--bump", help="major/minor/patch"),
+    tag: str | None = typer.Option(None, "--tag", help="Override tag"),
+    auto: bool = typer.Option(False, "--auto", help="Auto-select pins (strict)"),
+    repo: list[str] = typer.Option([], "--repo", help="Override repo SHA (id=sha)"),
+    ref: list[str] = typer.Option([], "--ref", help="Override repo ref (id=ref)"),
+    plan: Path | None = typer.Option(None, "--plan", help="Use a previously saved plan JSON"),
+    allow_non_green: bool = typer.Option(False, "--allow-non-green", help="Allow non-green SHAs"),
+    confirm_tag: str | None = typer.Option(
+        None,
+        "--confirm-tag",
+        help="Skip confirmation prompt by providing the tag",
+    ),
+    no_interactive: bool = typer.Option(
+        False, "--no-interactive", help="Require explicit --repo overrides"
+    ),
+    watch: bool = typer.Option(False, "--watch", help="Watch workflow run until completion"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without mutating"),
+) -> None:
+    """Prepare app version PR + dispatch ms-manager Release workflow."""
+    ctx = build_context()
+
+    ok = ensure_app_release_permissions(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        require_write=True,
+    )
+    if isinstance(ok, Err):
+        _exit(ok.error.message, code=ErrorCode.USER_ERROR)
+
+    if plan is not None:
+        if auto or repo or ref:
+            _exit("--plan cannot be combined with --auto/--repo/--ref", code=ErrorCode.USER_ERROR)
+        plan_in = read_plan_file(path=plan)
+        if isinstance(plan_in, Err):
+            _exit(plan_in.error.message, code=ErrorCode.USER_ERROR)
+        if plan_in.value.product != "app":
+            _exit("--plan product mismatch: expected app plan", code=ErrorCode.USER_ERROR)
+        channel = plan_in.value.channel
+        tag = plan_in.value.tag
+        pinned = plan_in.value.pinned
+    else:
+        if channel is None:
+            _exit("missing --channel (or pass --plan)", code=ErrorCode.USER_ERROR)
+        pinned = _resolve_pinned_app(
+            workspace_root=ctx.workspace.root,
+            console=ctx.console,
+            repo_overrides=repo,
+            ref_overrides=ref,
+            auto=auto,
+            allow_non_green=allow_non_green,
+            interactive=not no_interactive,
+        )
+
+    planned = plan_app_release(
+        workspace_root=ctx.workspace.root,
+        channel=channel,
+        bump=bump,
+        tag_override=tag,
+        pinned=pinned,
+    )
+    if isinstance(planned, Err):
+        _exit(planned.error.message, code=ErrorCode.USER_ERROR)
+    app_tag, version = planned.value
+
+    green = ensure_ci_green(
+        workspace_root=ctx.workspace.root,
+        pinned=pinned,
+        allow_non_green=allow_non_green,
+    )
+    if isinstance(green, Err):
+        _exit(green.error.message, code=ErrorCode.USER_ERROR)
+
+    _print_app_plan(
+        channel=channel, tag=app_tag, version=version, pinned=pinned, console=ctx.console
+    )
+    _print_app_replay(
+        channel=channel, tag=app_tag, pinned=pinned, console=ctx.console, plan_file=plan
+    )
+    if not dry_run:
+        _confirm_tag(app_tag, confirm_tag=confirm_tag)
+
+    pr = prepare_app_pr(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        tag=app_tag,
+        version=version,
+        pinned=pinned,
+        dry_run=dry_run,
+    )
+    if isinstance(pr, Err):
+        _exit(pr.error.message, code=ErrorCode.IO_ERROR)
+    ctx.console.success(f"PR merged: {pr.value}")
+
+    run = publish_app_release(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        tag=app_tag,
+        watch=watch,
+        dry_run=dry_run,
+    )
+    if isinstance(run, Err):
+        _exit(run.error.message, code=ErrorCode.NETWORK_ERROR)
+
+    ctx.console.success(f"Workflow run: {run.value}")
+    ctx.console.print(
+        "Next: approve the 'app-release' environment in GitHub Actions to publish.",
+        Style.DIM,
+    )
 
 
 # New structured release namespace.

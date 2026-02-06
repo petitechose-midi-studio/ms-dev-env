@@ -11,6 +11,7 @@ from ms.git.repository import GitError, GitStatus, Repository
 from ms.platform.process import run as run_process
 from ms.services.release.ci import fetch_green_head_shas, is_ci_green_for_sha
 from ms.services.release.errors import ReleaseError
+from ms.services.release import config
 from ms.services.release.gh import (
     compare_commits,
     get_ref_head_sha,
@@ -84,6 +85,8 @@ def _local_issue_reason(r: RepoReadiness) -> str:
 
 def _local_repo_path(*, workspace_root: Path, repo: ReleaseRepo) -> Path:
     name = repo.slug.split("/", 1)[-1]
+    if repo.slug == config.APP_REPO_SLUG:
+        return workspace_root / config.APP_LOCAL_DIR
     if repo.slug.startswith("petitechose-midi-studio/"):
         return workspace_root / "midi-studio" / name
     if repo.slug.startswith("open-control/"):

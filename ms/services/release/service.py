@@ -7,6 +7,21 @@ from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict
 from ms.output.console import ConsoleProtocol, Style
 from ms.services.release import config
+from ms.services.release.app_repo import (
+    checkout_main_and_pull as app_checkout_main_and_pull,
+    commit_and_push as app_commit_and_push,
+    create_branch as app_create_branch,
+    ensure_app_repo,
+    ensure_clean_git_repo as ensure_clean_app_repo,
+    merge_pr as app_merge_pr,
+    open_pr as app_open_pr,
+)
+from ms.services.release.app_version import (
+    app_version_files,
+    apply_version,
+    current_version,
+    version_from_tag,
+)
 from ms.services.release.ci import is_ci_green_for_sha
 from ms.services.release.dist_repo import (
     checkout_main_and_pull,
@@ -28,7 +43,11 @@ from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, R
 from ms.services.release.notes import write_release_notes
 from ms.services.release.planner import ReleaseHistory, compute_history, suggest_tag, validate_tag
 from ms.services.release.spec import write_release_spec
-from ms.services.release.workflow import dispatch_publish_workflow, watch_run
+from ms.services.release.workflow import (
+    dispatch_app_release_workflow,
+    dispatch_publish_workflow,
+    watch_run,
+)
 
 
 def ensure_release_permissions(
@@ -63,6 +82,74 @@ def ensure_release_permissions(
         )
 
     return Ok(None)
+
+
+def ensure_app_release_permissions(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    require_write: bool,
+) -> Result[None, ReleaseError]:
+    ok = ensure_gh_available()
+    if isinstance(ok, Err):
+        return ok
+    ok = ensure_gh_auth(workspace_root=workspace_root)
+    if isinstance(ok, Err):
+        return ok
+
+    if not require_write:
+        return Ok(None)
+
+    perm = viewer_permission(workspace_root=workspace_root, repo=config.APP_REPO_SLUG)
+    if isinstance(perm, Err):
+        return perm
+
+    allowed = {"ADMIN", "MAINTAIN", "WRITE"}
+    if perm.value not in allowed:
+        console.print(f"permission: {perm.value}", Style.DIM)
+        return Err(
+            ReleaseError(
+                kind="permission_denied",
+                message="insufficient permission for app repo",
+                hint=f"You need WRITE/MAINTAIN/ADMIN on {config.APP_REPO_SLUG}.",
+            )
+        )
+
+    return Ok(None)
+
+
+def load_app_history(*, workspace_root: Path) -> Result[ReleaseHistory, ReleaseError]:
+    releases = list_distribution_releases(
+        workspace_root=workspace_root, repo=config.APP_REPO_SLUG, limit=100
+    )
+    if isinstance(releases, Err):
+        return releases
+    return Ok(compute_history(releases.value))
+
+
+def plan_app_release(
+    *,
+    workspace_root: Path,
+    channel: ReleaseChannel,
+    bump: ReleaseBump,
+    tag_override: str | None,
+    pinned: tuple[PinnedRepo, ...],
+) -> Result[tuple[str, str], ReleaseError]:
+    history_result = load_app_history(workspace_root=workspace_root)
+    if isinstance(history_result, Err):
+        return history_result
+    history = history_result.value
+
+    tag = tag_override or suggest_tag(channel=channel, bump=bump, history=history)
+    valid = validate_tag(channel=channel, tag=tag, history=history)
+    if isinstance(valid, Err):
+        return valid
+
+    version = version_from_tag(tag=tag)
+    if isinstance(version, Err):
+        return version
+
+    return Ok((tag, version.value))
 
 
 def load_distribution_history(*, workspace_root: Path) -> Result[ReleaseHistory, ReleaseError]:
@@ -311,7 +398,149 @@ def publish_distribution_release(
 
     if watch:
         watched = watch_run(
-            workspace_root=workspace_root, run_id=run.value.id, console=console, dry_run=dry_run
+            workspace_root=workspace_root,
+            run_id=run.value.id,
+            repo_slug=config.DIST_REPO_SLUG,
+            console=console,
+            dry_run=dry_run,
+        )
+        if isinstance(watched, Err):
+            return watched
+
+    return Ok(run.value.url)
+
+
+def prepare_app_pr(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    tag: str,
+    version: str,
+    pinned: tuple[PinnedRepo, ...],
+    dry_run: bool,
+) -> Result[str, ReleaseError]:
+    app = ensure_app_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
+    if isinstance(app, Err):
+        return app
+
+    if not dry_run:
+        clean = ensure_clean_app_repo(repo_root=app.value.root)
+        if isinstance(clean, Err):
+            return clean
+
+    pull = app_checkout_main_and_pull(repo_root=app.value.root, console=console, dry_run=dry_run)
+    if isinstance(pull, Err):
+        return pull
+
+    if not dry_run:
+        cur = current_version(app_repo_root=app.value.root)
+        if isinstance(cur, Err):
+            return cur
+        if cur.value == version:
+            console.print("app version already present on main; skipping PR", Style.DIM)
+            return Ok(f"(already merged) {tag}")
+
+    branch = f"release/{tag}"
+    br = app_create_branch(
+        repo_root=app.value.root, branch=branch, console=console, dry_run=dry_run
+    )
+    if isinstance(br, Err):
+        return br
+
+    changed_paths: list[Path]
+    if dry_run:
+        vf = app_version_files(app_repo_root=app.value.root)
+        changed_paths = [vf.package_json, vf.cargo_toml, vf.tauri_conf]
+    else:
+        changed = apply_version(app_repo_root=app.value.root, version=version)
+        if isinstance(changed, Err):
+            return changed
+        if not changed.value:
+            return Err(
+                ReleaseError(
+                    kind="dist_repo_failed",
+                    message="version update produced no file changes",
+                    hint=f"Target version: {version}",
+                )
+            )
+        changed_paths = changed.value
+
+    title = f"release(app): {tag}"
+    commit_msg = f"release(app): bump version to {version}"
+    body_lines = [
+        f"tag={tag}",
+        f"version={version}",
+        "",
+        "Pinned SHAs:",
+    ]
+    for p in pinned:
+        body_lines.append(f"- {p.repo.id}: {p.sha}")
+    body = "\n".join(body_lines)
+
+    commit = app_commit_and_push(
+        repo_root=app.value.root,
+        branch=branch,
+        paths=changed_paths,
+        message=commit_msg,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(commit, Err):
+        return commit
+
+    pr = app_open_pr(
+        workspace_root=workspace_root,
+        branch=branch,
+        title=title,
+        body=body,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(pr, Err):
+        return pr
+
+    merged = app_merge_pr(
+        workspace_root=workspace_root,
+        pr_url=pr.value,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(merged, Err):
+        return Err(
+            ReleaseError(
+                kind=merged.error.kind,
+                message=merged.error.message,
+                hint=f"PR: {pr.value}\n{merged.error.hint or ''}".strip(),
+            )
+        )
+
+    return Ok(pr.value)
+
+
+def publish_app_release(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    tag: str,
+    watch: bool,
+    dry_run: bool,
+) -> Result[str, ReleaseError]:
+    run = dispatch_app_release_workflow(
+        workspace_root=workspace_root,
+        tag=tag,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(run, Err):
+        return run
+
+    if watch:
+        watched = watch_run(
+            workspace_root=workspace_root,
+            run_id=run.value.id,
+            repo_slug=config.APP_REPO_SLUG,
+            console=console,
+            dry_run=dry_run,
         )
         if isinstance(watched, Err):
             return watched
