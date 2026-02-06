@@ -57,7 +57,7 @@ Completed in this phase so far:
 - Added structured release CLI namespace in `ms`:
   - `ms release content plan|prepare|publish|remove`
   - backward-compatible aliases kept: `ms release plan|prepare|publish|remove`
-  - `ms release app plan|prepare|publish` scaffold added (placeholder while app orchestration service is built)
+  - `ms release app plan|prepare|publish` implemented with the same operator lifecycle as content
 
 ### What is already strong
 

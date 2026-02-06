@@ -76,16 +76,21 @@ No approval = no stable/beta publication.
 
 ## App release flow (ms-manager)
 
-Current flow:
+Use `ms release` commands:
 
-- `ms release app plan|prepare|publish` exists as command namespace but is currently a placeholder.
-- Until app orchestration is fully implemented, use the manual steps below:
+1. Plan:
+   - `ms release app plan --channel <stable|beta> --auto`
+2. Prepare PR in `ms-manager`:
+   - `ms release app prepare --channel <stable|beta> --auto`
+3. Publish:
+   - `ms release app publish --channel <stable|beta> --auto --watch`
 
-1. Version bump PR (package/Cargo/tauri versions).
-2. Merge to `main`.
-3. Create/push tag `vX.Y.Z`.
-4. `Release` workflow runs.
-5. Environment `app-release` approval is required before publishing.
+What happens:
+
+- `ms` selects CI-green SHAs (safe defaults).
+- `ms` prepares/merges the version bump PR in `ms-manager`.
+- `ms` dispatches `ms-manager` Release workflow.
+- Final publication is blocked on environment `app-release` approval.
 
 No approval = no app publication.
 

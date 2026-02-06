@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok
-from ms.services.release.config import RELEASE_REPOS
+from ms.services.release.config import APP_RELEASE_REPO, RELEASE_REPOS
 from ms.services.release.model import PinnedRepo
 from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
 
@@ -85,3 +85,20 @@ def test_plan_file_rejects_missing_repos(tmp_path: Path) -> None:
     read = read_plan_file(path=path)
     assert isinstance(read, Err)
     assert read.error.kind == "invalid_input"
+
+
+def test_plan_file_roundtrip_app_product(tmp_path: Path) -> None:
+    pinned = (PinnedRepo(repo=APP_RELEASE_REPO, sha="a" * 40),)
+    plan = PlanInput(product="app", channel="beta", tag="v0.2.0-beta.1", pinned=pinned)
+    path = tmp_path / "plan-app.json"
+
+    written = write_plan_file(path=path, plan=plan)
+    assert isinstance(written, Ok)
+
+    read = read_plan_file(path=path)
+    assert isinstance(read, Ok)
+    assert read.value.product == "app"
+    assert read.value.channel == "beta"
+    assert read.value.tag == "v0.2.0-beta.1"
+    assert [p.repo.id for p in read.value.pinned] == ["ms-manager"]
+    assert [p.sha for p in read.value.pinned] == ["a" * 40]

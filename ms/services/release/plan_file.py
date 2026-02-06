@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_list, get_str
@@ -19,11 +20,13 @@ class PlanInput:
     channel: ReleaseChannel
     tag: str
     pinned: tuple[PinnedRepo, ...]
+    product: Literal["content", "app"] = "content"
 
 
 def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError]:
     payload: dict[str, object] = {
         "schema": PLAN_SCHEMA,
+        "product": plan.product,
         "channel": plan.channel,
         "tag": plan.tag,
         "repos": [{"id": p.repo.id, "sha": p.sha, "ref": p.repo.ref} for p in plan.pinned],
@@ -97,6 +100,9 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
             )
         )
 
+    product_raw = get_str(data, "product")
+    product = product_raw if product_raw in ("content", "app") else "content"
+
     tag = get_str(data, "tag")
     if tag is None:
         return Err(
@@ -127,7 +133,13 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
             )
         )
 
-    by_id = {r.id: r for r in config.RELEASE_REPOS}
+    repos_cfg: tuple[ReleaseRepo, ...]
+    if product == "app":
+        repos_cfg = (config.APP_RELEASE_REPO,)
+    else:
+        repos_cfg = config.RELEASE_REPOS
+
+    by_id = {r.id: r for r in repos_cfg}
     pinned: list[PinnedRepo] = []
     seen: set[str] = set()
     for item in repos:
@@ -171,7 +183,7 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
         )
         pinned.append(PinnedRepo(repo=repo_sel, sha=sha))
 
-    missing = [r.id for r in config.RELEASE_REPOS if r.id not in {p.repo.id for p in pinned}]
+    missing = [r.id for r in repos_cfg if r.id not in {p.repo.id for p in pinned}]
     if missing:
         return Err(
             ReleaseError(
@@ -181,4 +193,4 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
             )
         )
 
-    return Ok(PlanInput(channel=channel, tag=tag, pinned=tuple(pinned)))
+    return Ok(PlanInput(product=product, channel=channel, tag=tag, pinned=tuple(pinned)))

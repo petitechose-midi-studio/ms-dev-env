@@ -47,6 +47,15 @@ class ReleasePlan:
 
 
 @dataclass(frozen=True, slots=True)
+class AppReleasePlan:
+    channel: ReleaseChannel
+    tag: str
+    version: str
+    pinned: tuple[PinnedRepo, ...]
+    title: str
+
+
+@dataclass(frozen=True, slots=True)
 class DistributionRelease:
     tag: str
     prerelease: bool

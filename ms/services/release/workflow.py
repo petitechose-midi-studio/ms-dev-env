@@ -9,7 +9,14 @@ from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_str
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
-from ms.services.release.config import DIST_DEFAULT_BRANCH, DIST_PUBLISH_WORKFLOW, DIST_REPO_SLUG
+from ms.services.release.config import (
+    APP_DEFAULT_BRANCH,
+    APP_RELEASE_WORKFLOW,
+    APP_REPO_SLUG,
+    DIST_DEFAULT_BRANCH,
+    DIST_PUBLISH_WORKFLOW,
+    DIST_REPO_SLUG,
+)
 from ms.services.release.errors import ReleaseError
 from ms.services.release.model import ReleaseChannel
 
@@ -21,12 +28,13 @@ class WorkflowRun:
     request_id: str
 
 
-def dispatch_publish_workflow(
+def _dispatch_workflow(
     *,
     workspace_root: Path,
-    channel: ReleaseChannel,
-    tag: str,
-    spec_path: str,
+    repo_slug: str,
+    workflow_file: str,
+    ref: str,
+    inputs: tuple[tuple[str, str], ...],
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
@@ -35,20 +43,15 @@ def dispatch_publish_workflow(
         "gh",
         "workflow",
         "run",
-        DIST_PUBLISH_WORKFLOW,
+        workflow_file,
         "--repo",
-        DIST_REPO_SLUG,
+        repo_slug,
         "--ref",
-        DIST_DEFAULT_BRANCH,
-        "-f",
-        f"channel={channel}",
-        "-f",
-        f"tag={tag}",
-        "-f",
-        f"spec_path={spec_path}",
-        "-f",
-        f"request_id={request_id}",
+        ref,
     ]
+    for k, v in inputs:
+        cmd.extend(["-f", f"{k}={v}"])
+    cmd.extend(["-f", f"request_id={request_id}"])
 
     console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
     console.print(f"dispatch request_id: {request_id}", Style.DIM)
@@ -61,20 +64,19 @@ def dispatch_publish_workflow(
         return Err(
             ReleaseError(
                 kind="workflow_failed",
-                message="failed to dispatch publish workflow",
+                message="failed to dispatch workflow",
                 hint=e.stderr.strip() or None,
             )
         )
 
-    # Find the most recent run (best-effort).
     list_cmd = [
         "gh",
         "run",
         "list",
         "--repo",
-        DIST_REPO_SLUG,
+        repo_slug,
         "--workflow",
-        DIST_PUBLISH_WORKFLOW,
+        workflow_file,
         "--limit",
         "10",
         "--json",
@@ -119,7 +121,7 @@ def dispatch_publish_workflow(
         title = get_str(d, "displayTitle")
         if event != "workflow_dispatch":
             continue
-        if head != DIST_DEFAULT_BRANCH:
+        if head != ref:
             continue
         if url is None or run_id is None:
             continue
@@ -138,8 +140,46 @@ def dispatch_publish_workflow(
         ReleaseError(
             kind="workflow_failed",
             message="could not find the dispatched workflow run",
-            hint="Check Actions tab in the distribution repo.",
+            hint=f"Check Actions tab in {repo_slug}.",
         )
+    )
+
+
+def dispatch_publish_workflow(
+    *,
+    workspace_root: Path,
+    channel: ReleaseChannel,
+    tag: str,
+    spec_path: str,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[WorkflowRun, ReleaseError]:
+    return _dispatch_workflow(
+        workspace_root=workspace_root,
+        repo_slug=DIST_REPO_SLUG,
+        workflow_file=DIST_PUBLISH_WORKFLOW,
+        ref=DIST_DEFAULT_BRANCH,
+        inputs=(("channel", channel), ("tag", tag), ("spec_path", spec_path)),
+        console=console,
+        dry_run=dry_run,
+    )
+
+
+def dispatch_app_release_workflow(
+    *,
+    workspace_root: Path,
+    tag: str,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[WorkflowRun, ReleaseError]:
+    return _dispatch_workflow(
+        workspace_root=workspace_root,
+        repo_slug=APP_REPO_SLUG,
+        workflow_file=APP_RELEASE_WORKFLOW,
+        ref=APP_DEFAULT_BRANCH,
+        inputs=(("tag", tag),),
+        console=console,
+        dry_run=dry_run,
     )
 
 
@@ -147,12 +187,13 @@ def watch_run(
     *,
     workspace_root: Path,
     run_id: int,
+    repo_slug: str,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
     if run_id <= 0:
         return Ok(None)
-    cmd = ["gh", "run", "watch", "--repo", DIST_REPO_SLUG, str(run_id), "--exit-status"]
+    cmd = ["gh", "run", "watch", "--repo", repo_slug, str(run_id), "--exit-status"]
     console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
     if dry_run:
         return Ok(None)
