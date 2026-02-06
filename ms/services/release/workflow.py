@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_str
@@ -17,6 +18,7 @@ from ms.services.release.model import ReleaseChannel
 class WorkflowRun:
     id: int
     url: str
+    request_id: str
 
 
 def dispatch_publish_workflow(
@@ -28,6 +30,7 @@ def dispatch_publish_workflow(
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
+    request_id = f"ms-{uuid4().hex[:12]}"
     cmd = [
         "gh",
         "workflow",
@@ -43,11 +46,14 @@ def dispatch_publish_workflow(
         f"tag={tag}",
         "-f",
         f"spec_path={spec_path}",
+        "-f",
+        f"request_id={request_id}",
     ]
 
     console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
+    console.print(f"dispatch request_id: {request_id}", Style.DIM)
     if dry_run:
-        return Ok(WorkflowRun(id=0, url="(dry-run)"))
+        return Ok(WorkflowRun(id=0, url="(dry-run)", request_id=request_id))
 
     result = run_process(cmd, cwd=workspace_root)
     if isinstance(result, Err):
@@ -72,7 +78,7 @@ def dispatch_publish_workflow(
         "--limit",
         "10",
         "--json",
-        "databaseId,url,event,headBranch,createdAt",
+        "databaseId,url,event,headBranch,createdAt,displayTitle",
     ]
     list_result = run_process(list_cmd, cwd=workspace_root)
     if isinstance(list_result, Err):
@@ -99,6 +105,8 @@ def dispatch_publish_workflow(
     if raw is None:
         return Err(ReleaseError(kind="workflow_failed", message="unexpected gh run list payload"))
 
+    fallback: WorkflowRun | None = None
+
     for item in raw:
         d = as_str_dict(item)
         if d is None:
@@ -108,13 +116,23 @@ def dispatch_publish_workflow(
         head = get_str(d, "headBranch")
         url = get_str(d, "url")
         run_id = get_int(d, "databaseId")
+        title = get_str(d, "displayTitle")
         if event != "workflow_dispatch":
             continue
         if head != DIST_DEFAULT_BRANCH:
             continue
         if url is None or run_id is None:
             continue
-        return Ok(WorkflowRun(id=run_id, url=url))
+
+        run = WorkflowRun(id=run_id, url=url, request_id=request_id)
+        if fallback is None:
+            fallback = run
+
+        if isinstance(title, str) and request_id in title:
+            return Ok(run)
+
+    if fallback is not None:
+        return Ok(fallback)
 
     return Err(
         ReleaseError(
