@@ -123,6 +123,7 @@ Reference:
   - Stable/beta publish requires manual environment approval.
   - Release PR merges use non-squash strategy for better provenance.
   - Migration is progressive (2 phases), not big-bang.
+  - App lane optimization (locked): Candidate is dispatch-driven for releases; PR CI stays lightweight.
 
 ## Phases (tracking)
 
@@ -154,6 +155,9 @@ Status values: TODO | IN PROGRESS | DONE
 
 - Phase 02g (IN PROGRESS): Unified Release Control Plane (Build Once + Promote)
   - File: `phase-02g-unified-release-control-plane.md`
+
+- Phase 02h (TODO): Option 1 - Single Heavy Build per App Release
+  - File: `phase-02h-option1-single-heavy-build.md`
 
 - Runbook (ACTIVE): Release Operations (Simple + Safe)
   - File: `runbook-release-operations.md`

@@ -95,6 +95,12 @@ What happens:
 
 No approval = no app publication.
 
+Transition note:
+
+- The release lane is already promote-only (no rebuild in final publish).
+- Verify lane optimization to remove duplicate heavy builds is tracked in:
+  - `docs/memories/work/ms-user-release-workflow/phase-02h-option1-single-heavy-build.md`
+
 ## Candidate artifacts (build once)
 
 For repos already migrated to candidate lane (`loader`, `open-control/bridge`):

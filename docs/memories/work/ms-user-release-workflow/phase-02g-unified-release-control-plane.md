@@ -85,6 +85,8 @@ Completed in this phase so far:
 
 - `ms-manager` now uses candidate/promote (no rebuild in final release lane), but main CI still runs a heavy Tauri matrix.
 - `distribution` publish rebuilds loader/bridge/core/plugin-bitwig outputs from source checkouts at publish time.
+- Detailed app-lane optimization plan is tracked in:
+  - `docs/memories/work/ms-user-release-workflow/phase-02h-option1-single-heavy-build.md`
 
 2) Missing run cancellation in part of the fleet
 
