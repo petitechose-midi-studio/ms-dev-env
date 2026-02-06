@@ -40,10 +40,20 @@ Completed in this phase so far:
   - `petitechose-midi-studio/ms-manager` `main`
   - `open-control/bridge` `main`
   with strict required checks + conversation resolution + no force push/deletion.
+- Normalized PR-required policy on `main` across all release repos:
+  - required status checks (`strict=true`)
+  - require pull request before merge (`required_pull_request_reviews` with `required_approving_review_count=0`)
+  - enforce admins + no force-push + no deletion + conversation resolution
+- Added team-based push restrictions to `ms-manager` main (`maintainers`), matching other
+  `petitechose-midi-studio` repos.
 - Added first candidate-factory workflows (build once, durable draft RC release) in:
   - `midi-studio/loader`: `.github/workflows/candidate.yml`
   - `open-control/bridge`: `.github/workflows/candidate.yml`
   producing `rc-<sha>` draft releases with artifacts + `candidate.json` + `checksums.txt`.
+- Added app release approval gate in `ms-manager`:
+  - environment `app-release` with required reviewers `release-managers`
+  - branch policy `main`
+  - `ms-manager/.github/workflows/release.yml` now requires `environment: app-release`
 
 ### What is already strong
 
