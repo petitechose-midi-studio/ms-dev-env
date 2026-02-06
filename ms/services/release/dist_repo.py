@@ -248,7 +248,7 @@ def merge_pr(
         pr_url,
         "--repo",
         DIST_REPO_SLUG,
-        "--squash",
+        "--rebase",
         "--delete-branch",
         "--auto",
     ]
