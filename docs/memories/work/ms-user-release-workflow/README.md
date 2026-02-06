@@ -116,7 +116,7 @@ Reference:
   - Linux (WebKitGTK 4.1): Debian 13+, Ubuntu 24.04+, Fedora current, RHEL-family 10+.
   - Not supported: RHEL 9.
 - Windows installer (v1): use WebView2 `downloadBootstrapper`.
-- macOS/Linux symlinks: install to `/usr/local/bin` (sudo) for frictionless CLI usage.
+- No PATH modifications by default (end users should not rely on CLI).
 
 ## Phases (tracking)
 
@@ -158,8 +158,11 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 06 (TODO): End-user Features: Bridge Service, Bitwig Extension, Firmware Flash, Diagnostics
   - File: `phase-06-end-user-operations.md`
 
-- Phase 07 (TODO): Stable Bootstrap Installer + Shortcuts + PATH
+- Phase 07 (TODO): Stable Bootstrap Installer + Shortcuts
   - File: `phase-07-bootstrap-installer.md`
+
+- Phase 07a (TODO): ms-manager App Updates (Tauri updater) - Silent badge
+  - File: `phase-07a-ms-manager-app-updates.md`
 
 - Phase 08 (TODO): End-to-end Validation + First Public Release
   - File: `phase-08-e2e-and-first-release.md`

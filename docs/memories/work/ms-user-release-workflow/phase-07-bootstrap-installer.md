@@ -1,4 +1,4 @@
-# Phase 07: Stable Bootstrap Installer + Shortcuts + PATH
+# Phase 07: Stable Bootstrap Installer + Shortcuts
 
 Status: TODO
 
@@ -8,7 +8,6 @@ Ship a stable bootstrap installer that:
 
 - installs ms-manager (and ms-updater helper)
 - creates desktop/start-menu/app shortcuts
-- optionally installs CLI symlinks into `/usr/local/bin` (macOS/Linux)
 - launches ms-manager for first-run install of the latest stable bundle
 
 The bootstrap should change rarely.
@@ -19,7 +18,10 @@ Prerequisites:
 ## Approach (recommended)
 
 - Use Tauri bundler to build installers per platform.
-- The installer ships a known ms-manager build, but ms-manager updates itself on first run.
+- The installer ships a known ms-manager build; afterwards, ms-manager can self-update (user-driven).
+
+App self-updates are tracked in:
+- `docs/memories/work/ms-user-release-workflow/phase-07a-ms-manager-app-updates.md`
 
 Platform specifics (v1):
 
@@ -31,32 +33,25 @@ Platform specifics (v1):
   - Ship DMG.
   - For good UX, plan signing + notarization (Gatekeeper).
 - Linux:
-  - Debian/Ubuntu: ship `.deb` and instruct users to install via `apt install ./...deb`.
-  - Fedora/RHEL: ship `.rpm` and instruct users to install via `dnf install ./...rpm`.
+  - Start with AppImage (user-level), and later consider `.deb`/`.rpm` if we want package-managed deps.
   - Supported matrix for v1 requires WebKitGTK 4.1 (see Phase 04).
 
 ## PATH / CLI
 
-Goal: users can run:
-- `ms-manager`
-- `oc-bridge`
-- `midi-studio-loader`
+Decision (v1): do not modify PATH for end users.
 
-macOS/Linux:
-- create symlinks to `current/...` in `/usr/local/bin` (sudo).
+Notes:
 
-Note: GUI apps on macOS/Linux do not reliably inherit shell `$PATH`.
-ms-manager must not depend on `$PATH` to find bundled binaries.
-
-Windows:
-- optional: add `current/bin` directory to PATH (machine-wide, admin).
+- GUI apps on macOS/Linux do not reliably inherit shell `$PATH`.
+- ms-manager must not depend on `$PATH` to find bundled binaries.
 
 ## Exit Criteria
 
 - Installers exist for Windows/macOS/Linux.
 - First run installs latest stable bundle (selected channel defaults to stable).
   - Resolve latest stable via GitHub Releases API (and/or `releases/latest` when available).
-- Shortcuts and PATH behave as expected.
+- Shortcuts behave as expected.
+- No PATH changes are performed.
 
 ## Tests
 
@@ -67,4 +62,4 @@ Manual (required):
   - ms-manager launches
   - installs stable bundle
   - oc-bridge service works (installed under the MIDI Studio service name; points to `current/` exec path)
-  - PATH and shortcuts work
+  - shortcuts work
