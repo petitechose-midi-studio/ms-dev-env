@@ -58,6 +58,12 @@ Completed in this phase so far:
   - `ms release content plan|prepare|publish|remove`
   - backward-compatible aliases kept: `ms release plan|prepare|publish|remove`
   - `ms release app plan|prepare|publish` implemented with the same operator lifecycle as content
+- Hardened `ms release app` operational behavior:
+  - fallback merge path when repository auto-merge is disabled
+  - app publish now dispatches release with explicit `source_sha` provenance
+- Completed app candidate/promote split in `ms-manager`:
+  - new `Candidate` workflow builds once on `main` and publishes draft `rc-<sha>` assets
+  - `Release` workflow now promotes candidate assets to final tag release (no rebuild)
 
 ### What is already strong
 
@@ -77,7 +83,7 @@ Completed in this phase so far:
 
 1) Duplicate build effort and inconsistent lifecycle
 
-- `ms-manager` CI runs heavy Tauri build matrix (`--no-bundle`) and release workflow rebuilds again.
+- `ms-manager` now uses candidate/promote (no rebuild in final release lane), but main CI still runs a heavy Tauri matrix.
 - `distribution` publish rebuilds loader/bridge/core/plugin-bitwig outputs from source checkouts at publish time.
 
 2) Missing run cancellation in part of the fleet
@@ -98,8 +104,9 @@ Completed in this phase so far:
 
 4) Provenance and run correlation gaps
 
-- Dispatch run lookup in `ms/services/release/workflow.py` is best-effort and can race under concurrent dispatches.
-- Published artifacts are not promoted from immutable candidate references; provenance is partly implicit.
+- Dispatch correlation now uses `request_id` and workflow run title matching.
+- Candidate provenance is now explicit for `ms-manager`, `loader`, and `open-control/bridge`.
+- Remaining gap: distribution content publish still needs full candidate consumption for all source repos.
 
 5) Supply chain hardening gaps
 

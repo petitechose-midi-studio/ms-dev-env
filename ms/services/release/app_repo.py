@@ -239,6 +239,14 @@ def merge_pr(
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
+    def _is_auto_merge_disabled(stderr: str | None) -> bool:
+        if not stderr:
+            return False
+        return (
+            "Auto merge is not allowed for this repository" in stderr
+            or "enablePullRequestAutoMerge" in stderr
+        )
+
     cmd = [
         "gh",
         "pr",
@@ -257,13 +265,110 @@ def merge_pr(
     result = run_process(cmd, cwd=workspace_root)
     if isinstance(result, Err):
         e = result.error
-        return Err(
-            ReleaseError(
-                kind="dist_repo_failed",
-                message="failed to merge app PR",
-                hint=e.stderr.strip() or pr_url,
+        if _is_auto_merge_disabled(e.stderr):
+            console.print(
+                "auto-merge disabled for repo; falling back to direct merge after checks",
+                Style.DIM,
             )
-        )
+
+            deadline = time.monotonic() + 15 * 60
+            while time.monotonic() < deadline:
+                view = run_process(
+                    [
+                        "gh",
+                        "pr",
+                        "view",
+                        pr_url,
+                        "--repo",
+                        APP_REPO_SLUG,
+                        "--json",
+                        "state,mergeStateStatus",
+                    ],
+                    cwd=workspace_root,
+                )
+                if isinstance(view, Err):
+                    ve = view.error
+                    return Err(
+                        ReleaseError(
+                            kind="dist_repo_failed",
+                            message="failed to query app PR merge status",
+                            hint=ve.stderr.strip() or pr_url,
+                        )
+                    )
+
+                try:
+                    obj: object = json.loads(view.value)
+                except json.JSONDecodeError as je:
+                    return Err(
+                        ReleaseError(
+                            kind="dist_repo_failed",
+                            message=f"invalid JSON from gh pr view: {je}",
+                            hint=pr_url,
+                        )
+                    )
+
+                data = as_str_dict(obj)
+                if data is None:
+                    return Err(
+                        ReleaseError(
+                            kind="dist_repo_failed",
+                            message="unexpected gh pr view payload",
+                            hint=pr_url,
+                        )
+                    )
+
+                state = data.get("state")
+                merge_state = data.get("mergeStateStatus")
+                if isinstance(state, str) and state != "OPEN":
+                    return Err(
+                        ReleaseError(
+                            kind="dist_repo_failed",
+                            message=f"app PR is {state.lower()} without merge",
+                            hint=pr_url,
+                        )
+                    )
+                if isinstance(merge_state, str) and merge_state == "CLEAN":
+                    break
+                time.sleep(5)
+            else:
+                return Err(
+                    ReleaseError(
+                        kind="dist_repo_failed",
+                        message="timed out waiting for app PR to become mergeable",
+                        hint=pr_url,
+                    )
+                )
+
+            direct = run_process(
+                [
+                    "gh",
+                    "pr",
+                    "merge",
+                    pr_url,
+                    "--repo",
+                    APP_REPO_SLUG,
+                    "--rebase",
+                    "--delete-branch",
+                ],
+                cwd=workspace_root,
+            )
+            if isinstance(direct, Err):
+                de = direct.error
+                return Err(
+                    ReleaseError(
+                        kind="dist_repo_failed",
+                        message="failed to merge app PR",
+                        hint=de.stderr.strip() or pr_url,
+                    )
+                )
+        else:
+            return Err(
+                ReleaseError(
+                    kind="dist_repo_failed",
+                    message="failed to merge app PR",
+                    hint=e.stderr.strip() or pr_url,
+                )
+            )
 
     deadline = time.monotonic() + 10 * 60
     while time.monotonic() < deadline:

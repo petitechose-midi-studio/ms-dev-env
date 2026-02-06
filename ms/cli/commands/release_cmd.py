@@ -34,6 +34,7 @@ from ms.services.release.remove import (
     validate_remove_tags,
 )
 from ms.services.release.service import (
+    app_main_head_sha,
     ensure_app_release_permissions,
     ensure_ci_green,
     ensure_release_permissions,
@@ -1274,10 +1275,20 @@ def app_publish_cmd(
         _exit(pr.error.message, code=ErrorCode.IO_ERROR)
     ctx.console.success(f"PR merged: {pr.value}")
 
+    if dry_run:
+        source_sha = pinned[0].sha
+    else:
+        head = app_main_head_sha(workspace_root=ctx.workspace.root)
+        if isinstance(head, Err):
+            _exit(head.error.message, code=ErrorCode.NETWORK_ERROR)
+        source_sha = head.value
+    ctx.console.print(f"source sha: {source_sha}", Style.DIM)
+
     run = publish_app_release(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
         tag=app_tag,
+        source_sha=source_sha,
         watch=watch,
         dry_run=dry_run,
     )

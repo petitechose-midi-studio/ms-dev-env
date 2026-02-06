@@ -169,6 +169,7 @@ def dispatch_app_release_workflow(
     *,
     workspace_root: Path,
     tag: str,
+    source_sha: str,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
@@ -177,7 +178,7 @@ def dispatch_app_release_workflow(
         repo_slug=APP_REPO_SLUG,
         workflow_file=APP_RELEASE_WORKFLOW,
         ref=APP_DEFAULT_BRANCH,
-        inputs=(("tag", tag),),
+        inputs=(("tag", tag), ("source_sha", source_sha)),
         console=console,
         dry_run=dry_run,
     )
