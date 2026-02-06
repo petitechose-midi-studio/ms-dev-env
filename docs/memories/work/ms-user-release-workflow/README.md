@@ -155,6 +155,9 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02g (IN PROGRESS): Unified Release Control Plane (Build Once + Promote)
   - File: `phase-02g-unified-release-control-plane.md`
 
+- Runbook (ACTIVE): Release Operations (Simple + Safe)
+  - File: `runbook-release-operations.md`
+
 - Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
   - File: `phase-03-oc-bridge-service-names.md`
 
