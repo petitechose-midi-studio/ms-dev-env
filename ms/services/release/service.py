@@ -36,6 +36,7 @@ from ms.services.release.errors import ReleaseError
 from ms.services.release.gh import (
     ensure_gh_auth,
     ensure_gh_available,
+    get_ref_head_sha,
     list_distribution_releases,
     viewer_permission,
 )
@@ -522,12 +523,14 @@ def publish_app_release(
     workspace_root: Path,
     console: ConsoleProtocol,
     tag: str,
+    source_sha: str,
     watch: bool,
     dry_run: bool,
 ) -> Result[str, ReleaseError]:
     run = dispatch_app_release_workflow(
         workspace_root=workspace_root,
         tag=tag,
+        source_sha=source_sha,
         console=console,
         dry_run=dry_run,
     )
@@ -546,3 +549,11 @@ def publish_app_release(
             return watched
 
     return Ok(run.value.url)
+
+
+def app_main_head_sha(*, workspace_root: Path) -> Result[str, ReleaseError]:
+    return get_ref_head_sha(
+        workspace_root=workspace_root,
+        repo=config.APP_REPO_SLUG,
+        ref=config.APP_DEFAULT_BRANCH,
+    )
