@@ -117,6 +117,12 @@ Reference:
   - Not supported: RHEL 9.
 - Windows installer (v1): use WebView2 `downloadBootstrapper`.
 - No PATH modifications by default (end users should not rely on CLI).
+- Unified release architecture direction:
+  - Build once, then promote (no hidden rebuild in final publish lane).
+  - Candidate artifacts are stored as durable draft RC releases.
+  - Stable/beta publish requires manual environment approval.
+  - Release PR merges use non-squash strategy for better provenance.
+  - Migration is progressive (2 phases), not big-bang.
 
 ## Phases (tracking)
 
@@ -145,6 +151,9 @@ Status values: TODO | IN PROGRESS | DONE
 
 - Phase 02f (DONE): Governance, permissions, and safety
   - File: `phase-02f-governance-and-permissions.md`
+
+- Phase 02g (TODO): Unified Release Control Plane (Build Once + Promote)
+  - File: `phase-02g-unified-release-control-plane.md`
 
 - Phase 03 (DONE): oc-bridge Upstream: Service Name Config + Linux Desktop Toggle
   - File: `phase-03-oc-bridge-service-names.md`
