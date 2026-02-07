@@ -519,7 +519,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B4 (`oc_cli/common.py` split).
 
-- B4 (oc_cli common split): IN REVIEW
+- B4 (oc_cli common split): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/48
   - Branch: `refactor/release-architecture-b4-oc-cli-common-split`
   - Base strategy: stacked on B3 (`base branch refactor/release-architecture-b3-repos-split`)
@@ -537,14 +537,21 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B5 (`services/hardware.py` split).
 
-### 6.1) Ecart restant pour atteindre la cible release (post-B3 merged, B4 in review)
+- B5 (hardware service split): IN PROGRESS (LOCAL)
+  - Branch: `refactor/release-architecture-b5-hardware-split`
+  - Base strategy: start from merged B4 (`base branch refactor/release-architecture-b4-oc-cli-common-split`)
+  - Scope: split `ms/services/hardware.py` via adapter-oriented modules while preserving CLI behavior.
+  - Next: open PR-B5.
 
-Etat mesure sur la branche `refactor/release-architecture-b4-oc-cli-common-split`:
+### 6.1) Ecart restant pour atteindre la cible release (post-B4 merged, B5 local)
+
+Etat mesure sur la branche `refactor/release-architecture-b5-hardware-split`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
-  - lots merges: `13/19` (A1-A10 + B1 + B2 + B3)
-  - lots en review: `1/19` (B4)
+  - lots merges: `14/19` (A1-A10 + B1 + B2 + B3 + B4)
+  - lots en review: `0/19`
+  - lot en cours local: `B5`
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
@@ -554,7 +561,8 @@ Etat de trajectoire:
 - B1 est mergee avec compat import preservee et sans changement de comportement intentionnel.
 - B2 est mergee avec le meme contrat de non-regression comportementale.
 - B3 est mergee avec compat import preservee et sans changement de comportement intentionnel.
-- B4 est ouverte en review avec compat API preservee et sans changement de comportement intentionnel.
+- B4 est mergee avec compat API preservee et sans changement de comportement intentionnel.
+- B5 est demarree localement (split hardware) avec contrat `no behavior change`.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -630,7 +638,7 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-A10/B1/B2/B3 merged + B4 local, mesure locale)
+### 7.3 Snapshot courant (post-A10/B1/B2/B3/B4 merged + B5 local, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
@@ -749,9 +757,9 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche active actuelle: `refactor/release-architecture-b4-oc-cli-common-split`
+- Branche active actuelle: `refactor/release-architecture-b5-hardware-split`
 - Wave A: PR `#39` -> `#44` merged
-- Stack ouverte en review: `#48` (B4)
+- Stack ouverte en review: aucune (pre-PR B5)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. finaliser review/merge PR-B4 (`#48`)
-  2. demarrer PR-B5 (`services/hardware.py` split)
+  1. ouvrir PR-B5 (`services/hardware.py` split)
+  2. demarrer PR-B6 (`cli/status` extraction)
