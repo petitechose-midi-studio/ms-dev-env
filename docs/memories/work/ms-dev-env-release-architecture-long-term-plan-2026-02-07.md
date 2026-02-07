@@ -395,9 +395,10 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #41 is opened on top of #40.
 
-- A8 (legacy shim reduction + architecture gates): IN PROGRESS (code complete, PR pending)
+- A8 (legacy shim reduction + architecture gates): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/42
   - Branch: `refactor/release-architecture-a8-shim-reduction`
-  - Base strategy: stacked on A7 while #41 is open.
+  - Base strategy: stacked on A7 (`base PR #41`).
   - Scope delivered:
     - reduced CLI usage of legacy `ms/services/release/*` shims in favor of
       `ms/release/{domain,infra,flow}` imports where equivalent modules exist.
@@ -408,12 +409,12 @@ Snapshot date: 2026-02-07
       size caps for newly extracted guided modules.
   - Behavior contract: no intentional behavior change; CLI UX and release flow semantics preserved.
   - Pre-PR gate (completed):
-    - `uv run ruff check <A8-edited-files>`
-    - `uv run pyright <A8-edited-files>`
+    - `uv run ruff check ms/cli/commands/release_common.py ms/cli/commands/release_app_commands.py ms/cli/commands/release_content_commands.py ms/cli/release_guided_common.py ms/cli/release_guided_app.py ms/cli/release_guided_content.py ms/cli/release_guided.py ms/release/flow/guided/selection.py ms/release/flow/guided/app_steps.py ms/release/flow/guided/content_steps.py ms/release/flow/guided/router.py ms/test/architecture/_gate.py ms/test/architecture/test_module_size_limits.py`
+    - `uv run pyright ms/cli/commands/release_common.py ms/cli/commands/release_app_commands.py ms/cli/commands/release_content_commands.py ms/cli/release_guided_common.py ms/cli/release_guided_app.py ms/cli/release_guided_content.py ms/cli/release_guided.py ms/release/flow/guided/selection.py ms/release/flow/guided/app_steps.py ms/release/flow/guided/content_steps.py ms/release/flow/guided/router.py ms/test/architecture/_gate.py ms/test/architecture/test_module_size_limits.py`
     - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
     - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
-  - Remaining: commit A8, push branch, open stacked PR (base #41 while A7 is open).
+  - Stack: PR #42 is opened on top of #41.
 
 ## Wave B - Services transverses
 
