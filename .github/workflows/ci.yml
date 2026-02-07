@@ -53,9 +53,8 @@ jobs:
       - name: Sync repos (dry-run)
         run: uv run ms sync --repos --dry-run
 
-      - name: Check (informational)
-        continue-on-error: true
-        run: uv run ms check
+      - name: Check (advisory)
+        run: uv run ms check --no-strict
 
   test_fedora:
     name: test (fedora)
@@ -97,6 +96,5 @@ jobs:
       - name: Sync repos (dry-run)
         run: uv run ms sync --repos --dry-run
 
-      - name: Check (informational)
-        continue-on-error: true
-        run: uv run ms check
+      - name: Check (advisory)
+        run: uv run ms check --no-strict

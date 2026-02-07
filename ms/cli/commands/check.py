@@ -9,7 +9,13 @@ from ms.services.check import CheckService
 from ms.services.checkers import CheckResult, CheckStatus
 
 
-def check() -> None:
+def check(
+    strict: bool = typer.Option(
+        True,
+        "--strict/--no-strict",
+        help="Exit with an error code when required checks fail.",
+    ),
+) -> None:
     """Check environment and suggest fixes."""
     ctx = build_context()
 
@@ -24,7 +30,7 @@ def check() -> None:
     _print_group(ctx, "System", report.system)
     _print_group(ctx, "Runtime", report.runtime)
 
-    if report.has_errors():
+    if strict and report.has_errors():
         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
 
 
