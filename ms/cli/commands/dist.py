@@ -7,7 +7,6 @@ import typer
 from ms.cli.context import build_context
 from ms.services.dist import generate_manifest, package_platform
 
-
 dist_app = typer.Typer(add_completion=False, no_args_is_help=True)
 
 

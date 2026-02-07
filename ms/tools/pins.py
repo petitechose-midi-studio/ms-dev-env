@@ -18,6 +18,19 @@ class ToolPins:
 
     versions: dict[str, str]
     platformio_version: str
+    checksums: dict[str, str]
+
+    def checksum_for(self, *, tool_id: str, version: str, platform: str, arch: str) -> str | None:
+        keys = (
+            f"{tool_id}:{version}:{platform}:{arch}",
+            f"{tool_id}:{version}:{platform}:*",
+            f"{tool_id}:{version}:*:*",
+        )
+        for key in keys:
+            value = self.checksums.get(key)
+            if value is not None:
+                return value
+        return None
 
     @property
     def jdk_major(self) -> int | None:
@@ -60,4 +73,24 @@ class ToolPins:
         if not platformio_version:
             raise ValueError("Missing [platformio].version in toolchains.toml")
 
-        return cls(versions=versions, platformio_version=platformio_version)
+        checksums: dict[str, str] = {}
+        checksums_raw = data.get("checksums")
+        checksums_map = as_str_dict(checksums_raw)
+        if checksums_map is not None:
+            for key, value in checksums_map.items():
+                if not isinstance(value, str):
+                    continue
+                digest = value.strip().lower()
+                if not _is_sha256(digest):
+                    raise ValueError(
+                        f"Invalid checksum for key {key!r}: expected 64-char SHA256 hex"
+                    )
+                checksums[key.strip()] = digest
+
+        return cls(versions=versions, platformio_version=platformio_version, checksums=checksums)
+
+
+def _is_sha256(value: str) -> bool:
+    if len(value) != 64:
+        return False
+    return all(ch in "0123456789abcdef" for ch in value)

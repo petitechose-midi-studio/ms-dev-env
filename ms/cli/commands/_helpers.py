@@ -18,7 +18,7 @@ T = TypeVar("T")
 E = TypeVar("E")
 
 
-def exit_on_error(
+def exit_on_error[T, E](
     result: Result[T, E],
     ctx: CLIContext,
     error_code: ErrorCode = ErrorCode.BUILD_ERROR,

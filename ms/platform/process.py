@@ -17,6 +17,7 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+
 from ms.core.result import Err, Ok, Result
 
 __all__ = ["ProcessError", "run", "run_silent"]
@@ -118,6 +119,8 @@ def run_silent(
     cmd: list[str],
     cwd: Path,
     env: dict[str, str] | None = None,
+    *,
+    timeout: float | None = None,
 ) -> Result[None, ProcessError]:
     """Execute a command without capturing output.
 
@@ -128,6 +131,7 @@ def run_silent(
         cmd: Command and arguments to execute.
         cwd: Working directory for the command.
         env: Environment variables (uses current env if None).
+        timeout: Maximum seconds to wait (None for no limit).
 
     Returns:
         Ok(None) on success, Err(ProcessError) on failure.
@@ -137,7 +141,20 @@ def run_silent(
             cmd,
             cwd=str(cwd),
             env=env,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
             check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        stderr = e.stderr if isinstance(e.stderr, str) else ""
+        return Err(
+            ProcessError(
+                command=tuple(cmd),
+                returncode=-1,
+                stdout="",
+                stderr=stderr or f"Command timed out after {timeout}s",
+            )
         )
     except OSError as e:
         return Err(
@@ -155,7 +172,7 @@ def run_silent(
                 command=tuple(cmd),
                 returncode=proc.returncode,
                 stdout="",
-                stderr="",
+                stderr=proc.stderr or "",
             )
         )
 

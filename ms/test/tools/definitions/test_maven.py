@@ -11,7 +11,6 @@ from ms.tools.base import Mode
 from ms.tools.definitions.maven import MavenTool
 from ms.tools.http import HttpError, MockHttpClient
 
-
 # Sample Maven metadata XML
 MAVEN_METADATA_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <metadata>

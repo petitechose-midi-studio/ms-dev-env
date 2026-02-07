@@ -18,6 +18,7 @@ from ms.services.release.dist_repo import (
 )
 from ms.services.release.errors import ReleaseError
 from ms.services.release.semver import parse_stable_tag
+from ms.services.release.timeouts import GH_TIMEOUT_SECONDS, GIT_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +68,9 @@ def validate_remove_tags(*, tags: list[str], force: bool) -> Result[tuple[str, .
 
 
 def _has_git_changes(repo_root: Path) -> bool:
-    result = run_process(["git", "status", "--porcelain"], cwd=repo_root)
+    result = run_process(
+        ["git", "status", "--porcelain"], cwd=repo_root, timeout=GIT_TIMEOUT_SECONDS
+    )
     if isinstance(result, Err):
         return False
     return bool(result.value.strip())
@@ -197,7 +200,7 @@ def delete_github_releases(
         if dry_run:
             continue
 
-        result = run_process(cmd, cwd=workspace_root)
+        result = run_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
         if isinstance(result, Err):
             e = result.error
             msg = e.stderr.strip() or str(e)

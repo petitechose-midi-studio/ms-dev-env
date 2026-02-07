@@ -15,8 +15,8 @@ from ms.core.result import Err, Ok
 from ms.git.repository import GitStatus, Repository
 from ms.platform.clipboard import copy_to_clipboard
 
-# Force UTF-8 for nice output
-_console = Console(force_terminal=True, legacy_windows=False)
+# Auto-detect TTY so piped output stays plain-text friendly.
+_console = Console(legacy_windows=False)
 
 
 @dataclass(frozen=True, slots=True)

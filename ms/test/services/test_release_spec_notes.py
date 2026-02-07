@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ms.core.result import Ok
+import pytest
+
+from ms.core.result import Err, Ok
+from ms.services.release import notes as notes_mod
+from ms.services.release import spec as spec_mod
 from ms.services.release.model import PinnedRepo
 from ms.services.release.notes import write_release_notes
 from ms.services.release.spec import write_release_spec
@@ -53,3 +57,49 @@ def test_write_release_notes_includes_pins_and_user_content(tmp_path: Path) -> N
     assert pinned[0].sha in text
     assert "Hello" in text
     assert "Extra section" in text
+
+
+def test_write_release_spec_reports_atomic_write_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pinned = _pinned()
+
+    def fail_write(path: Path, content: str, *, encoding: str = "utf-8") -> None:
+        del path
+        del content
+        del encoding
+        raise OSError("disk full")
+
+    monkeypatch.setattr(spec_mod, "atomic_write_text", fail_write)
+    result = write_release_spec(
+        dist_repo_root=tmp_path,
+        channel="stable",
+        tag="v1.2.3",
+        pinned=pinned,
+    )
+    assert isinstance(result, Err)
+    assert result.error.kind == "dist_repo_failed"
+
+
+def test_write_release_notes_reports_atomic_write_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pinned = _pinned()
+
+    def fail_write(path: Path, content: str, *, encoding: str = "utf-8") -> None:
+        del path
+        del content
+        del encoding
+        raise OSError("disk full")
+
+    monkeypatch.setattr(notes_mod, "atomic_write_text", fail_write)
+    result = write_release_notes(
+        dist_repo_root=tmp_path,
+        channel="stable",
+        tag="v1.2.3",
+        pinned=pinned,
+        user_notes=None,
+        user_notes_file=None,
+    )
+    assert isinstance(result, Err)
+    assert result.error.kind == "dist_repo_failed"

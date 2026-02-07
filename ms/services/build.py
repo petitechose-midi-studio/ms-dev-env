@@ -23,86 +23,25 @@ from ..core.result import Err, Ok, Result
 from ..output.console import Style
 from ..output.errors import build_error_exit_code, print_build_error
 from ..platform.process import run_silent
-from .checkers.common import get_platform_key, load_hints
 from .base import BaseService
 from .bridge_headless import spec_for, start_headless_bridge
-
-
-# -----------------------------------------------------------------------------
-# Build Error Types
-# -----------------------------------------------------------------------------
-
-
-@dataclass(frozen=True, slots=True)
-class AppNotFound:
-    """App does not exist."""
-
-    name: str
-    available: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class SdlAppNotFound:
-    """SDL app not found for app."""
-
-    app_name: str
-
-
-@dataclass(frozen=True, slots=True)
-class AppConfigInvalid:
-    """App config (app.cmake) missing or invalid."""
-
-    path: Path
-    reason: str
-
-
-@dataclass(frozen=True, slots=True)
-class ToolMissing:
-    """Required tool not installed."""
-
-    tool_id: str
-    hint: str = "Run: uv run ms sync --tools"
-
-
-@dataclass(frozen=True, slots=True)
-class PrereqMissing:
-    """Build prerequisite missing."""
-
-    name: str
-    hint: str
-
-
-@dataclass(frozen=True, slots=True)
-class ConfigureFailed:
-    """CMake configure step failed."""
-
-    returncode: int
-
-
-@dataclass(frozen=True, slots=True)
-class CompileFailed:
-    """Build/compile step failed."""
-
-    returncode: int
-
-
-@dataclass(frozen=True, slots=True)
-class OutputMissing:
-    """Expected output file not found."""
-
-    path: Path
-
-
-BuildError = (
-    AppNotFound
-    | SdlAppNotFound
-    | AppConfigInvalid
-    | ToolMissing
-    | PrereqMissing
-    | ConfigureFailed
-    | CompileFailed
-    | OutputMissing
+from .build_errors import (
+    AppConfigInvalid,
+    AppNotFound,
+    BuildError,
+    CompileFailed,
+    ConfigureFailed,
+    OutputMissing,
+    PrereqMissing,
+    SdlAppNotFound,
+    ToolMissing,
 )
+from .checkers.common import get_platform_key, load_hints
+
+_CONFIGURE_TIMEOUT_SECONDS = 20 * 60.0
+_COMPILE_TIMEOUT_SECONDS = 30 * 60.0
+_PLATFORMIO_DEPS_TIMEOUT_SECONDS = 15 * 60.0
+
 
 Target = Literal["native", "wasm"]
 
@@ -203,7 +142,8 @@ class BuildService(BaseService):
                 f"-DCMAKE_TOOLCHAIN_FILE={toolchain_file}",
                 f"-DTOOLS_DIR={self._registry.tools_dir}",
                 # Avoid relying on a POSIX `true` placeholder on Windows.
-                # (Some environments don't have a `true.exe` on PATH, but cmd.exe still runs the rule.)
+                # (Some environments don't have a `true.exe` on PATH,
+                # but cmd.exe still runs the rule.)
                 f"-DCMAKE_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
                 f"-DCMAKE_C_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
                 f"-DCMAKE_CXX_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
@@ -217,14 +157,24 @@ class BuildService(BaseService):
         # Configure
         self._console.print(" ".join(configure_args), Style.DIM)
         if not dry_run:
-            result = run_silent(configure_args, cwd=self._workspace.root, env=env)
+            result = run_silent(
+                configure_args,
+                cwd=self._workspace.root,
+                env=env,
+                timeout=_CONFIGURE_TIMEOUT_SECONDS,
+            )
             if isinstance(result, Err):
                 return Err(ConfigureFailed(returncode=result.error.returncode))
 
         # Build
         self._console.print(" ".join(build_args), Style.DIM)
         if not dry_run:
-            result = run_silent(build_args, cwd=self._workspace.root, env=env)
+            result = run_silent(
+                build_args,
+                cwd=self._workspace.root,
+                env=env,
+                timeout=_COMPILE_TIMEOUT_SECONDS,
+            )
             if isinstance(result, Err):
                 return Err(CompileFailed(returncode=result.error.returncode))
 
@@ -272,7 +222,7 @@ class BuildService(BaseService):
                         str(bridge.value.spec.controller_port),
                     ]
                     try:
-                        run_result = run_silent(args, cwd=self._workspace.root)
+                        run_result = run_silent(args, cwd=self._workspace.root, timeout=None)
                     except KeyboardInterrupt:
                         return 0
 
@@ -361,14 +311,24 @@ class BuildService(BaseService):
         # Configure
         self._console.print(" ".join(str(x) for x in configure_args), Style.DIM)
         if not dry_run:
-            result = run_silent(configure_args, cwd=self._workspace.root, env=env)
+            result = run_silent(
+                configure_args,
+                cwd=self._workspace.root,
+                env=env,
+                timeout=_CONFIGURE_TIMEOUT_SECONDS,
+            )
             if isinstance(result, Err):
                 return Err(ConfigureFailed(returncode=result.error.returncode))
 
             # Build
             build_cmd = [str(ninja.value), "-C", str(build_dir)]
             self._console.print(" ".join(build_cmd), Style.DIM)
-            result = run_silent(build_cmd, cwd=self._workspace.root, env=env)
+            result = run_silent(
+                build_cmd,
+                cwd=self._workspace.root,
+                env=env,
+                timeout=_COMPILE_TIMEOUT_SECONDS,
+            )
             if isinstance(result, Err):
                 return Err(CompileFailed(returncode=result.error.returncode))
 
@@ -419,7 +379,7 @@ class BuildService(BaseService):
                 with bridge.value:
                     cmd = [sys.executable, "-m", "http.server", str(port), "-d", str(out_dir)]
                     try:
-                        run_result = run_silent(cmd, cwd=self._workspace.root)
+                        run_result = run_silent(cmd, cwd=self._workspace.root, timeout=None)
                     except KeyboardInterrupt:
                         return 0
                     match run_result:
@@ -499,7 +459,12 @@ class BuildService(BaseService):
         if dry_run:
             return Ok(None)
 
-        result = run_silent(cmd, cwd=core_dir, env=self._base_env())
+        result = run_silent(
+            cmd,
+            cwd=core_dir,
+            env=self._base_env(),
+            timeout=_PLATFORMIO_DEPS_TIMEOUT_SECONDS,
+        )
         if isinstance(result, Err):
             return Err(PrereqMissing(name="PlatformIO libdeps", hint="pio pkg install failed"))
         return Ok(None)

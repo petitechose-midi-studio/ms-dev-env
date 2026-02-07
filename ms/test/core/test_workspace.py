@@ -12,8 +12,8 @@ from ms.core.result import Err, Ok
 from ms.core.user_workspace import remember_default_workspace_root
 from ms.core.workspace import (
     Workspace,
-    WorkspaceInfo,
     WorkspaceError,
+    WorkspaceInfo,
     detect_workspace,
     detect_workspace_info,
     detect_workspace_or_raise,

@@ -7,9 +7,9 @@ from urllib.parse import quote
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_list, get_str
-from ms.platform.process import run as run_process
 from ms.services.release.errors import ReleaseError
-from ms.services.release.gh import gh_api_json
+from ms.services.release.gh import gh_api_json, run_gh_read
+from ms.services.release.timeouts import GH_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,16 +106,16 @@ def is_ci_green_for_sha(
         "databaseId",
     ]
 
-    result = run_process(cmd, cwd=workspace_root)
+    result = run_gh_read(
+        workspace_root=workspace_root,
+        cmd=cmd,
+        kind="invalid_input",
+        message=f"failed to query CI status for {repo}@{sha}",
+        hint=repo,
+        timeout=GH_TIMEOUT_SECONDS,
+    )
     if isinstance(result, Err):
-        e = result.error
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"failed to query CI status for {repo}@{sha}",
-                hint=e.stderr.strip() or None,
-            )
-        )
+        return result
 
     try:
         obj: object = json.loads(result.value)

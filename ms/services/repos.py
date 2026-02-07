@@ -10,7 +10,11 @@ from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_str
 from ms.core.workspace import Workspace
 from ms.output.console import ConsoleProtocol, Style
+from ms.platform.files import atomic_write_text
 from ms.platform.process import run as run_process
+
+_GIT_TIMEOUT_SECONDS = 30.0
+_GIT_NETWORK_TIMEOUT_SECONDS = 3 * 60.0
 
 # -----------------------------------------------------------------------------
 # Error Types
@@ -80,6 +84,10 @@ class RepoService:
             Path(__file__).parent.parent / "data" / "repos.toml"
         )
 
+    def _run_git(self, cmd: list[str], *, cwd: Path, network: bool = False):
+        timeout = _GIT_NETWORK_TIMEOUT_SECONDS if network else _GIT_TIMEOUT_SECONDS
+        return run_process(cmd, cwd=cwd, timeout=timeout)
+
     def sync_all(self, *, dry_run: bool = False) -> Result[None, RepoError]:
         specs_result = self._load_manifest(self._manifest_path)
         if isinstance(specs_result, Err):
@@ -120,7 +128,7 @@ class RepoService:
 
         try:
             data_obj: object = tomllib.loads(path.read_text(encoding="utf-8"))
-        except Exception as e:  # noqa: BLE001
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as e:
             return Err(
                 RepoError(
                     kind="manifest_invalid",
@@ -224,7 +232,7 @@ class RepoService:
             if repo.branch:
                 cmd.extend(["--branch", repo.branch])
             cmd.extend([repo.url, str(dest)])
-            result = run_process(cmd, cwd=self._workspace.root)
+            result = self._run_git(cmd, cwd=self._workspace.root, network=True)
             if isinstance(result, Err):
                 self._console.print(f"git clone failed: {repo.org}/{repo.name}", Style.ERROR)
                 stderr = result.error.stderr.strip()
@@ -277,9 +285,10 @@ class RepoService:
                 head_sha=None,
             )
 
-        fetch_result = run_process(
+        fetch_result = self._run_git(
             ["git", "-C", str(dest), "fetch", "--prune", "origin"],
             cwd=self._workspace.root,
+            network=True,
         )
         if isinstance(fetch_result, Err):
             self._console.print(f"git fetch failed: {dest}", Style.ERROR)
@@ -291,7 +300,7 @@ class RepoService:
         pull_cmd = ["git", "-C", str(dest), "pull", "--ff-only"]
         if repo.branch:
             pull_cmd.extend(["origin", repo.branch])
-        pull_result = run_process(pull_cmd, cwd=self._workspace.root)
+        pull_result = self._run_git(pull_cmd, cwd=self._workspace.root, network=True)
         if isinstance(pull_result, Err):
             self._console.print(f"git pull --ff-only failed: {dest}", Style.ERROR)
             stderr = pull_result.error.stderr.strip()
@@ -320,10 +329,10 @@ class RepoService:
             }
             for e in lock
         ]
-        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        atomic_write_text(path, json.dumps(payload, indent=2), encoding="utf-8")
 
     def _is_dirty(self, repo_dir: Path) -> bool:
-        result = run_process(
+        result = self._run_git(
             ["git", "-C", str(repo_dir), "status", "--porcelain"],
             cwd=repo_dir,
         )
@@ -336,7 +345,7 @@ class RepoService:
                 return False
 
     def _current_branch(self, repo_dir: Path) -> str | None:
-        result = run_process(
+        result = self._run_git(
             ["git", "-C", str(repo_dir), "rev-parse", "--abbrev-ref", "HEAD"],
             cwd=repo_dir,
         )
@@ -348,7 +357,7 @@ class RepoService:
                 return None
 
     def _head_sha(self, repo_dir: Path) -> str | None:
-        result = run_process(
+        result = self._run_git(
             ["git", "-C", str(repo_dir), "rev-parse", "HEAD"],
             cwd=repo_dir,
         )

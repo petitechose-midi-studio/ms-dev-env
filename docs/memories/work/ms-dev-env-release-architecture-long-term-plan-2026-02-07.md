@@ -47,6 +47,25 @@ Convention PR:
 - Taille cible: <= 600 lignes nettes modifiees (soft limit)
 - Fichiers cibles: limiter le rayon de changement par PR
 
+## 2.1) Regles anti-ambiguite (obligatoires)
+
+Pour eviter toute interpretation, les regles suivantes sont strictes:
+
+1. Un fichier n'est considere "migre" que si la logique metier a ete retiree du legacy et remplacee par delegation explicite.
+2. Toute PR annonce clairement si elle est "no behavior change" ou "behavior change".
+3. "No behavior change" impose des snapshots CLI/tests equivalents avant/apres.
+4. Une PR ne melange pas extraction de structure et changement produit majeur.
+5. Les shims legacy restent en place tant que l'item de scorecard correspondant n'est pas vert.
+6. Toute exception de couche/import doit etre documentee dans la PR et retiree dans la wave suivante.
+
+## 2.2) Hors scope explicite
+
+Les sujets suivants ne font pas partie de ce programme, sauf decision explicite:
+
+- redesign UX des commandes
+- ajout de nouvelles features release non necessaires a la migration
+- changement des politiques de publication (gates/protections) hors besoins techniques du refactor
+
 ---
 
 ## 3) Treeview cible long terme

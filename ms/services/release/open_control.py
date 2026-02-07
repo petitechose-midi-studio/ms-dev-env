@@ -8,7 +8,8 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.platform.process import run as run_process
 from ms.services.release.errors import ReleaseError
-
+from ms.services.release.gh import run_gh_read
+from ms.services.release.timeouts import GH_TIMEOUT_SECONDS, GIT_TIMEOUT_SECONDS
 
 OC_SDK_REPOS: tuple[str, ...] = (
     "framework",
@@ -142,7 +143,11 @@ def parse_oc_sdk_ini(*, text: str) -> Result[OcSdkLock, ReleaseError]:
 
 
 def _load_oc_sdk_from_git(*, repo_root: Path, core_sha: str) -> Result[str, ReleaseError]:
-    r = run_process(["git", "show", f"{core_sha}:{OC_SDK_LOCK_FILE}"], cwd=repo_root)
+    r = run_process(
+        ["git", "show", f"{core_sha}:{OC_SDK_LOCK_FILE}"],
+        cwd=repo_root,
+        timeout=GIT_TIMEOUT_SECONDS,
+    )
     if isinstance(r, Err):
         e = r.error
         return Err(
@@ -157,19 +162,16 @@ def _load_oc_sdk_from_git(*, repo_root: Path, core_sha: str) -> Result[str, Rele
 
 def _load_oc_sdk_from_gh(*, workspace_root: Path, core_sha: str) -> Result[str, ReleaseError]:
     endpoint = f"repos/petitechose-midi-studio/core/contents/{OC_SDK_LOCK_FILE}?ref={core_sha}"
-    r = run_process(
-        ["gh", "api", "-H", "Accept: application/vnd.github.raw", endpoint],
-        cwd=workspace_root,
+    r = run_gh_read(
+        workspace_root=workspace_root,
+        cmd=["gh", "api", "-H", "Accept: application/vnd.github.raw", endpoint],
+        kind="invalid_input",
+        message=f"failed to download {OC_SDK_LOCK_FILE} from core@{core_sha}",
+        hint=endpoint,
+        timeout=GH_TIMEOUT_SECONDS,
     )
     if isinstance(r, Err):
-        e = r.error
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"failed to download {OC_SDK_LOCK_FILE} from core@{core_sha}",
-                hint=e.stderr.strip() or None,
-            )
-        )
+        return r
     return Ok(r.value)
 
 
@@ -200,7 +202,7 @@ def _is_git_repo(path: Path) -> bool:
 
 
 def _git_head_sha(*, repo_root: Path) -> str | None:
-    r = run_process(["git", "rev-parse", "HEAD"], cwd=repo_root)
+    r = run_process(["git", "rev-parse", "HEAD"], cwd=repo_root, timeout=GIT_TIMEOUT_SECONDS)
     if isinstance(r, Err):
         return None
     sha = r.value.strip()
@@ -210,7 +212,7 @@ def _git_head_sha(*, repo_root: Path) -> str | None:
 
 
 def _git_is_dirty(*, repo_root: Path) -> bool:
-    r = run_process(["git", "status", "--porcelain"], cwd=repo_root)
+    r = run_process(["git", "status", "--porcelain"], cwd=repo_root, timeout=GIT_TIMEOUT_SECONDS)
     if isinstance(r, Err):
         return False
     return r.value.strip() != ""

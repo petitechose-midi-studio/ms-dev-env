@@ -6,16 +6,16 @@ for Teensy firmware operations.
 
 from __future__ import annotations
 
-import subprocess
 import os
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from ms.oc_cli.common import detect_env
 from ms.core.result import Err, Ok, Result
+from ms.oc_cli.common import detect_env
 from ms.output.console import Style
 from ms.services.base import BaseService
 

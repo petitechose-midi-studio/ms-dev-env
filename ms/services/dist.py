@@ -15,12 +15,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from ms.core.result import Err
 from ms.platform.detection import Arch, Platform, detect
+from ms.platform.process import run as run_process
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,15 +312,10 @@ def _infer_asset_metadata(filename: str) -> tuple[str, str, str | None, str | No
 
 
 def _git_rev_parse(workspace_root: Path) -> str:
-    try:
-        out = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=str(workspace_root),
-            stderr=subprocess.STDOUT,
-        )
-        return out.decode("utf-8", errors="replace").strip()
-    except Exception:
+    out = run_process(["git", "rev-parse", "HEAD"], cwd=workspace_root, timeout=30.0)
+    if isinstance(out, Err):
         return "unknown"
+    return out.value.strip()
 
 
 def _load_repos_lock(workspace_root: Path) -> list[dict[str, object]]:
@@ -327,7 +323,7 @@ def _load_repos_lock(workspace_root: Path) -> list[dict[str, object]]:
     if lock_path.exists():
         try:
             return json.loads(lock_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             pass
 
     # Fallback: best-effort, scan known clone roots.

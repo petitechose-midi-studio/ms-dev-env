@@ -6,8 +6,8 @@ import pytest
 
 from ms.core.result import Ok, Result
 from ms.core.user_workspace import UserWorkspaceError
-from ms.platform.process import ProcessError
 from ms.core.workspace import Workspace, WorkspaceInfo
+from ms.platform.process import ProcessError
 
 
 def test_self_install_runs_uv_tool_install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -30,7 +30,11 @@ def test_self_install_runs_uv_tool_install(tmp_path: Path, monkeypatch: pytest.M
         cmd: list[str],
         cwd: Path,
         env: dict[str, str] | None = None,
+        *,
+        timeout: float | None = None,
     ) -> Result[None, ProcessError]:
+        del env
+        del timeout
         seen["cmd"] = cmd
         seen["cwd"] = cwd
         return Ok(None)
@@ -75,7 +79,11 @@ def test_self_uninstall_runs_uv_tool_uninstall(
         cmd: list[str],
         cwd: Path,
         env: dict[str, str] | None = None,
+        *,
+        timeout: float | None = None,
     ) -> Result[None, ProcessError]:
+        del env
+        del timeout
         seen["cmd"] = cmd
         seen["cwd"] = cwd
         return Ok(None)
@@ -101,7 +109,11 @@ def test_self_uninstall_accepts_explicit_name(monkeypatch: pytest.MonkeyPatch) -
         cmd: list[str],
         cwd: Path,
         env: dict[str, str] | None = None,
+        *,
+        timeout: float | None = None,
     ) -> Result[None, ProcessError]:
+        del env
+        del timeout
         seen["cmd"] = cmd
         seen["cwd"] = cwd
         return Ok(None)

@@ -1,16 +1,95 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import shutil
-import base64
 from dataclasses import dataclass
 from pathlib import Path
+from time import sleep
+from typing import Literal
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_str, get_table
+from ms.platform.process import ProcessError
 from ms.platform.process import run as run_process
 from ms.services.release.errors import ReleaseError
 from ms.services.release.model import DistributionRelease, RepoCommit
+from ms.services.release.timeouts import (
+    GH_READ_RETRY_ATTEMPTS,
+    GH_READ_RETRY_DELAY_SECONDS,
+    GH_TIMEOUT_SECONDS,
+)
+
+_ReleaseErrorKind = Literal[
+    "gh_missing",
+    "gh_auth_required",
+    "permission_denied",
+    "invalid_input",
+    "invalid_tag",
+    "tag_exists",
+    "ci_not_green",
+    "dist_repo_dirty",
+    "dist_repo_failed",
+    "workflow_failed",
+]
+
+
+def _is_transient_gh_error(error: ProcessError) -> bool:
+    text = f"{error.stderr}\n{error.stdout}".lower()
+    markers = (
+        "timed out",
+        "timeout",
+        "connection reset",
+        "connection refused",
+        "temporarily unavailable",
+        "service unavailable",
+        "bad gateway",
+        "gateway timeout",
+        "tls handshake timeout",
+        "network is unreachable",
+        "remote end hung up unexpectedly",
+        "http 429",
+        "http 500",
+        "http 502",
+        "http 503",
+        "http 504",
+    )
+    if error.returncode == -1 and "timed out" in text:
+        return True
+    return any(marker in text for marker in markers)
+
+
+def run_gh_read(
+    *,
+    workspace_root: Path,
+    cmd: list[str],
+    kind: _ReleaseErrorKind,
+    message: str,
+    hint: str | None = None,
+    timeout: float = GH_TIMEOUT_SECONDS,
+    retry_attempts: int = GH_READ_RETRY_ATTEMPTS,
+) -> Result[str, ReleaseError]:
+    attempts = max(1, retry_attempts)
+    for attempt in range(attempts):
+        result = run_process(cmd, cwd=workspace_root, timeout=timeout)
+        if isinstance(result, Ok):
+            return result
+
+        error = result.error
+        if attempt < attempts - 1 and _is_transient_gh_error(error):
+            sleep(GH_READ_RETRY_DELAY_SECONDS * (attempt + 1))
+            continue
+
+        return Err(
+            ReleaseError(
+                kind=kind,
+                message=message,
+                hint=error.stderr.strip() or hint,
+            )
+        )
+
+    return Err(ReleaseError(kind=kind, message=message, hint=hint))
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +117,7 @@ def ensure_gh_available() -> Result[None, ReleaseError]:
 
 
 def ensure_gh_auth(*, workspace_root: Path) -> Result[None, ReleaseError]:
-    result = run_process(["gh", "auth", "status"], cwd=workspace_root)
+    result = run_process(["gh", "auth", "status"], cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         return Err(
             ReleaseError(
@@ -51,16 +130,15 @@ def ensure_gh_auth(*, workspace_root: Path) -> Result[None, ReleaseError]:
 
 
 def gh_api_json(*, workspace_root: Path, endpoint: str) -> Result[object, ReleaseError]:
-    result = run_process(["gh", "api", endpoint], cwd=workspace_root)
+    result = run_gh_read(
+        workspace_root=workspace_root,
+        cmd=["gh", "api", endpoint],
+        kind="invalid_input",
+        message=f"gh api failed: {endpoint}",
+        hint=endpoint,
+    )
     if isinstance(result, Err):
-        e = result.error
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"gh api failed: {endpoint}",
-                hint=e.stderr.strip() or None,
-            )
-        )
+        return result
 
     try:
         obj: object = json.loads(result.value)
@@ -112,7 +190,7 @@ def get_repo_file_text(
 
     try:
         raw = base64.b64decode(content, validate=False)
-    except Exception as e:
+    except (binascii.Error, ValueError) as e:
         return Err(
             ReleaseError(
                 kind="invalid_input",
@@ -179,18 +257,15 @@ def compare_commits(
 
 def viewer_permission(*, workspace_root: Path, repo: str) -> Result[str, ReleaseError]:
     # Use `gh repo view` since it is stable and does not require custom endpoints.
-    result = run_process(
-        ["gh", "repo", "view", repo, "--json", "viewerPermission"], cwd=workspace_root
+    result = run_gh_read(
+        workspace_root=workspace_root,
+        cmd=["gh", "repo", "view", repo, "--json", "viewerPermission"],
+        kind="invalid_input",
+        message=f"failed to query repo permission: {repo}",
+        hint=repo,
     )
     if isinstance(result, Err):
-        e = result.error
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"failed to query repo permission: {repo}",
-                hint=e.stderr.strip() or None,
-            )
-        )
+        return result
 
     try:
         obj: object = json.loads(result.value)

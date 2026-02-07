@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text
 from ms.services.release.config import DIST_NOTES_DIR
 from ms.services.release.errors import ReleaseError
 from ms.services.release.model import PinnedRepo, ReleaseChannel
@@ -13,6 +15,53 @@ from ms.services.release.model import PinnedRepo, ReleaseChannel
 class WrittenNotes:
     rel_path: str
     abs_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalNotesSnapshot:
+    source_path: Path
+    markdown: str
+    sha256: str
+
+
+def load_external_notes_file(*, path: Path) -> Result[ExternalNotesSnapshot, ReleaseError]:
+    if path.suffix.lower() != ".md":
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="--notes-file must be a markdown file (.md)",
+                hint=str(path),
+            )
+        )
+
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"failed to read --notes-file: {e}",
+                hint=str(path),
+            )
+        )
+
+    if not text.strip():
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="--notes-file is empty",
+                hint=str(path),
+            )
+        )
+
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return Ok(
+        ExternalNotesSnapshot(
+            source_path=path,
+            markdown=text,
+            sha256=digest,
+        )
+    )
 
 
 def notes_path_for_tag(tag: str) -> str:
@@ -91,7 +140,7 @@ def write_release_notes(
         return rendered
 
     try:
-        path.write_text(rendered.value, encoding="utf-8")
+        atomic_write_text(path, rendered.value, encoding="utf-8")
     except OSError as e:
         return Err(
             ReleaseError(

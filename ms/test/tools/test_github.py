@@ -11,7 +11,6 @@ from ms.tools.base import Mode, ToolSpec
 from ms.tools.github import GitHubTool
 from ms.tools.http import HttpError, MockHttpClient
 
-
 # =============================================================================
 # Concrete implementation for testing
 # =============================================================================

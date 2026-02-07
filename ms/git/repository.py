@@ -33,6 +33,9 @@ from ms.core.result import Err, Ok, Result
 from ms.platform.process import ProcessError
 from ms.platform.process import run as run_process
 
+_GIT_TIMEOUT_SECONDS = 30.0
+_GIT_NETWORK_TIMEOUT_SECONDS = 3 * 60.0
+
 __all__ = [
     "GitError",
     "GitStatus",
@@ -273,7 +276,13 @@ class Repository:
 
     def _run(self, args: list[str]) -> Result[str, ProcessError]:
         """Run a git command in this repository."""
-        return run_process(["git", "-C", str(self.path), *args], cwd=self.path)
+        command = args[0] if args else ""
+        timeout = (
+            _GIT_NETWORK_TIMEOUT_SECONDS
+            if command in {"fetch", "pull", "push", "clone"}
+            else _GIT_TIMEOUT_SECONDS
+        )
+        return run_process(["git", "-C", str(self.path), *args], cwd=self.path, timeout=timeout)
 
     def _parse_status(self, output: str) -> GitStatus:
         """Parse git status --porcelain=v1 -b output."""

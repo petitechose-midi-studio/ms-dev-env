@@ -58,7 +58,7 @@ class TestCargoToolDownloadUrl:
 
         try:
             tool.download_url("1.0.0", Platform.LINUX, Arch.X64)
-            assert False, "Should have raised NotImplementedError"
+            raise AssertionError("Should have raised NotImplementedError")
         except NotImplementedError as e:
             assert "system tool" in str(e).lower()
             assert "rustup.rs" in str(e)

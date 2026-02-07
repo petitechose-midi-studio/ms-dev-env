@@ -8,6 +8,7 @@ Goals:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -18,9 +19,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-
 from rich.console import Console
-
 
 __all__ = [
     "OCContext",
@@ -183,10 +182,8 @@ def run_with_spinner(
                 stderr=subprocess.STDOUT,
             )
         except OSError as e:
-            try:
+            with contextlib.suppress(OSError):
                 Path(log_path).unlink(missing_ok=True)
-            except OSError:
-                pass
             return 127, f"{e}", 0
 
         frames = "|/-\\"
@@ -208,10 +205,8 @@ def run_with_spinner(
     try:
         output = Path(log_path).read_text(encoding="utf-8", errors="replace")
     finally:
-        try:
+        with contextlib.suppress(OSError):
             Path(log_path).unlink(missing_ok=True)
-        except OSError:
-            pass
 
     seconds = int(time.time() - start)
     return code, output, seconds
@@ -257,8 +252,7 @@ def _show_dependencies(console: Console, output: str, project_root: Path, env_na
         return
 
     console.print("Dependencies", style="dim")
-    shown = 0
-    for line in deps:
+    for shown, line in enumerate(deps):
         if shown >= 10:
             break
 
@@ -268,16 +262,12 @@ def _show_dependencies(console: Console, output: str, project_root: Path, env_na
         ver = ver_match.group(1) if ver_match else ""
 
         path = symlinks.get(lib)
-        if path is not None and path.is_dir():
-            suffix = f" -> {path.name}"
-        else:
-            suffix = ""
+        suffix = f" -> {path.name}" if path is not None and path.is_dir() else ""
 
         if ver:
             console.print(f"  {lib} @ {ver}{suffix}", style="dim")
         else:
             console.print(f"  {lib}{suffix}", style="dim")
-        shown += 1
 
     console.print()
 
@@ -285,10 +275,10 @@ def _show_dependencies(console: Console, output: str, project_root: Path, env_na
 def _show_memory(console: Console, output: str) -> None:
     lines = output.splitlines()
 
-    flash_line = next((l for l in lines if _RE_FLASH.search(l)), "")
-    ram1_line = next((l for l in lines if _RE_RAM1.search(l)), "")
-    ram2_line = next((l for l in lines if _RE_RAM2.search(l)), "")
-    extram_line = next((l for l in lines if _RE_EXTRAM.search(l)), "")
+    flash_line = next((line for line in lines if _RE_FLASH.search(line)), "")
+    ram1_line = next((line for line in lines if _RE_RAM1.search(line)), "")
+    ram2_line = next((line for line in lines if _RE_RAM2.search(line)), "")
+    extram_line = next((line for line in lines if _RE_EXTRAM.search(line)), "")
 
     if not flash_line:
         return
@@ -325,7 +315,8 @@ def _show_memory(console: Console, output: str) -> None:
             ram1_total = int(ram1_used + ram1_free)  # type: ignore[operator]
             ram1_pct = int((ram1_used * 100 / ram1_total) if ram1_total else 0)
             console.print(
-                f"  RAM1  {_draw_bar(ram1_pct)} {ram1_used // 1024}KB/{ram1_total // 1024}KB ({ram1_pct}%)",
+                "  RAM1  "
+                f"{_draw_bar(ram1_pct)} {ram1_used // 1024}KB/{ram1_total // 1024}KB ({ram1_pct}%)",
                 style="dim",
             )
 
@@ -338,7 +329,8 @@ def _show_memory(console: Console, output: str) -> None:
             ram2_total = int(ram2_used + ram2_free)  # type: ignore[operator]
             ram2_pct = int((ram2_used * 100 / ram2_total) if ram2_total else 0)
             console.print(
-                f"  RAM2  {_draw_bar(ram2_pct)} {ram2_used // 1024}KB/{ram2_total // 1024}KB ({ram2_pct}%)",
+                "  RAM2  "
+                f"{_draw_bar(ram2_pct)} {ram2_used // 1024}KB/{ram2_total // 1024}KB ({ram2_pct}%)",
                 style="dim",
             )
 
@@ -357,7 +349,7 @@ def _show_memory(console: Console, output: str) -> None:
 
 
 def _show_warnings(console: Console, output: str) -> None:
-    warnings = [l for l in output.splitlines() if "warning:" in l]
+    warnings = [line for line in output.splitlines() if "warning:" in line]
     if not warnings:
         return
 
@@ -377,7 +369,7 @@ def _show_warnings(console: Console, output: str) -> None:
 
 
 def _show_errors(console: Console, output: str) -> None:
-    errors = [l for l in output.splitlines() if "error:" in l]
+    errors = [line for line in output.splitlines() if "error:" in line]
     if not errors:
         return
 
@@ -431,8 +423,10 @@ def kill_monitors(platform: OCPlatform) -> None:
             "-Command",
             (
                 "Get-CimInstance Win32_Process | "
-                "Where-Object { $_.Name -match 'python' -and $_.CommandLine -match 'device.*monitor|platformio.*monitor' } | "
-                "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+                "Where-Object { $_.Name -match 'python' "
+                "-and $_.CommandLine -match 'device.*monitor|platformio.*monitor' } | "
+                "ForEach-Object { Stop-Process -Id $_.ProcessId -Force "
+                "-ErrorAction SilentlyContinue }"
             ),
         ]
         subprocess.run(cmd, capture_output=True, text=True, check=False)

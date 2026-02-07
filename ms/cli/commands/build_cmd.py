@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import typer
@@ -19,7 +19,7 @@ from ms.services.build import BuildService
 from ms.services.hardware import HardwareService
 
 
-class Target(str, Enum):
+class Target(StrEnum):
     native = "native"
     wasm = "wasm"
     teensy = "teensy"

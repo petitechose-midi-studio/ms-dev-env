@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from ms.core.result import Err
 from ms.services.release.model import DistributionRelease
 from ms.services.release.planner import compute_history, suggest_tag, validate_tag
 from ms.services.release.semver import SemVer
-from ms.core.result import Err
 
 
 def test_history_ignores_non_semver_tags() -> None:

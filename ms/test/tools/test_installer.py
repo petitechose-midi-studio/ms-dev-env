@@ -6,8 +6,7 @@ import zipfile
 from pathlib import Path
 
 from ms.core.result import Err, Ok
-from ms.tools.installer import InstallError, InstallResult, Installer
-
+from ms.tools.installer import Installer, InstallError, InstallResult
 
 # =============================================================================
 # Test fixtures for creating archives
@@ -263,6 +262,76 @@ class TestInstallerErrors:
         result = installer.install(archive, install_dir)
 
         assert isinstance(result, Err)
+
+
+class TestInstallerSecurity:
+    """Security hardening tests for archive extraction."""
+
+    def test_zip_blocks_prefix_collision_traversal(self, tmp_path: Path) -> None:
+        """Zip member cannot escape install root via ../install-evil path."""
+        archive = tmp_path / "evil.zip"
+        create_zip(
+            archive,
+            {
+                "../install-evil/pwn.txt": b"bad",
+                "ok.txt": b"good",
+            },
+        )
+
+        installer = Installer()
+        install_dir = tmp_path / "install"
+        outside = tmp_path / "install-evil" / "pwn.txt"
+        result = installer.install(archive, install_dir)
+
+        assert isinstance(result, Ok)
+        assert result.value.files_count == 1
+        assert (install_dir / "ok.txt").read_bytes() == b"good"
+        assert not outside.exists()
+
+    def test_tar_blocks_prefix_collision_traversal(self, tmp_path: Path) -> None:
+        """Tar member cannot escape install root via ../install-evil path."""
+        archive = tmp_path / "evil.tar.gz"
+        create_tar_gz(
+            archive,
+            {
+                "../install-evil/pwn.txt": b"bad",
+                "ok.txt": b"good",
+            },
+        )
+
+        installer = Installer()
+        install_dir = tmp_path / "install"
+        outside = tmp_path / "install-evil" / "pwn.txt"
+        result = installer.install(archive, install_dir)
+
+        assert isinstance(result, Ok)
+        assert result.value.files_count == 1
+        assert (install_dir / "ok.txt").read_bytes() == b"good"
+        assert not outside.exists()
+
+    def test_tar_skips_symlink_entries(self, tmp_path: Path) -> None:
+        """Tar symlink entries are ignored."""
+        archive = tmp_path / "symlink.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            link = tarfile.TarInfo(name="link-out")
+            link.type = tarfile.SYMTYPE
+            link.linkname = "../outside.txt"
+            tar.addfile(link)
+
+            info = tarfile.TarInfo(name="ok.txt")
+            content = b"good"
+            info.size = len(content)
+            tar.addfile(info, io.BytesIO(content))
+
+        installer = Installer()
+        install_dir = tmp_path / "install"
+        result = installer.install(archive, install_dir)
+
+        assert isinstance(result, Ok)
+        assert result.value.files_count == 1
+        assert (install_dir / "ok.txt").read_bytes() == b"good"
+        assert not (install_dir / "link-out").exists()
+        assert not (tmp_path / "outside.txt").exists()
 
 
 # =============================================================================

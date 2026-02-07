@@ -1,0 +1,7 @@
+schema = 1
+
+[checksums]
+"v0.1.1:oc-bridge-linux" = "fbfde5a47db1a530179e3531491b007d6d40d725daf0bc675d2cb35588f067ab"
+"v0.1.1:oc-bridge-macos-arm64" = "50ad8c6c0126d0706d9b620d78cfad8ce771de4798153fac2d1a690ba53eb29d"
+"v0.1.1:oc-bridge-macos-x64" = "de06d70e4d30f82b3b332bd2a74edeb46c4be823f35f010f03408f95e3a551cf"
+"v0.1.1:oc-bridge-windows.exe" = "8b3be6bd9f9948685bd32d79a0c6aaeb43597a214a1818264af5d809dce59b73"

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 
-class RepoProfile(str, Enum):
+class RepoProfile(StrEnum):
     dev = "dev"
     maintainer = "maintainer"
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import errno
 import socket
 import subprocess
@@ -14,9 +15,9 @@ from ms.output.console import Style
 from ms.services.bridge import BridgeService
 
 if TYPE_CHECKING:
+    from ms.core.workspace import Workspace
     from ms.output.console import ConsoleProtocol
     from ms.platform.detection import PlatformInfo
-    from ms.core.workspace import Workspace
 
 
 Mode = Literal["native", "wasm"]
@@ -77,10 +78,8 @@ def _udp_port_in_use(port: int) -> bool:
             return True
         raise
     finally:
-        try:
+        with contextlib.suppress(OSError):
             s.close()
-        except OSError:
-            pass
 
 
 def _tcp_port_open(port: int, *, timeout_s: float = 0.2) -> bool:
@@ -140,7 +139,7 @@ class HeadlessBridge:
             except subprocess.TimeoutExpired:
                 return
 
-    def __enter__(self) -> "HeadlessBridge":
+    def __enter__(self) -> HeadlessBridge:
         return self
 
     def __exit__(
@@ -193,7 +192,9 @@ def start_headless_bridge(
         ctrl_in_use = _udp_port_in_use(spec.controller_port)
         if host_in_use and ctrl_in_use:
             console.print(
-                f"warning: native bridge ports already in use (udp:{spec.controller_port} -> host:{spec.host_udp_port}); assuming existing bridge (reusing)",
+                "warning: native bridge ports already in use "
+                f"(udp:{spec.controller_port} -> host:{spec.host_udp_port}); "
+                "assuming existing bridge (reusing)",
                 Style.WARNING,
             )
             return Ok(HeadlessBridge(proc=None, spec=spec, console=console))
@@ -209,7 +210,9 @@ def start_headless_bridge(
             return Err(
                 BridgeHeadlessError(
                     kind="ports_in_use",
-                    message=f"controller UDP port already in use: {spec.controller_port} (native mode)",
+                    message=(
+                        f"controller UDP port already in use: {spec.controller_port} (native mode)"
+                    ),
                     hint="Stop the existing bridge using that port, or change config.toml ports.",
                 )
             )

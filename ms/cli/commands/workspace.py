@@ -23,7 +23,7 @@ def use(
         start = start.expanduser().resolve()
     except OSError as e:
         console.error(f"invalid path: {e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     if not start.exists() or not start.is_dir():
         console.error(f"not a directory: {start}")

@@ -6,9 +6,9 @@ full type safety and validation.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Mapping
 
 from .result import Err, Ok, Result
 from .structured import StrDict, as_str_dict, get_int, get_str, get_table
@@ -129,7 +129,7 @@ class Config:
     bitwig: BitwigPathsConfig = field(default_factory=BitwigPathsConfig)
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, object]) -> "Config":
+    def from_dict(cls, data: Mapping[str, object]) -> Config:
         """Create Config from a mapping (parsed TOML)."""
         ports: StrDict = get_table(data, "ports") or {}
         controller: StrDict = get_table(ports, "controller") or {}
@@ -186,7 +186,7 @@ def _parse_toml(path: Path) -> Result[StrDict, ConfigError]:
         return Err(ConfigError(f"Permission denied reading: {path}", path=path))
     except tomllib.TOMLDecodeError as e:
         return Err(ConfigError(f"Invalid TOML syntax: {e}", path=path))
-    except Exception as e:
+    except UnicodeDecodeError as e:
         return Err(ConfigError(f"Error reading config: {e}", path=path))
 
 

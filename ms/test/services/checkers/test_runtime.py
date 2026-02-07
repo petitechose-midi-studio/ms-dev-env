@@ -5,8 +5,8 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -69,7 +69,9 @@ class TestRuntimeCheckerLinuxVirmidi:
             {
                 ("lsmod",): (
                     0,
-                    "Module                  Size  Used by\nsnd_virmidi            16384  0\nsnd_seq_dummy          16384  0",
+                    "Module                  Size  Used by\n"
+                    "snd_virmidi            16384  0\n"
+                    "snd_seq_dummy          16384  0",
                     "",
                 ),
                 ("id", "-nG"): (0, "user dialout", ""),
@@ -160,11 +162,13 @@ class TestRuntimeCheckerLinuxSerialPermissions:
                 return True
             return original_exists(path)
 
-        with patch(
-            "shutil.which", _which_factory({"lsmod": "/usr/sbin/lsmod", "id": "/usr/bin/id"})
+        with (
+            patch(
+                "shutil.which", _which_factory({"lsmod": "/usr/sbin/lsmod", "id": "/usr/bin/id"})
+            ),
+            patch.object(Path, "exists", mock_exists),
         ):
-            with patch.object(Path, "exists", mock_exists):
-                results = checker.check_all()
+            results = checker.check_all()
 
         serial = next(r for r in results if r.name == "serial permissions")
         assert serial.status == CheckStatus.OK
@@ -177,11 +181,13 @@ class TestRuntimeCheckerLinuxSerialPermissions:
             }
         )
         checker = RuntimeChecker(platform=Platform.LINUX, runner=runner)
-        with patch(
-            "shutil.which", _which_factory({"lsmod": "/usr/sbin/lsmod", "id": "/usr/bin/id"})
+        with (
+            patch(
+                "shutil.which", _which_factory({"lsmod": "/usr/sbin/lsmod", "id": "/usr/bin/id"})
+            ),
+            patch.object(Path, "exists", return_value=False),
         ):
-            with patch.object(Path, "exists", return_value=False):
-                results = checker.check_all()
+            results = checker.check_all()
 
         serial = next(r for r in results if r.name == "serial permissions")
         assert serial.status == CheckStatus.WARNING

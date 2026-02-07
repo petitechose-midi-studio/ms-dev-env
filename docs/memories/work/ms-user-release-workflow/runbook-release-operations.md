@@ -52,7 +52,13 @@ If a maintainer attempts direct push to protected `main`, GitHub blocks it.
 
 ## Content release flow (distribution)
 
-Use `ms release` commands:
+Preferred guided flow (no free-form input):
+
+1. Run `ms release`.
+2. Choose `content` in the product selector.
+3. Follow channel/bump/SHA selectors, then confirm.
+
+Advanced explicit commands (still available):
 
 1. Plan:
    - `ms release content plan --channel <stable|beta> --auto`
@@ -76,7 +82,13 @@ No approval = no stable/beta publication.
 
 ## App release flow (ms-manager)
 
-Use `ms release` commands:
+Preferred guided flow (no free-form input):
+
+1. Run `ms release`.
+2. Choose `app` in the product selector.
+3. Follow channel/bump/SHA selectors, then confirm.
+
+Advanced explicit commands (still available):
 
 1. Plan:
    - `ms release app plan --channel <stable|beta> --auto`

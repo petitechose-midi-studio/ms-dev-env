@@ -8,14 +8,14 @@ from ms.services.release.model import PinnedRepo
 from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
 
 
-def test_plan_file_roundtrip(tmp_path: Path) -> None:
+def test_plan_file_roundtrip_content_schema_v2(tmp_path: Path) -> None:
     pinned = (
         PinnedRepo(repo=RELEASE_REPOS[0], sha="0" * 40),
         PinnedRepo(repo=RELEASE_REPOS[1], sha="1" * 40),
         PinnedRepo(repo=RELEASE_REPOS[2], sha="2" * 40),
         PinnedRepo(repo=RELEASE_REPOS[3], sha="3" * 40),
     )
-    plan = PlanInput(channel="stable", tag="v1.2.3", pinned=pinned)
+    plan = PlanInput(product="content", channel="stable", tag="v1.2.3", pinned=pinned)
     path = tmp_path / "plan.json"
 
     written = write_plan_file(path=path, plan=plan)
@@ -23,6 +23,7 @@ def test_plan_file_roundtrip(tmp_path: Path) -> None:
 
     read = read_plan_file(path=path)
     assert isinstance(read, Ok)
+    assert read.value.product == "content"
     assert read.value.channel == "stable"
     assert read.value.tag == "v1.2.3"
     assert [p.repo.id for p in read.value.pinned] == [
@@ -40,8 +41,6 @@ def test_plan_file_preserves_ref_override(tmp_path: Path) -> None:
     repo2 = RELEASE_REPOS[2]
     repo3 = RELEASE_REPOS[3]
 
-    # Override core ref to simulate a feature branch plan.
-    # ReleaseRepo is a dataclass; use type(...) to avoid importing it here.
     core_feature = type(repo2)(
         id=repo2.id,
         slug=repo2.slug,
@@ -55,7 +54,7 @@ def test_plan_file_preserves_ref_override(tmp_path: Path) -> None:
         PinnedRepo(repo=core_feature, sha="2" * 40),
         PinnedRepo(repo=repo3, sha="3" * 40),
     )
-    plan = PlanInput(channel="beta", tag="v1.2.3-beta.1", pinned=pinned)
+    plan = PlanInput(product="content", channel="beta", tag="v1.2.3-beta.1", pinned=pinned)
     path = tmp_path / "plan.json"
 
     written = write_plan_file(path=path, plan=plan)
@@ -68,17 +67,23 @@ def test_plan_file_preserves_ref_override(tmp_path: Path) -> None:
 
 
 def test_plan_file_rejects_missing_repos(tmp_path: Path) -> None:
-    # Missing oc-bridge.
     path = tmp_path / "plan.json"
     path.write_text(
         """{
-  "schema": 1,
+  "schema": 2,
+  "product": "content",
   "channel": "stable",
   "tag": "v1.0.0",
   "repos": [
-    {"id": "loader", "sha": "0000000000000000000000000000000000000000"}
+    {
+      "id": "loader",
+      "slug": "petitechose-midi-studio/loader",
+      "ref": "main",
+      "sha": "0000000000000000000000000000000000000000"
+    }
   ]
-}\n""",
+}
+""",
         encoding="utf-8",
     )
 
@@ -102,3 +107,54 @@ def test_plan_file_roundtrip_app_product(tmp_path: Path) -> None:
     assert read.value.tag == "v0.2.0-beta.1"
     assert [p.repo.id for p in read.value.pinned] == ["ms-manager"]
     assert [p.sha for p in read.value.pinned] == ["a" * 40]
+
+
+def test_plan_file_rejects_schema_v1(tmp_path: Path) -> None:
+    path = tmp_path / "plan-v1.json"
+    path.write_text(
+        """{
+  "schema": 1,
+  "product": "app",
+  "channel": "stable",
+  "tag": "v1.0.0",
+  "repos": [
+    {
+      "id": "ms-manager",
+      "slug": "petitechose-midi-studio/ms-manager",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    read = read_plan_file(path=path)
+    assert isinstance(read, Err)
+    assert read.error.kind == "invalid_input"
+
+
+def test_plan_file_rejects_missing_slug(tmp_path: Path) -> None:
+    path = tmp_path / "plan-missing-slug.json"
+    path.write_text(
+        """{
+  "schema": 2,
+  "product": "app",
+  "channel": "stable",
+  "tag": "v1.0.0",
+  "repos": [
+    {
+      "id": "ms-manager",
+      "ref": "main",
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    read = read_plan_file(path=path)
+    assert isinstance(read, Err)
+    assert read.error.kind == "invalid_input"

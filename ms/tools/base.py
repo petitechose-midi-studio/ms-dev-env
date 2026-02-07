@@ -166,4 +166,4 @@ class Tool(ABC):
             install_dir: Directory where tool was extracted
             platform: Target platform
         """
-        pass
+        return None

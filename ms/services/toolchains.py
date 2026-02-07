@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +11,8 @@ from ms.core.result import Err, Ok, Result
 from ms.core.workspace import Workspace
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.detection import PlatformInfo
-from ms.platform.process import run as run_process, run_silent
+from ms.platform.process import run as run_process
+from ms.platform.process import run_silent
 from ms.platform.shell import generate_activation_scripts
 from ms.tools.download import Downloader
 from ms.tools.http import RealHttpClient
@@ -24,6 +26,9 @@ from ms.tools.wrapper import (
     create_emscripten_wrappers,
     create_zig_wrappers,
 )
+
+_LOCAL_TOOL_TIMEOUT_SECONDS = 2 * 60.0
+_NETWORK_TOOL_TIMEOUT_SECONDS = 20 * 60.0
 
 # -----------------------------------------------------------------------------
 # Error Types
@@ -87,6 +92,14 @@ class ToolchainService:
             platform=platform.platform,
             arch=platform.arch,
         )
+
+    def _run_tool_cmd(self, cmd: list[str], *, cwd: Path, network: bool = False):
+        timeout = _NETWORK_TOOL_TIMEOUT_SECONDS if network else _LOCAL_TOOL_TIMEOUT_SECONDS
+        return run_process(cmd, cwd=cwd, timeout=timeout)
+
+    def _run_tool_cmd_silent(self, cmd: list[str], *, cwd: Path, network: bool = False):
+        timeout = _NETWORK_TOOL_TIMEOUT_SECONDS if network else _LOCAL_TOOL_TIMEOUT_SECONDS
+        return run_silent(cmd, cwd=cwd, timeout=timeout)
 
     def sync_dev(
         self, *, dry_run: bool = False, force: bool = False
@@ -162,7 +175,7 @@ class ToolchainService:
 
             try:
                 url = tool.download_url(version, self._platform.platform, self._platform.arch)
-            except Exception as e:  # noqa: BLE001
+            except (NotImplementedError, ValueError) as e:
                 self._console.print(f"{tool.spec.id}: download URL error: {e}", Style.ERROR)
                 has_errors = True
                 continue
@@ -180,6 +193,15 @@ class ToolchainService:
             if isinstance(dres, Err):
                 self._console.print(f"{tool.spec.id}: download failed", Style.ERROR)
                 self._console.print(str(dres.error), Style.DIM)
+                has_errors = True
+                continue
+
+            if not self.verify_download_checksum(
+                tool_id=tool.spec.id,
+                version=version,
+                archive_path=dres.value.path,
+                pins=pins,
+            ):
                 has_errors = True
                 continue
 
@@ -265,7 +287,7 @@ class ToolchainService:
         for cmd in cmds:
             if not cmd:
                 continue
-            result = run_process(cmd, cwd=self._paths.tools_dir)
+            result = self._run_tool_cmd(cmd, cwd=self._paths.tools_dir, network=True)
             match result:
                 case Err(e):
                     self._console.print(f"install failed: {' '.join(cmd)}", Style.ERROR)
@@ -308,9 +330,10 @@ class ToolchainService:
 
         venv_dir.parent.mkdir(parents=True, exist_ok=True)
         if not venv_dir.exists():
-            result = run_process(
+            result = self._run_tool_cmd(
                 [sys.executable, "-m", "venv", str(venv_dir)],
                 cwd=venv_dir.parent,
+                network=False,
             )
             if isinstance(result, Err):
                 self._console.print("platformio: venv creation failed", Style.ERROR)
@@ -319,10 +342,19 @@ class ToolchainService:
         py = self._platformio_python(venv_dir)
 
         # Ensure pip
-        run_silent([str(py), "-m", "pip", "install", "-U", "pip"], cwd=venv_dir)
-        result = run_process(
+        run_pip_upgrade = self._run_tool_cmd_silent(
+            [str(py), "-m", "pip", "install", "-U", "pip"],
+            cwd=venv_dir,
+            network=True,
+        )
+        if isinstance(run_pip_upgrade, Err):
+            self._console.print("platformio: pip bootstrap failed", Style.ERROR)
+            return False
+
+        result = self._run_tool_cmd(
             [str(py), "-m", "pip", "install", f"platformio=={version}"],
             cwd=venv_dir,
+            network=True,
         )
         match result:
             case Err(e):
@@ -378,6 +410,14 @@ class ToolchainService:
             self._console.print(str(dres.error), Style.DIM)
             return False
 
+        if not self.verify_download_checksum(
+            tool_id=tool.spec.id,
+            version=resolved_version,
+            archive_path=dres.value.path,
+            pins=pins,
+        ):
+            return False
+
         install_dir = self._paths.tools_dir / tool.install_dir_name()
         ires = installer.install(
             dres.value.path, install_dir, strip_components=tool.strip_components()
@@ -400,3 +440,40 @@ class ToolchainService:
         if self._platform.platform.is_windows:
             return venv_dir / "Scripts" / "pio.exe"
         return venv_dir / "bin" / "pio"
+
+    def verify_download_checksum(
+        self,
+        *,
+        tool_id: str,
+        version: str,
+        archive_path: Path,
+        pins: ToolPins,
+    ) -> bool:
+        expected = pins.checksum_for(
+            tool_id=tool_id,
+            version=version,
+            platform=str(self._platform.platform),
+            arch=str(self._platform.arch),
+        )
+        if expected is None:
+            return True
+
+        actual = sha256_file(archive_path)
+        if actual != expected:
+            self._console.print(f"{tool_id}: checksum verification failed", Style.ERROR)
+            self._console.print(f"expected {expected[:12]}..., got {actual[:12]}...", Style.DIM)
+            return False
+
+        self._console.print(f"{tool_id}: checksum verified", Style.DIM)
+        return True
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
