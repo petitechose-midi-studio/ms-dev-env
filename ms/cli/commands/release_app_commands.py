@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import typer
@@ -9,10 +8,8 @@ from ms.cli.commands.release_common import (
     confirm_tag as confirm_release_tag,
 )
 from ms.cli.commands.release_common import (
-    enforce_auto_constraints,
     ensure_release_permissions_or_exit,
     exit_release,
-    parse_overrides,
     pick_pinned_repo_interactive,
     print_current_release_user,
     resolve_release_inputs,
@@ -21,9 +18,25 @@ from ms.cli.context import CLIContext, build_context
 from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel
+from ms.release.flow.app_plan import build_app_release_plan
+from ms.release.flow.app_prepare import (
+    PreparedAppRelease,
+    prepare_app_release_distribution,
+)
+from ms.release.flow.app_publish import (
+    publish_app_release_workflows,
+    resolve_app_publish_notes,
+)
+from ms.release.resolve.app_inputs import resolve_pinned_app
+from ms.release.view.app_console import (
+    print_app_auto_blockers,
+    print_app_notes_attachment,
+    print_app_plan,
+    print_app_replay,
+)
 from ms.services.release import config
 from ms.services.release.auto import resolve_pinned_auto_strict
-from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, ReleaseRepo
 from ms.services.release.notes import load_external_notes_file
 from ms.services.release.plan_file import PlanInput, write_plan_file
 from ms.services.release.service import (
@@ -45,95 +58,40 @@ def _resolve_pinned_app(
     allow_non_green: bool,
     interactive: bool,
 ) -> tuple[PinnedRepo, ...]:
-    overrides = parse_overrides(repo_overrides, flag="--repo")
-    refs = parse_overrides(ref_overrides, flag="--ref")
-
-    repo = config.APP_RELEASE_REPO
-    ref = refs.get(repo.id, repo.ref)
-    repo_sel = ReleaseRepo(
-        id=repo.id,
-        slug=repo.slug,
-        ref=ref,
-        required_ci_workflow_file=repo.required_ci_workflow_file,
-    )
-
-    if auto:
-        enforce_auto_constraints(auto=auto, overrides=overrides, allow_non_green=allow_non_green)
-
-        resolved = resolve_pinned_auto_strict(
-            workspace_root=workspace_root,
-            repos=(repo_sel,),
-            ref_overrides={repo.id: ref},
-        )
-        if isinstance(resolved, Err):
-            # Simplified blocker output for app lane.
-            console.header("Auto Release Blocked")
-            for r in resolved.error:
-                console.print(f"- {r.repo.id} ({r.repo.slug})", Style.DIM)
-                if r.error is not None:
-                    console.error(r.error)
-                elif r.status is not None and not r.status.is_clean:
-                    console.error("working tree is dirty")
-                elif r.head_green is not True:
-                    console.error("remote HEAD is not green")
-            exit_release("auto release is blocked", code=ErrorCode.USER_ERROR)
-        console.success("auto pins: OK")
-        return resolved.value
-
-    if repo.id in overrides:
-        return (PinnedRepo(repo=repo_sel, sha=overrides[repo.id]),)
-
-    if not interactive:
-        exit_release(
-            f"missing --repo {repo.id}=<sha> (or run without --no-interactive)",
-            code=ErrorCode.USER_ERROR,
-        )
-
-    return (
-        pick_pinned_repo_interactive(
+    resolved = resolve_pinned_app(
+        workspace_root=workspace_root,
+        app_release_repo=config.APP_RELEASE_REPO,
+        repo_overrides=repo_overrides,
+        ref_overrides=ref_overrides,
+        auto=auto,
+        allow_non_green=allow_non_green,
+        interactive=interactive,
+        auto_resolver=lambda current_workspace, repos, current_refs: resolve_pinned_auto_strict(
+            workspace_root=current_workspace,
+            repos=repos,
+            ref_overrides=current_refs,
+        ),
+        picker=lambda repo, ref: pick_pinned_repo_interactive(
             workspace_root=workspace_root,
             console=console,
-            repo=repo_sel,
+            repo=repo,
             ref=ref,
             allow_non_green=allow_non_green,
         ),
     )
+    if isinstance(resolved, Err):
+        exit_release(resolved.error.message, code=ErrorCode.USER_ERROR)
 
+    if resolved.value.blockers:
+        print_app_auto_blockers(console=console, blockers=resolved.value.blockers)
+        exit_release("auto release is blocked", code=ErrorCode.USER_ERROR)
 
-def _print_app_plan(
-    *,
-    channel: ReleaseChannel,
-    tag: str,
-    version: str,
-    pinned: tuple[PinnedRepo, ...],
-    console: ConsoleProtocol,
-) -> None:
-    console.header("App Release Plan")
-    console.print(f"channel: {channel}")
-    console.print(f"tag: {tag}")
-    console.print(f"version: {version}")
-    console.print("repos:")
-    for p in pinned:
-        console.print(f"- {p.repo.id}: {p.sha}")
+    if auto:
+        console.success("auto pins: OK")
 
-
-def _print_app_replay(
-    *,
-    channel: ReleaseChannel,
-    tag: str,
-    pinned: tuple[PinnedRepo, ...],
-    console: ConsoleProtocol,
-    plan_file: Path | None,
-) -> None:
-    repo_args = " ".join([f"--repo {p.repo.id}={p.sha}" for p in pinned])
-    console.newline()
-    console.print("Replay:", Style.DIM)
-    if plan_file is not None:
-        console.print(f"ms release app publish --plan {plan_file}", Style.DIM)
-    console.print(
-        f"ms release app publish --channel {channel} --tag {tag} --no-interactive {repo_args}",
-        Style.DIM,
-    )
+    if resolved.value.pinned is None:
+        exit_release("auto release is blocked", code=ErrorCode.USER_ERROR)
+    return resolved.value.pinned
 
 
 def app_plan_cmd(
@@ -171,7 +129,8 @@ def app_plan_cmd(
         interactive=not no_interactive,
     )
 
-    planned = plan_app_release(
+    planned = build_app_release_plan(
+        planner=plan_app_release,
         workspace_root=ctx.workspace.root,
         channel=channel,
         bump=bump,
@@ -180,39 +139,24 @@ def app_plan_cmd(
     )
     if isinstance(planned, Err):
         exit_release(planned.error.message, code=ErrorCode.USER_ERROR)
-    app_tag, version = planned.value
 
-    _print_app_plan(
-        channel=channel, tag=app_tag, version=version, pinned=pinned, console=ctx.console
-    )
+    print_app_plan(plan=planned.value, console=ctx.console)
 
     if out is not None:
         plan_file = write_plan_file(
             path=out,
-            plan=PlanInput(product="app", channel=channel, tag=app_tag, pinned=pinned),
+            plan=PlanInput(
+                product="app",
+                channel=planned.value.channel,
+                tag=planned.value.tag,
+                pinned=planned.value.pinned,
+            ),
         )
         if isinstance(plan_file, Err):
             exit_release(plan_file.error.message, code=ErrorCode.IO_ERROR)
         ctx.console.success(str(out))
 
-    _print_app_replay(
-        channel=channel, tag=app_tag, pinned=pinned, console=ctx.console, plan_file=out
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class _AppReleaseRequest:
-    channel: ReleaseChannel
-    tag: str
-    version: str
-    pinned: tuple[PinnedRepo, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class _PreparedAppRelease:
-    request: _AppReleaseRequest
-    pr_url: str
-    source_sha: str
+    print_app_replay(plan=planned.value, console=ctx.console, plan_file=out)
 
 
 def _prepare_app_release_request(
@@ -229,7 +173,7 @@ def _prepare_app_release_request(
     confirm_tag: str | None,
     no_interactive: bool,
     dry_run: bool,
-) -> _AppReleaseRequest:
+) -> AppReleasePlan:
     resolved = resolve_release_inputs(
         product="app",
         plan=plan_file,
@@ -249,7 +193,8 @@ def _prepare_app_release_request(
         ),
     )
 
-    planned = plan_app_release(
+    planned = build_app_release_plan(
+        planner=plan_app_release,
         workspace_root=ctx.workspace.root,
         channel=resolved.channel,
         bump=bump,
@@ -258,39 +203,13 @@ def _prepare_app_release_request(
     )
     if isinstance(planned, Err):
         exit_release(planned.error.message, code=ErrorCode.USER_ERROR)
-    app_tag, version = planned.value
 
-    green = ensure_ci_green(
-        workspace_root=ctx.workspace.root,
-        pinned=resolved.pinned,
-        allow_non_green=allow_non_green,
-    )
-    if isinstance(green, Err):
-        exit_release(green.error.message, code=ErrorCode.USER_ERROR)
-
-    _print_app_plan(
-        channel=resolved.channel,
-        tag=app_tag,
-        version=version,
-        pinned=resolved.pinned,
-        console=ctx.console,
-    )
-    _print_app_replay(
-        channel=resolved.channel,
-        tag=app_tag,
-        pinned=resolved.pinned,
-        console=ctx.console,
-        plan_file=plan_file,
-    )
+    print_app_plan(plan=planned.value, console=ctx.console)
+    print_app_replay(plan=planned.value, console=ctx.console, plan_file=plan_file)
     if not dry_run:
-        confirm_release_tag(app_tag, confirm_tag=confirm_tag)
+        confirm_release_tag(planned.value.tag, confirm_tag=confirm_tag)
 
-    return _AppReleaseRequest(
-        channel=resolved.channel,
-        tag=app_tag,
-        version=version,
-        pinned=resolved.pinned,
-    )
+    return planned.value
 
 
 def _prepare_app_release(
@@ -307,7 +226,7 @@ def _prepare_app_release(
     confirm_tag: str | None,
     no_interactive: bool,
     dry_run: bool,
-) -> _PreparedAppRelease:
+) -> PreparedAppRelease:
     request = _prepare_app_release_request(
         ctx=ctx,
         channel=channel,
@@ -323,23 +242,24 @@ def _prepare_app_release(
         dry_run=dry_run,
     )
 
-    pr = prepare_app_pr(
+    prepared = prepare_app_release_distribution(
+        ensure_ci_green_fn=ensure_ci_green,
+        prepare_app_pr_fn=prepare_app_pr,
         workspace_root=ctx.workspace.root,
         console=ctx.console,
-        tag=request.tag,
-        version=request.version,
-        base_sha=request.pinned[0].sha,
-        pinned=request.pinned,
+        plan=request,
+        allow_non_green=allow_non_green,
         dry_run=dry_run,
     )
-    if isinstance(pr, Err):
-        exit_release(pr.error.message, code=ErrorCode.IO_ERROR)
+    if isinstance(prepared, Err):
+        code = (
+            ErrorCode.IO_ERROR
+            if prepared.error.kind in {"dist_repo_failed", "dist_repo_dirty"}
+            else ErrorCode.USER_ERROR
+        )
+        exit_release(prepared.error.message, code=code)
 
-    return _PreparedAppRelease(
-        request=request,
-        pr_url=pr.value.pr_url,
-        source_sha=pr.value.source_sha,
-    )
+    return prepared.value
 
 
 def app_prepare_cmd(
@@ -436,29 +356,24 @@ def app_publish_cmd(
         dry_run=dry_run,
     )
 
-    notes_markdown: str | None = None
-    notes_source_path: str | None = None
-    if notes_file is not None:
-        notes_r = load_external_notes_file(path=notes_file)
-        if isinstance(notes_r, Err):
-            exit_release(notes_r.error.message, code=ErrorCode.USER_ERROR)
-        notes_markdown = notes_r.value.markdown
-        notes_source_path = str(notes_r.value.source_path.resolve())
-        ctx.console.print(
-            f"notes: attached from {notes_source_path} (sha256={notes_r.value.sha256[:12]})",
-            Style.DIM,
-        )
+    notes = resolve_app_publish_notes(
+        notes_file=notes_file,
+        load_external_notes_file_fn=load_external_notes_file,
+    )
+    if isinstance(notes, Err):
+        exit_release(notes.error.message, code=ErrorCode.USER_ERROR)
+
+    print_app_notes_attachment(console=ctx.console, notes=notes.value)
 
     ctx.console.success(f"PR merged: {prepared.pr_url}")
     ctx.console.print(f"source sha: {prepared.source_sha}", Style.DIM)
 
-    run = publish_app_release(
+    run = publish_app_release_workflows(
+        publish_app_release_fn=publish_app_release,
         workspace_root=ctx.workspace.root,
         console=ctx.console,
-        tag=prepared.request.tag,
-        source_sha=prepared.source_sha,
-        notes_markdown=notes_markdown,
-        notes_source_path=notes_source_path,
+        prepared=prepared,
+        notes=notes.value,
         watch=watch,
         dry_run=dry_run,
     )
