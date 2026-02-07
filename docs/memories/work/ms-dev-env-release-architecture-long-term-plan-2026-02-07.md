@@ -360,9 +360,10 @@ Snapshot date: 2026-02-07
     `ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`.
   - Stack: PR #39 is opened on top of #38.
 
-- A6 (app resolve/flow/view extraction): IN PROGRESS (code complete, PR pending)
+- A6 (app resolve/flow/view extraction): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/40
   - Branch: `refactor/release-architecture-a6-app-flow`
-  - Base strategy: stacked on A5 while #39 is open.
+  - Base strategy: stacked on A5 (`base PR #39`).
   - Scope delivered:
     - `ms/release/resolve/app_inputs.py`
     - `ms/release/flow/app_{plan,prepare,publish}.py`
@@ -374,7 +375,7 @@ Snapshot date: 2026-02-07
     - `uv run pyright ms/cli/commands/release_app_commands.py ms/release/resolve/app_inputs.py ms/release/flow/app_plan.py ms/release/flow/app_prepare.py ms/release/flow/app_publish.py ms/release/view/app_console.py`
     - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
-  - Remaining: commit A6, push branch, open stacked PR (base #39 while A5 is open).
+  - Stack: PR #40 is opened on top of #39.
 
 ## Wave B - Services transverses
 
