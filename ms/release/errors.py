@@ -3,17 +3,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
 class ReleaseError:
-    """Canonical release error payload.
+    """Canonical release error payload."""
 
-    This format is stable across resolve/flow/infra layers and can be rendered
-    by view adapters without importing implementation details.
-    """
-
-    kind: str
+    kind: Literal[
+        "gh_missing",
+        "gh_auth_required",
+        "permission_denied",
+        "invalid_input",
+        "invalid_tag",
+        "tag_exists",
+        "ci_not_green",
+        "dist_repo_dirty",
+        "dist_repo_failed",
+        "workflow_failed",
+    ]
     message: str
     hint: str | None = None
 
@@ -21,3 +29,6 @@ class ReleaseError:
         if self.hint:
             return f"{self.message} (hint: {self.hint})"
         return self.message
+
+
+__all__ = ["ReleaseError"]
