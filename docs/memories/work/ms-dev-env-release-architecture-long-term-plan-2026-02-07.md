@@ -377,9 +377,10 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #40 is opened on top of #39.
 
-- A7 (guided split + sessions extraction): IN PROGRESS (code complete, PR pending)
+- A7 (guided split + sessions extraction): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/41
   - Branch: `refactor/release-architecture-a7-guided-split`
-  - Base strategy: stacked on A6 while #40 is open.
+  - Base strategy: stacked on A6 (`base PR #40`).
   - Scope delivered:
     - `ms/release/flow/guided/{fsm,sessions,bootstrap,app_steps,content_steps,router}.py`
     - `ms/release/view/guided_console.py`
@@ -388,11 +389,11 @@ Snapshot date: 2026-02-07
       - `ms/services/release/wizard_session.py`
   - Behavior contract: no intentional behavior change; guided flow UX and command surface preserved.
   - Pre-PR gate (completed):
-    - `uv run ruff check <A7-edited-files>`
-    - `uv run pyright <A7-edited-files>`
+    - `uv run ruff check ms/cli/release_fsm.py ms/cli/release_guided_common.py ms/cli/release_guided_app.py ms/cli/release_guided_content.py ms/cli/release_guided.py ms/services/release/wizard_session.py ms/release/flow/guided/fsm.py ms/release/flow/guided/sessions.py ms/release/flow/guided/bootstrap.py ms/release/flow/guided/app_steps.py ms/release/flow/guided/content_steps.py ms/release/flow/guided/router.py ms/release/view/guided_console.py`
+    - `uv run pyright ms/cli/release_fsm.py ms/cli/release_guided_common.py ms/cli/release_guided_app.py ms/cli/release_guided_content.py ms/cli/release_guided.py ms/services/release/wizard_session.py ms/release/flow/guided/fsm.py ms/release/flow/guided/sessions.py ms/release/flow/guided/bootstrap.py ms/release/flow/guided/app_steps.py ms/release/flow/guided/content_steps.py ms/release/flow/guided/router.py ms/release/view/guided_console.py`
     - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
-  - Remaining: commit A7, push branch, open stacked PR (base #40 while A6 is open).
+  - Stack: PR #41 is opened on top of #40.
 
 ## Wave B - Services transverses
 
