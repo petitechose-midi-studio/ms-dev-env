@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from ms.services.release.model import ReleaseBump
 
-
 _STABLE_RE = re.compile(r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
 _BETA_RE = re.compile(r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-beta\.(0|[1-9]\d*)$")
 
@@ -19,7 +18,7 @@ class SemVer:
     def to_tag(self) -> str:
         return f"v{self.major}.{self.minor}.{self.patch}"
 
-    def bump(self, kind: ReleaseBump) -> "SemVer":
+    def bump(self, kind: ReleaseBump) -> SemVer:
         match kind:
             case "major":
                 return SemVer(self.major + 1, 0, 0)

@@ -14,6 +14,8 @@ from ms.core.workspace import detect_workspace_info
 from ms.output.console import RichConsole, Style
 from ms.platform.process import run, run_silent
 
+_UV_TOOL_TIMEOUT_SECONDS = 10 * 60.0
+
 
 self_app = typer.Typer(
     no_args_is_help=True,
@@ -29,7 +31,7 @@ def _tool_name_for_current_ms() -> str:
         dists = mapping.get("ms", [])
         if dists:
             return dists[0]
-    except Exception:  # noqa: BLE001
+    except (metadata.PackageNotFoundError, OSError, ValueError):
         pass
     return "petitechose-audio-workspace"
 
@@ -42,7 +44,7 @@ def _tool_name_from_workspace(root: Path) -> str | None:
 
     try:
         data_obj: object = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    except Exception:  # noqa: BLE001
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
         return None
 
     data = as_str_dict(data_obj)
@@ -110,7 +112,7 @@ def install(
     if dry_run:
         return
 
-    result = run_silent(cmd, cwd=root)
+    result = run_silent(cmd, cwd=root, timeout=_UV_TOOL_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         console.error(str(result.error))
         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
@@ -124,7 +126,7 @@ def install(
 
     console.success("installed")
 
-    bin_dir = run(["uv", "tool", "dir", "--bin"], cwd=root)
+    bin_dir = run(["uv", "tool", "dir", "--bin"], cwd=root, timeout=_UV_TOOL_TIMEOUT_SECONDS)
     if isinstance(bin_dir, Ok) and bin_dir.value.strip():
         console.print(f"uv tool bin: {bin_dir.value.strip()}", Style.DIM)
 
@@ -141,7 +143,7 @@ def _update_shell(*, dry_run: bool) -> None:
     if dry_run:
         return
 
-    result = run_silent(cmd, cwd=Path.cwd())
+    result = run_silent(cmd, cwd=Path.cwd(), timeout=_UV_TOOL_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         console.error(str(result.error))
         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
@@ -172,7 +174,7 @@ def uninstall(
     if dry_run:
         return
 
-    result = run_silent(cmd, cwd=Path.cwd())
+    result = run_silent(cmd, cwd=Path.cwd(), timeout=_UV_TOOL_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         console.error(str(result.error))
         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))

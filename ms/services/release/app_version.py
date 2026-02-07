@@ -7,6 +7,7 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_str_dict, get_str
+from ms.platform.files import atomic_write_text
 from ms.services.release.errors import ReleaseError
 
 
@@ -55,7 +56,10 @@ def current_version(*, app_repo_root: Path) -> Result[str, ReleaseError]:
             ReleaseError(
                 kind="invalid_input",
                 message="ms-manager version files are out of sync",
-                hint=f"package.json={pkg_v.value}, Cargo.toml={cargo_v.value}, tauri.conf.json={tauri_v.value}",
+                hint=(
+                    f"package.json={pkg_v.value}, Cargo.toml={cargo_v.value}, "
+                    f"tauri.conf.json={tauri_v.value}"
+                ),
             )
         )
     return Ok(pkg_v.value)
@@ -171,7 +175,7 @@ def _write_json_version(*, path: Path, version: str) -> Result[bool, ReleaseErro
     data["version"] = version
 
     try:
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(path, json.dumps(data, indent=2) + "\n", encoding="utf-8")
     except OSError as e:
         return Err(
             ReleaseError(
@@ -264,7 +268,7 @@ def _write_cargo_package_version(*, path: Path, version: str) -> Result[bool, Re
     out = prefix + replaced
 
     try:
-        path.write_text(out, encoding="utf-8")
+        atomic_write_text(path, out, encoding="utf-8")
     except OSError as e:
         return Err(
             ReleaseError(

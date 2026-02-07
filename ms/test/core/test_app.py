@@ -7,7 +7,6 @@ from pathlib import Path
 from ms.core.app import App, AppError, list_all, resolve
 from ms.core.result import Err, Ok
 
-
 # =============================================================================
 # App Tests
 # =============================================================================
@@ -49,7 +48,7 @@ class TestApp:
         # Should raise on modification attempt
         try:
             app.name = "other"  # type: ignore
-            assert False, "Should have raised"
+            raise AssertionError("Should have raised")
         except AttributeError:
             pass
 

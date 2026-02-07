@@ -7,20 +7,20 @@ from typing import Literal
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_list, get_str
+from ms.platform.files import atomic_write_text
 from ms.services.release import config
 from ms.services.release.errors import ReleaseError
 from ms.services.release.model import PinnedRepo, ReleaseChannel, ReleaseRepo
 
-
-PLAN_SCHEMA = 1
+PLAN_SCHEMA = 2
 
 
 @dataclass(frozen=True, slots=True)
 class PlanInput:
+    product: Literal["content", "app"]
     channel: ReleaseChannel
     tag: str
     pinned: tuple[PinnedRepo, ...]
-    product: Literal["content", "app"] = "content"
 
 
 def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError]:
@@ -29,12 +29,19 @@ def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError
         "product": plan.product,
         "channel": plan.channel,
         "tag": plan.tag,
-        "repos": [{"id": p.repo.id, "sha": p.sha, "ref": p.repo.ref} for p in plan.pinned],
+        "repos": [
+            {
+                "id": p.repo.id,
+                "slug": p.repo.slug,
+                "sha": p.sha,
+                "ref": p.repo.ref,
+            }
+            for p in plan.pinned
+        ],
     }
 
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(path, json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     except OSError as e:
         return Err(
             ReleaseError(
@@ -100,8 +107,15 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
             )
         )
 
-    product_raw = get_str(data, "product")
-    product = product_raw if product_raw in ("content", "app") else "content"
+    product = get_str(data, "product")
+    if product not in ("content", "app"):
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"invalid product in plan: {product!r}",
+                hint=str(path),
+            )
+        )
 
     tag = get_str(data, "tag")
     if tag is None:
@@ -134,10 +148,7 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
         )
 
     repos_cfg: tuple[ReleaseRepo, ...]
-    if product == "app":
-        repos_cfg = (config.APP_RELEASE_REPO,)
-    else:
-        repos_cfg = config.RELEASE_REPOS
+    repos_cfg = (config.APP_RELEASE_REPO,) if product == "app" else config.RELEASE_REPOS
 
     by_id = {r.id: r for r in repos_cfg}
     pinned: list[PinnedRepo] = []
@@ -147,9 +158,10 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
         if d is None:
             continue
         repo_id = get_str(d, "id")
+        slug = get_str(d, "slug")
         sha = get_str(d, "sha")
         ref = get_str(d, "ref")
-        if repo_id is None or sha is None:
+        if repo_id is None or slug is None or sha is None or ref is None:
             continue
         if repo_id in seen:
             continue
@@ -164,6 +176,14 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
                     hint=str(path),
                 )
             )
+        if slug != repo.slug:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message=f"repo slug mismatch for {repo_id}",
+                    hint=f"expected {repo.slug}, got {slug}",
+                )
+            )
         if len(sha) != 40:
             return Err(
                 ReleaseError(
@@ -173,12 +193,10 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
                 )
             )
 
-        # Preserve a non-default ref if present.
-        repo_ref = ref or repo.ref
         repo_sel = ReleaseRepo(
             id=repo.id,
             slug=repo.slug,
-            ref=repo_ref,
+            ref=ref,
             required_ci_workflow_file=repo.required_ci_workflow_file,
         )
         pinned.append(PinnedRepo(repo=repo_sel, sha=sha))

@@ -1,16 +1,24 @@
 from __future__ import annotations
 
-import json
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_str_dict
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
 from ms.services.release.config import DIST_DEFAULT_BRANCH, DIST_LOCAL_DIR, DIST_REPO_SLUG
 from ms.services.release.errors import ReleaseError
+from ms.services.release.pr_orchestration import create_pull_request, merge_pull_request
+from ms.services.release.timeouts import (
+    GH_CLONE_TIMEOUT_SECONDS,
+    GIT_NETWORK_TIMEOUT_SECONDS,
+    GIT_TIMEOUT_SECONDS,
+)
+
+
+def _run_git_command(*, cmd: list[str], repo_root: Path, network: bool = False):
+    timeout = GIT_NETWORK_TIMEOUT_SECONDS if network else GIT_TIMEOUT_SECONDS
+    return run_process(cmd, cwd=repo_root, timeout=timeout)
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,7 +42,9 @@ def ensure_distribution_repo(
 
     repo_root.parent.mkdir(parents=True, exist_ok=True)
     result = run_process(
-        ["gh", "repo", "clone", DIST_REPO_SLUG, str(repo_root)], cwd=workspace_root
+        ["gh", "repo", "clone", DIST_REPO_SLUG, str(repo_root)],
+        cwd=workspace_root,
+        timeout=GH_CLONE_TIMEOUT_SECONDS,
     )
     if isinstance(result, Err):
         e = result.error
@@ -50,7 +60,7 @@ def ensure_distribution_repo(
 
 
 def ensure_clean_git_repo(*, repo_root: Path) -> Result[None, ReleaseError]:
-    result = run_process(["git", "status", "--porcelain"], cwd=repo_root)
+    result = _run_git_command(cmd=["git", "status", "--porcelain"], repo_root=repo_root)
     if isinstance(result, Err):
         e = result.error
         return Err(
@@ -88,7 +98,7 @@ def checkout_main_and_pull(
         ["git", "checkout", DIST_DEFAULT_BRANCH],
         ["git", "pull", "--ff-only", "origin", DIST_DEFAULT_BRANCH],
     ):
-        result = run_process(cmd, cwd=repo_root)
+        result = _run_git_command(cmd=cmd, repo_root=repo_root, network=cmd[1] == "pull")
         if isinstance(result, Err):
             e = result.error
             return Err(
@@ -113,7 +123,7 @@ def create_branch(
     if dry_run:
         return Ok(None)
 
-    result = run_process(["git", "checkout", "-b", branch], cwd=repo_root)
+    result = _run_git_command(cmd=["git", "checkout", "-b", branch], repo_root=repo_root)
     if isinstance(result, Err):
         e = result.error
         return Err(
@@ -143,7 +153,7 @@ def commit_and_push(
     if dry_run:
         return Ok(None)
 
-    add = run_process(["git", "add", "-A", "--", *rels], cwd=repo_root)
+    add = _run_git_command(cmd=["git", "add", "-A", "--", *rels], repo_root=repo_root)
     if isinstance(add, Err):
         e = add.error
         return Err(
@@ -154,7 +164,7 @@ def commit_and_push(
             )
         )
 
-    commit = run_process(["git", "commit", "-m", message], cwd=repo_root)
+    commit = _run_git_command(cmd=["git", "commit", "-m", message], repo_root=repo_root)
     if isinstance(commit, Err):
         e = commit.error
         hint = e.stderr.strip() or None
@@ -168,7 +178,11 @@ def commit_and_push(
             )
         )
 
-    push = run_process(["git", "push", "-u", "origin", branch], cwd=repo_root)
+    push = _run_git_command(
+        cmd=["git", "push", "-u", "origin", branch],
+        repo_root=repo_root,
+        network=True,
+    )
     if isinstance(push, Err):
         e = push.error
         return Err(
@@ -191,47 +205,17 @@ def open_pr(
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[str, ReleaseError]:
-    cmd = [
-        "gh",
-        "pr",
-        "create",
-        "--repo",
-        DIST_REPO_SLUG,
-        "--base",
-        DIST_DEFAULT_BRANCH,
-        "--head",
-        branch,
-        "--title",
-        title,
-        "--body",
-        body,
-    ]
-
-    console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
-    if dry_run:
-        return Ok("(dry-run)")
-
-    result = run_process(cmd, cwd=workspace_root)
-    if isinstance(result, Err):
-        e = result.error
-        return Err(
-            ReleaseError(
-                kind="dist_repo_failed",
-                message="failed to create PR in distribution repo",
-                hint=e.stderr.strip() or None,
-            )
-        )
-
-    url = result.value.strip()
-    if not url.startswith("https://"):
-        return Err(
-            ReleaseError(
-                kind="dist_repo_failed",
-                message="unexpected gh pr create output",
-                hint=url,
-            )
-        )
-    return Ok(url)
+    return create_pull_request(
+        workspace_root=workspace_root,
+        repo_slug=DIST_REPO_SLUG,
+        base_branch=DIST_DEFAULT_BRANCH,
+        branch=branch,
+        title=title,
+        body=body,
+        repo_label="distribution",
+        console=console,
+        dry_run=dry_run,
+    )
 
 
 def merge_pr(
@@ -241,103 +225,13 @@ def merge_pr(
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
-    cmd = [
-        "gh",
-        "pr",
-        "merge",
-        pr_url,
-        "--repo",
-        DIST_REPO_SLUG,
-        "--rebase",
-        "--delete-branch",
-        "--auto",
-    ]
-    console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
-    if dry_run:
-        return Ok(None)
-
-    result = run_process(cmd, cwd=workspace_root)
-    if isinstance(result, Err):
-        e = result.error
-        return Err(
-            ReleaseError(
-                kind="dist_repo_failed",
-                message="failed to merge distribution PR",
-                hint=e.stderr.strip() or pr_url,
-            )
-        )
-
-    # Branch protection may require CI to complete; wait for merge to land.
-    deadline = time.monotonic() + 10 * 60
-    while time.monotonic() < deadline:
-        view = run_process(
-            [
-                "gh",
-                "pr",
-                "view",
-                pr_url,
-                "--repo",
-                DIST_REPO_SLUG,
-                "--json",
-                "state,mergedAt",
-            ],
-            cwd=workspace_root,
-        )
-        if isinstance(view, Err):
-            e = view.error
-            return Err(
-                ReleaseError(
-                    kind="dist_repo_failed",
-                    message="failed to query distribution PR state",
-                    hint=e.stderr.strip() or pr_url,
-                )
-            )
-
-        try:
-            obj: object = json.loads(view.value)
-        except json.JSONDecodeError as e:
-            return Err(
-                ReleaseError(
-                    kind="dist_repo_failed",
-                    message=f"invalid JSON from gh pr view: {e}",
-                    hint=pr_url,
-                )
-            )
-
-        data = as_str_dict(obj)
-        if data is None:
-            return Err(
-                ReleaseError(
-                    kind="dist_repo_failed",
-                    message="unexpected gh pr view payload",
-                    hint=pr_url,
-                )
-            )
-
-        state = data.get("state")
-        merged_at = data.get("mergedAt")
-
-        merged = (isinstance(state, str) and state == "MERGED") or (
-            isinstance(merged_at, str) and merged_at.strip() != ""
-        )
-        if merged:
-            return Ok(None)
-
-        if isinstance(state, str) and state != "OPEN":
-            return Err(
-                ReleaseError(
-                    kind="dist_repo_failed",
-                    message=f"distribution PR is {state.lower()} without merge",
-                    hint=pr_url,
-                )
-            )
-
-        time.sleep(5)
-
-    return Err(
-        ReleaseError(
-            kind="dist_repo_failed",
-            message="timed out waiting for distribution PR merge",
-            hint=pr_url,
-        )
+    return merge_pull_request(
+        workspace_root=workspace_root,
+        repo_slug=DIST_REPO_SLUG,
+        pr_url=pr_url,
+        repo_label="distribution",
+        delete_branch=True,
+        allow_auto_merge_fallback=False,
+        console=console,
+        dry_run=dry_run,
     )

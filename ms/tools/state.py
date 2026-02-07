@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
+from ms.platform.files import atomic_write_text
+
 __all__ = ["ToolState", "load_state", "save_state", "get_installed_version"]
 
 
@@ -66,10 +68,8 @@ def save_state(tools_dir: Path, state: dict[str, ToolState]) -> None:
         state: Dict mapping tool id to ToolState
     """
     state_path = _state_file(tools_dir)
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-
     data = {tool_id: asdict(tool_state) for tool_id, tool_state in state.items()}
-    state_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    atomic_write_text(state_path, json.dumps(data, indent=2), encoding="utf-8")
 
 
 def get_installed_version(tools_dir: Path, tool_id: str) -> str | None:

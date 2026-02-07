@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import base64
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from time import sleep
 from uuid import uuid4
 
 from ms.core.result import Err, Ok, Result
@@ -20,6 +22,10 @@ from ms.services.release.config import (
 )
 from ms.services.release.errors import ReleaseError
 from ms.services.release.model import ReleaseChannel
+from ms.services.release.timeouts import GH_TIMEOUT_SECONDS, GH_WATCH_TIMEOUT_SECONDS
+
+_RUN_LOOKUP_MAX_ATTEMPTS = 6
+_RUN_LOOKUP_DELAY_SECONDS = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +65,7 @@ def _dispatch_workflow(
     if dry_run:
         return Ok(WorkflowRun(id=0, url="(dry-run)", request_id=request_id))
 
-    result = run_process(cmd, cwd=workspace_root)
+    result = run_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         e = result.error
         return Err(
@@ -70,6 +76,23 @@ def _dispatch_workflow(
             )
         )
 
+    return _resolve_dispatched_run(
+        workspace_root=workspace_root,
+        repo_slug=repo_slug,
+        workflow_file=workflow_file,
+        ref=ref,
+        request_id=request_id,
+    )
+
+
+def _resolve_dispatched_run(
+    *,
+    workspace_root: Path,
+    repo_slug: str,
+    workflow_file: str,
+    ref: str,
+    request_id: str,
+) -> Result[WorkflowRun, ReleaseError]:
     list_cmd = [
         "gh",
         "run",
@@ -79,23 +102,55 @@ def _dispatch_workflow(
         "--workflow",
         workflow_file,
         "--limit",
-        "10",
+        "20",
         "--json",
-        "databaseId,url,event,headBranch,createdAt,displayTitle",
+        "databaseId,url,event,headBranch,displayTitle",
     ]
-    list_result = run_process(list_cmd, cwd=workspace_root)
-    if isinstance(list_result, Err):
-        e = list_result.error
-        return Err(
-            ReleaseError(
-                kind="workflow_failed",
-                message="failed to query workflow runs",
-                hint=e.stderr.strip() or None,
-            )
-        )
 
+    for attempt in range(_RUN_LOOKUP_MAX_ATTEMPTS):
+        list_result = run_process(list_cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+        if isinstance(list_result, Err):
+            e = list_result.error
+            return Err(
+                ReleaseError(
+                    kind="workflow_failed",
+                    message="failed to query workflow runs",
+                    hint=e.stderr.strip() or None,
+                )
+            )
+
+        parsed = _find_dispatched_run(
+            payload=list_result.value,
+            ref=ref,
+            request_id=request_id,
+        )
+        if isinstance(parsed, Err):
+            return parsed
+        if parsed.value is not None:
+            return Ok(parsed.value)
+        if attempt < _RUN_LOOKUP_MAX_ATTEMPTS - 1:
+            sleep(_RUN_LOOKUP_DELAY_SECONDS)
+
+    return Err(
+        ReleaseError(
+            kind="workflow_failed",
+            message="could not deterministically identify the dispatched workflow run",
+            hint=(
+                f"Run list did not expose request_id={request_id}; check Actions in {repo_slug} "
+                "and ensure workflow run title includes the dispatch request_id."
+            ),
+        )
+    )
+
+
+def _find_dispatched_run(
+    *,
+    payload: str,
+    ref: str,
+    request_id: str,
+) -> Result[WorkflowRun | None, ReleaseError]:
     try:
-        obj: object = json.loads(list_result.value)
+        obj: object = json.loads(payload)
     except json.JSONDecodeError as e:
         return Err(
             ReleaseError(
@@ -107,8 +162,6 @@ def _dispatch_workflow(
     raw = as_obj_list(obj)
     if raw is None:
         return Err(ReleaseError(kind="workflow_failed", message="unexpected gh run list payload"))
-
-    fallback: WorkflowRun | None = None
 
     for item in raw:
         d = as_str_dict(item)
@@ -126,24 +179,11 @@ def _dispatch_workflow(
             continue
         if url is None or run_id is None:
             continue
+        if not isinstance(title, str) or request_id not in title:
+            continue
+        return Ok(WorkflowRun(id=run_id, url=url, request_id=request_id))
 
-        run = WorkflowRun(id=run_id, url=url, request_id=request_id)
-        if fallback is None:
-            fallback = run
-
-        if isinstance(title, str) and request_id in title:
-            return Ok(run)
-
-    if fallback is not None:
-        return Ok(fallback)
-
-    return Err(
-        ReleaseError(
-            kind="workflow_failed",
-            message="could not find the dispatched workflow run",
-            hint=f"Check Actions tab in {repo_slug}.",
-        )
-    )
+    return Ok(None)
 
 
 def dispatch_publish_workflow(
@@ -171,15 +211,45 @@ def dispatch_app_release_workflow(
     workspace_root: Path,
     tag: str,
     source_sha: str,
+    notes_markdown: str | None,
+    notes_source_path: str | None,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
+    inputs: tuple[tuple[str, str], ...]
+    if notes_markdown is None:
+        inputs = (("tag", tag), ("source_sha", source_sha))
+    else:
+        notes_b64 = base64.b64encode(notes_markdown.encode("utf-8")).decode("ascii")
+        if len(notes_b64) > 60000:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message="notes markdown is too large for workflow dispatch input",
+                    hint="Use a shorter --notes-file (recommended < 45KB).",
+                )
+            )
+        notes_source = (notes_source_path or "").strip()
+        if len(notes_source) > 1024:
+            notes_source = notes_source[:1021] + "..."
+
+        console.print("app release input: notes_b64 attached", Style.DIM)
+        if notes_source:
+            console.print(f"app release input: notes_source={notes_source}", Style.DIM)
+
+        inputs = (
+            ("tag", tag),
+            ("source_sha", source_sha),
+            ("notes_b64", notes_b64),
+            ("notes_source", notes_source),
+        )
+
     return _dispatch_workflow(
         workspace_root=workspace_root,
         repo_slug=APP_REPO_SLUG,
         workflow_file=APP_RELEASE_WORKFLOW,
         ref=APP_DEFAULT_BRANCH,
-        inputs=(("tag", tag), ("source_sha", source_sha)),
+        inputs=inputs,
         console=console,
         dry_run=dry_run,
     )
@@ -218,7 +288,7 @@ def watch_run(
     if dry_run:
         return Ok(None)
 
-    result = run_process(cmd, cwd=workspace_root)
+    result = run_process(cmd, cwd=workspace_root, timeout=GH_WATCH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         e = result.error
         return Err(

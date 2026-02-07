@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ms.services.dist import package_platform
 from ms.platform.detection import Platform, detect
+from ms.services.dist import package_platform
 
 
 def test_package_platform_handles_epoch_mtime(tmp_path: Path) -> None:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from ms.services.release.model import ReleaseRepo
 
-
 DIST_REPO_SLUG = "petitechose-midi-studio/distribution"
 DIST_LOCAL_DIR = "distribution"
 DIST_DEFAULT_BRANCH = "main"

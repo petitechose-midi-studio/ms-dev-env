@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -9,11 +10,23 @@ from ms.output.console import ConsoleProtocol, Style
 from ms.services.release import config
 from ms.services.release.app_repo import (
     checkout_main_and_pull as app_checkout_main_and_pull,
+)
+from ms.services.release.app_repo import (
     commit_and_push as app_commit_and_push,
+)
+from ms.services.release.app_repo import (
     create_branch as app_create_branch,
+)
+from ms.services.release.app_repo import (
     ensure_app_repo,
+)
+from ms.services.release.app_repo import (
     ensure_clean_git_repo as ensure_clean_app_repo,
+)
+from ms.services.release.app_repo import (
     merge_pr as app_merge_pr,
+)
+from ms.services.release.app_repo import (
     open_pr as app_open_pr,
 )
 from ms.services.release.app_version import (
@@ -36,7 +49,6 @@ from ms.services.release.errors import ReleaseError
 from ms.services.release.gh import (
     ensure_gh_auth,
     ensure_gh_available,
-    get_ref_head_sha,
     list_distribution_releases,
     viewer_permission,
 )
@@ -50,6 +62,12 @@ from ms.services.release.workflow import (
     dispatch_publish_workflow,
     watch_run,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class AppPrepareResult:
+    pr_url: str
+    source_sha: str
 
 
 def ensure_release_permissions(
@@ -234,6 +252,138 @@ def ensure_ci_green(
     return Ok(None)
 
 
+def _prepare_distribution_repo(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[Path, ReleaseError]:
+    dist = ensure_distribution_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
+    if isinstance(dist, Err):
+        return dist
+
+    dist_root = dist.value.root
+    if not dry_run:
+        clean = ensure_clean_git_repo(repo_root=dist_root)
+        if isinstance(clean, Err):
+            return clean
+
+    pull = checkout_main_and_pull(repo_root=dist_root, console=console, dry_run=dry_run)
+    if isinstance(pull, Err):
+        return pull
+
+    return Ok(dist_root)
+
+
+def _prepare_app_repo(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[Path, ReleaseError]:
+    app = ensure_app_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
+    if isinstance(app, Err):
+        return app
+
+    app_root = app.value.root
+    if not dry_run:
+        clean = ensure_clean_app_repo(repo_root=app_root)
+        if isinstance(clean, Err):
+            return clean
+
+    pull = app_checkout_main_and_pull(repo_root=app_root, console=console, dry_run=dry_run)
+    if isinstance(pull, Err):
+        return pull
+
+    return Ok(app_root)
+
+
+def _build_pinned_body(*, intro: tuple[str, ...], pinned: tuple[PinnedRepo, ...]) -> str:
+    lines = [*intro, "", "Pinned SHAs:"]
+    lines.extend(f"- {p.repo.id}: {p.sha}" for p in pinned)
+    return "\n".join(lines)
+
+
+def _merge_distribution_pr(
+    *,
+    workspace_root: Path,
+    pr_url: str,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[None, ReleaseError]:
+    merged = merge_pr(
+        workspace_root=workspace_root,
+        pr_url=pr_url,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(merged, Err):
+        return Err(
+            ReleaseError(
+                kind=merged.error.kind,
+                message=merged.error.message,
+                hint=f"PR: {pr_url}\n{merged.error.hint or ''}".strip(),
+            )
+        )
+    return Ok(None)
+
+
+def _merge_app_pr(
+    *,
+    workspace_root: Path,
+    pr_url: str,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[None, ReleaseError]:
+    merged = app_merge_pr(
+        workspace_root=workspace_root,
+        pr_url=pr_url,
+        delete_branch=False,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(merged, Err):
+        return Err(
+            ReleaseError(
+                kind=merged.error.kind,
+                message=merged.error.message,
+                hint=f"PR: {pr_url}\n{merged.error.hint or ''}".strip(),
+            )
+        )
+    return Ok(None)
+
+
+def _is_app_version_already_present(*, app_root: Path, version: str) -> Result[bool, ReleaseError]:
+    cur = current_version(app_repo_root=app_root)
+    if isinstance(cur, Err):
+        return cur
+    return Ok(cur.value == version)
+
+
+def _resolve_app_changed_paths(
+    *,
+    app_root: Path,
+    version: str,
+    dry_run: bool,
+) -> Result[list[Path], ReleaseError]:
+    if dry_run:
+        vf = app_version_files(app_repo_root=app_root)
+        return Ok([vf.package_json, vf.cargo_toml, vf.tauri_conf])
+
+    changed = apply_version(app_repo_root=app_root, version=version)
+    if isinstance(changed, Err):
+        return changed
+    if not changed.value:
+        return Err(
+            ReleaseError(
+                kind="dist_repo_failed",
+                message="version update produced no file changes",
+                hint=f"Target version: {version}",
+            )
+        )
+    return Ok(changed.value)
+
+
 def prepare_distribution_pr(
     *,
     workspace_root: Path,
@@ -243,32 +393,28 @@ def prepare_distribution_pr(
     user_notes_file: Path | None,
     dry_run: bool,
 ) -> Result[str, ReleaseError]:
-    dist = ensure_distribution_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
-    if isinstance(dist, Err):
-        return dist
-
-    if not dry_run:
-        clean = ensure_clean_git_repo(repo_root=dist.value.root)
-        if isinstance(clean, Err):
-            return clean
-
-    pull = checkout_main_and_pull(repo_root=dist.value.root, console=console, dry_run=dry_run)
-    if isinstance(pull, Err):
-        return pull
+    dist_root_r = _prepare_distribution_repo(
+        workspace_root=workspace_root,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(dist_root_r, Err):
+        return dist_root_r
+    dist_root = dist_root_r.value
 
     # Idempotency: if the spec/notes already exist on the default branch and match the plan,
     # skip PR creation and proceed.
-    if not dry_run and _distribution_artifacts_match_plan(dist_root=dist.value.root, plan=plan):
+    if not dry_run and _distribution_artifacts_match_plan(dist_root=dist_root, plan=plan):
         console.print("distribution spec already present on main; skipping PR", Style.DIM)
         return Ok(f"(already merged) {plan.spec_path}")
 
     branch = f"release/{plan.tag}"
-    br = create_branch(repo_root=dist.value.root, branch=branch, console=console, dry_run=dry_run)
+    br = create_branch(repo_root=dist_root, branch=branch, console=console, dry_run=dry_run)
     if isinstance(br, Err):
         return br
 
     spec = write_release_spec(
-        dist_repo_root=dist.value.root,
+        dist_repo_root=dist_root,
         channel=plan.channel,
         tag=plan.tag,
         pinned=plan.pinned,
@@ -277,7 +423,7 @@ def prepare_distribution_pr(
         return spec
 
     notes = write_release_notes(
-        dist_repo_root=dist.value.root,
+        dist_repo_root=dist_root,
         channel=plan.channel,
         tag=plan.tag,
         pinned=plan.pinned,
@@ -289,7 +435,7 @@ def prepare_distribution_pr(
 
     commit_msg = f"release: add {plan.tag} spec"
     commit = commit_and_push(
-        repo_root=dist.value.root,
+        repo_root=dist_root,
         branch=branch,
         paths=[spec.value.abs_path, notes.value.abs_path],
         message=commit_msg,
@@ -299,14 +445,7 @@ def prepare_distribution_pr(
     if isinstance(commit, Err):
         return commit
 
-    body_lines = [
-        f"channel={plan.channel}",
-        "",
-        "Pinned SHAs:",
-    ]
-    for p in plan.pinned:
-        body_lines.append(f"- {p.repo.id}: {p.sha}")
-    body = "\n".join(body_lines)
+    body = _build_pinned_body(intro=(f"channel={plan.channel}",), pinned=plan.pinned)
 
     pr = open_pr(
         workspace_root=workspace_root,
@@ -319,17 +458,14 @@ def prepare_distribution_pr(
     if isinstance(pr, Err):
         return pr
 
-    merged = merge_pr(
-        workspace_root=workspace_root, pr_url=pr.value, console=console, dry_run=dry_run
+    merged = _merge_distribution_pr(
+        workspace_root=workspace_root,
+        pr_url=pr.value,
+        console=console,
+        dry_run=dry_run,
     )
     if isinstance(merged, Err):
-        return Err(
-            ReleaseError(
-                kind=merged.error.kind,
-                message=merged.error.message,
-                hint=f"PR: {pr.value}\n{merged.error.hint or ''}".strip(),
-            )
-        )
+        return merged
 
     return Ok(pr.value)
 
@@ -372,11 +508,7 @@ def _distribution_artifacts_match_plan(*, dist_root: Path, plan: ReleasePlan) ->
         if isinstance(rid, str) and isinstance(sha, str):
             repo_map[rid] = sha
 
-    for p in plan.pinned:
-        if repo_map.get(p.repo.id) != p.sha:
-            return False
-
-    return True
+    return all(repo_map.get(p.repo.id) == p.sha for p in plan.pinned)
 
 
 def publish_distribution_release(
@@ -418,69 +550,47 @@ def prepare_app_pr(
     console: ConsoleProtocol,
     tag: str,
     version: str,
+    base_sha: str,
     pinned: tuple[PinnedRepo, ...],
     dry_run: bool,
-) -> Result[str, ReleaseError]:
-    app = ensure_app_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
-    if isinstance(app, Err):
-        return app
+) -> Result[AppPrepareResult, ReleaseError]:
+    app_root_r = _prepare_app_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
+    if isinstance(app_root_r, Err):
+        return app_root_r
+    app_root = app_root_r.value
 
     if not dry_run:
-        clean = ensure_clean_app_repo(repo_root=app.value.root)
-        if isinstance(clean, Err):
-            return clean
-
-    pull = app_checkout_main_and_pull(repo_root=app.value.root, console=console, dry_run=dry_run)
-    if isinstance(pull, Err):
-        return pull
-
-    if not dry_run:
-        cur = current_version(app_repo_root=app.value.root)
-        if isinstance(cur, Err):
-            return cur
-        if cur.value == version:
+        already_r = _is_app_version_already_present(app_root=app_root, version=version)
+        if isinstance(already_r, Err):
+            return already_r
+        if already_r.value:
             console.print("app version already present on main; skipping PR", Style.DIM)
-            return Ok(f"(already merged) {tag}")
+            return Ok(AppPrepareResult(pr_url=f"(already merged) {tag}", source_sha=base_sha))
 
-    branch = f"release/{tag}"
+    branch = f"release/{tag}-{base_sha[:8]}"
     br = app_create_branch(
-        repo_root=app.value.root, branch=branch, console=console, dry_run=dry_run
+        repo_root=app_root,
+        branch=branch,
+        base_sha=base_sha,
+        console=console,
+        dry_run=dry_run,
     )
     if isinstance(br, Err):
         return br
 
-    changed_paths: list[Path]
-    if dry_run:
-        vf = app_version_files(app_repo_root=app.value.root)
-        changed_paths = [vf.package_json, vf.cargo_toml, vf.tauri_conf]
-    else:
-        changed = apply_version(app_repo_root=app.value.root, version=version)
-        if isinstance(changed, Err):
-            return changed
-        if not changed.value:
-            return Err(
-                ReleaseError(
-                    kind="dist_repo_failed",
-                    message="version update produced no file changes",
-                    hint=f"Target version: {version}",
-                )
-            )
-        changed_paths = changed.value
+    changed_paths_r = _resolve_app_changed_paths(
+        app_root=app_root, version=version, dry_run=dry_run
+    )
+    if isinstance(changed_paths_r, Err):
+        return changed_paths_r
+    changed_paths = changed_paths_r.value
 
     title = f"release(app): {tag}"
     commit_msg = f"release(app): bump version to {version}"
-    body_lines = [
-        f"tag={tag}",
-        f"version={version}",
-        "",
-        "Pinned SHAs:",
-    ]
-    for p in pinned:
-        body_lines.append(f"- {p.repo.id}: {p.sha}")
-    body = "\n".join(body_lines)
+    body = _build_pinned_body(intro=(f"tag={tag}", f"version={version}"), pinned=pinned)
 
     commit = app_commit_and_push(
-        repo_root=app.value.root,
+        repo_root=app_root,
         branch=branch,
         paths=changed_paths,
         message=commit_msg,
@@ -489,6 +599,8 @@ def prepare_app_pr(
     )
     if isinstance(commit, Err):
         return commit
+
+    source_sha = base_sha if dry_run else commit.value
 
     pr = app_open_pr(
         workspace_root=workspace_root,
@@ -501,22 +613,16 @@ def prepare_app_pr(
     if isinstance(pr, Err):
         return pr
 
-    merged = app_merge_pr(
+    merged = _merge_app_pr(
         workspace_root=workspace_root,
         pr_url=pr.value,
         console=console,
         dry_run=dry_run,
     )
     if isinstance(merged, Err):
-        return Err(
-            ReleaseError(
-                kind=merged.error.kind,
-                message=merged.error.message,
-                hint=f"PR: {pr.value}\n{merged.error.hint or ''}".strip(),
-            )
-        )
+        return merged
 
-    return Ok(pr.value)
+    return Ok(AppPrepareResult(pr_url=pr.value, source_sha=source_sha))
 
 
 def publish_app_release(
@@ -525,9 +631,21 @@ def publish_app_release(
     console: ConsoleProtocol,
     tag: str,
     source_sha: str,
+    notes_markdown: str | None,
+    notes_source_path: str | None,
     watch: bool,
     dry_run: bool,
 ) -> Result[tuple[str, str], ReleaseError]:
+    if notes_markdown is not None:
+        source_label = notes_source_path or "(unknown source)"
+        console.print(
+            "release notes: external markdown attached from "
+            f"{source_label} (prepended above auto-notes)",
+            Style.DIM,
+        )
+    else:
+        console.print("release notes: automatic notes only", Style.DIM)
+
     candidate = dispatch_app_candidate_workflow(
         workspace_root=workspace_root,
         source_sha=source_sha,
@@ -552,6 +670,8 @@ def publish_app_release(
         workspace_root=workspace_root,
         tag=tag,
         source_sha=source_sha,
+        notes_markdown=notes_markdown,
+        notes_source_path=notes_source_path,
         console=console,
         dry_run=dry_run,
     )
@@ -570,11 +690,3 @@ def publish_app_release(
             return watched
 
     return Ok((candidate.value.url, release.value.url))
-
-
-def app_main_head_sha(*, workspace_root: Path) -> Result[str, ReleaseError]:
-    return get_ref_head_sha(
-        workspace_root=workspace_root,
-        repo=config.APP_REPO_SLUG,
-        ref=config.APP_DEFAULT_BRANCH,
-    )

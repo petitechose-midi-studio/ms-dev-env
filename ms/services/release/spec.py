@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text
 from ms.services.release.config import DIST_SPEC_DIR
 from ms.services.release.errors import ReleaseError
 from ms.services.release.model import PinnedRepo, ReleaseChannel
@@ -161,7 +162,7 @@ def write_release_spec(
     try:
         payload = _spec_obj(channel=channel, tag=tag, pinned=pinned)
         text = json.dumps(payload, indent=2) + "\n"
-        path.write_text(text, encoding="utf-8")
+        atomic_write_text(path, text, encoding="utf-8")
     except OSError as e:
         return Err(
             ReleaseError(

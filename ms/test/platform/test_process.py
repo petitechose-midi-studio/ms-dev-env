@@ -110,19 +110,44 @@ class TestRunSilent:
     """Test run_silent function."""
 
     def test_success_returns_none(self, tmp_path: Path) -> None:
-        result = run_silent(["python", "-c", "pass"], cwd=tmp_path)
+        result = run_silent(["python", "-c", "pass"], cwd=tmp_path, timeout=1.0)
 
         assert isinstance(result, Ok)
         assert result.value is None
 
     def test_failure_returns_error(self, tmp_path: Path) -> None:
-        result = run_silent(["python", "-c", "import sys; sys.exit(1)"], cwd=tmp_path)
+        result = run_silent(
+            ["python", "-c", "import sys; sys.exit(1)"],
+            cwd=tmp_path,
+            timeout=1.0,
+        )
 
         assert isinstance(result, Err)
         assert result.error.returncode == 1
 
+    def test_failure_captures_stderr(self, tmp_path: Path) -> None:
+        result = run_silent(
+            ["python", "-c", "import sys; sys.stderr.write('boom'); sys.exit(2)"],
+            cwd=tmp_path,
+            timeout=1.0,
+        )
+
+        assert isinstance(result, Err)
+        assert result.error.returncode == 2
+        assert "boom" in result.error.stderr
+
+    def test_timeout_returns_error(self, tmp_path: Path) -> None:
+        result = run_silent(
+            ["python", "-c", "import time; time.sleep(10)"],
+            cwd=tmp_path,
+            timeout=0.1,
+        )
+
+        assert isinstance(result, Err)
+        assert "timed out" in result.error.stderr.lower()
+
     def test_command_not_found(self, tmp_path: Path) -> None:
-        result = run_silent(["nonexistent_command_12345"], cwd=tmp_path)
+        result = run_silent(["nonexistent_command_12345"], cwd=tmp_path, timeout=1.0)
 
         assert isinstance(result, Err)
         assert result.error.returncode == -1

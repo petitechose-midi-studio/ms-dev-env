@@ -95,7 +95,9 @@ def validate_tag(
             return Err(
                 ReleaseError(
                     kind="invalid_tag",
-                    message=f"stable tag must be > latest stable ({history.latest_stable.to_tag()})",
+                    message=(
+                        f"stable tag must be > latest stable ({history.latest_stable.to_tag()})"
+                    ),
                     hint="Use --bump or --tag to choose a higher version.",
                 )
             )
@@ -126,7 +128,9 @@ def validate_tag(
         return Err(
             ReleaseError(
                 kind="invalid_tag",
-                message=f"beta base version must be > latest stable ({history.latest_stable.to_tag()})",
+                message=(
+                    f"beta base version must be > latest stable ({history.latest_stable.to_tag()})"
+                ),
                 hint="Use --bump or --tag to choose a higher version.",
             )
         )
@@ -135,7 +139,10 @@ def validate_tag(
         return Err(
             ReleaseError(
                 kind="invalid_tag",
-                message=f"beta base version must be >= latest beta base ({history.latest_beta_base.to_tag()})",
+                message=(
+                    "beta base version must be >= latest beta base "
+                    f"({history.latest_beta_base.to_tag()})"
+                ),
                 hint="Use --tag to continue the current beta base.",
             )
         )

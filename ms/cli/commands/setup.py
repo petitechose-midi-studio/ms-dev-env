@@ -11,6 +11,8 @@ from ms.platform.process import run_silent
 from ms.services.repo_profiles import RepoProfile
 from ms.services.setup import SetupService
 
+_UV_TOOL_TIMEOUT_SECONDS = 10 * 60.0
+
 
 def setup(
     mode: str = typer.Option("dev", "--mode", help="Setup mode (dev only)"),
@@ -94,7 +96,7 @@ def setup(
                 cmd = ["uv", "tool", "install", "-e", str(ctx.workspace.root)]
                 ctx.console.print(" ".join(cmd), Style.DIM)
                 if not dry_run:
-                    ires = run_silent(cmd, cwd=ctx.workspace.root)
+                    ires = run_silent(cmd, cwd=ctx.workspace.root, timeout=_UV_TOOL_TIMEOUT_SECONDS)
                     if isinstance(ires, Err):
                         ctx.console.error(str(ires.error))
                         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
@@ -104,7 +106,7 @@ def setup(
                 cmd = ["uv", "tool", "update-shell"]
                 ctx.console.print(" ".join(cmd), Style.DIM)
                 if not dry_run:
-                    ures = run_silent(cmd, cwd=ctx.workspace.root)
+                    ures = run_silent(cmd, cwd=ctx.workspace.root, timeout=_UV_TOOL_TIMEOUT_SECONDS)
                     if isinstance(ures, Err):
                         ctx.console.error(str(ures.error))
                         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
