@@ -395,6 +395,26 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #41 is opened on top of #40.
 
+- A8 (legacy shim reduction + architecture gates): IN PROGRESS (code complete, PR pending)
+  - Branch: `refactor/release-architecture-a8-shim-reduction`
+  - Base strategy: stacked on A7 while #41 is open.
+  - Scope delivered:
+    - reduced CLI usage of legacy `ms/services/release/*` shims in favor of
+      `ms/release/{domain,infra,flow}` imports where equivalent modules exist.
+    - removed `flow -> cli` coupling in guided release flow by introducing
+      `ms/release/flow/guided/selection.py` and adapting CLI selector conversions.
+    - switched CI architecture job from advisory to blocking in `.github/workflows/ci.yml`.
+    - aligned architecture gates to current migration phase with bounded non-strict
+      size caps for newly extracted guided modules.
+  - Behavior contract: no intentional behavior change; CLI UX and release flow semantics preserved.
+  - Pre-PR gate (completed):
+    - `uv run ruff check <A8-edited-files>`
+    - `uv run pyright <A8-edited-files>`
+    - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+  - Remaining: commit A8, push branch, open stacked PR (base #41 while A7 is open).
+
 ## Wave B - Services transverses
 
 PR-B1: split `services/build.py` -> `services/build/*`

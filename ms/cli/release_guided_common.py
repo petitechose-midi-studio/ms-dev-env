@@ -7,6 +7,8 @@ from typing import Literal
 from ms.cli.selector import SelectorOption, SelectorResult, select_one
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
+from ms.release.domain.models import ReleaseBump, ReleaseChannel
+from ms.release.errors import ReleaseError
 from ms.release.flow.guided.bootstrap import (
     bootstrap_app_session as bootstrap_app_session_flow,
 )
@@ -25,13 +27,8 @@ from ms.release.flow.guided.bootstrap import (
 from ms.release.flow.guided.bootstrap import (
     save_content_state as save_content_state_flow,
 )
-from ms.release.view.guided_console import print_notes_status as print_notes_status_view
-from ms.services.release.ci import fetch_green_head_shas
-from ms.services.release.errors import ReleaseError
-from ms.services.release.gh import current_user, list_recent_commits
-from ms.services.release.model import ReleaseBump, ReleaseChannel
-from ms.services.release.notes import load_external_notes_file
-from ms.services.release.wizard_session import (
+from ms.release.flow.guided.selection import Selection
+from ms.release.flow.guided.sessions import (
     AppReleaseSession,
     ContentReleaseSession,
     load_app_session,
@@ -41,12 +38,20 @@ from ms.services.release.wizard_session import (
     save_app_session,
     save_content_session,
 )
+from ms.release.infra.github.ci import fetch_green_head_shas
+from ms.release.infra.github.client import current_user, list_recent_commits
+from ms.release.view.guided_console import print_notes_status as print_notes_status_view
+from ms.services.release.notes import load_external_notes_file
 
 ResumeChoice = Literal["resume", "new"]
 NoteAction = Literal["keep", "clear"]
 
 
 PermissionCheck = Callable[..., Result[None, ReleaseError]]
+
+
+def to_guided_selection[T](choice: SelectorResult[T]) -> Selection[T]:
+    return Selection(action=choice.action, value=choice.value, index=choice.index)
 
 
 def select_channel(

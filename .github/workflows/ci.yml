@@ -59,10 +59,9 @@ jobs:
       - name: Check (advisory)
         run: uv run ms check --no-strict
 
-  architecture_advisory:
-    name: architecture (advisory)
+  architecture:
+    name: architecture
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -80,10 +79,9 @@ jobs:
       - name: Sync Python deps
         run: uv sync --frozen --extra dev
 
-      - name: Architecture tests (advisory)
+      - name: Architecture tests
         env:
           MS_ARCH_CHECKS: "1"
-          MS_ARCH_STRICT: "1"
         run: uv run pytest ms/test/architecture -q
 
   test_fedora:

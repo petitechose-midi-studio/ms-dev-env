@@ -18,7 +18,7 @@ from ms.cli.context import CLIContext, build_context
 from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
-from ms.release.domain import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel
+from ms.release.domain import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel, config
 from ms.release.flow.app_plan import build_app_release_plan
 from ms.release.flow.app_prepare import (
     PreparedAppRelease,
@@ -35,7 +35,6 @@ from ms.release.view.app_console import (
     print_app_plan,
     print_app_replay,
 )
-from ms.services.release import config
 from ms.services.release.auto import resolve_pinned_auto_strict
 from ms.services.release.notes import load_external_notes_file
 from ms.services.release.plan_file import PlanInput, write_plan_file

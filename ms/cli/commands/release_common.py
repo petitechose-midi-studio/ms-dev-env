@@ -10,10 +10,10 @@ import typer
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.services.release.ci import fetch_green_head_shas
-from ms.services.release.errors import ReleaseError
-from ms.services.release.gh import current_user, list_recent_commits
-from ms.services.release.model import PinnedRepo, ReleaseChannel, ReleaseRepo
+from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo
+from ms.release.errors import ReleaseError
+from ms.release.infra.github.ci import fetch_green_head_shas
+from ms.release.infra.github.client import current_user, list_recent_commits
 from ms.services.release.plan_file import PlanInput, read_plan_file
 
 ReleaseProduct = Literal["content", "app"]

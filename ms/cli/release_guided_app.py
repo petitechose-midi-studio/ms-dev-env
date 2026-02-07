@@ -9,16 +9,18 @@ from ms.cli.release_guided_common import (
     select_bump,
     select_channel,
     select_green_commit,
+    to_guided_selection,
 )
 from ms.cli.selector import SelectorOption, SelectorResult, confirm_yn, select_one
-from ms.core.result import Result
+from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
-from ms.release.domain.models import PinnedRepo
+from ms.release.domain.config import APP_RELEASE_REPO, APP_REPO_SLUG
+from ms.release.domain.models import PinnedRepo, ReleaseBump, ReleaseChannel
+from ms.release.errors import ReleaseError
 from ms.release.flow.guided.app_steps import MenuOption, run_guided_app_release_flow
+from ms.release.flow.guided.selection import Selection
+from ms.release.flow.guided.sessions import AppReleaseSession, clear_app_session
 from ms.release.view.guided_console import print_notes_status
-from ms.services.release import config
-from ms.services.release.errors import ReleaseError
-from ms.services.release.model import ReleaseBump, ReleaseChannel
 from ms.services.release.service import (
     AppPrepareResult,
     ensure_app_release_permissions,
@@ -27,7 +29,6 @@ from ms.services.release.service import (
     prepare_app_pr,
     publish_app_release,
 )
-from ms.services.release.wizard_session import AppReleaseSession, clear_app_session
 
 
 def _select_menu(
@@ -86,22 +87,26 @@ def run_guided_app_release(
 
         def select_channel(
             self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-        ) -> SelectorResult[ReleaseChannel]:
-            return select_channel(
-                title=title,
-                subtitle=subtitle,
-                initial_index=initial_index,
-                allow_back=allow_back,
+        ) -> Selection[ReleaseChannel]:
+            return to_guided_selection(
+                select_channel(
+                    title=title,
+                    subtitle=subtitle,
+                    initial_index=initial_index,
+                    allow_back=allow_back,
+                )
             )
 
         def select_bump(
             self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-        ) -> SelectorResult[ReleaseBump]:
-            return select_bump(
-                title=title,
-                subtitle=subtitle,
-                initial_index=initial_index,
-                allow_back=allow_back,
+        ) -> Selection[ReleaseBump]:
+            return to_guided_selection(
+                select_bump(
+                    title=title,
+                    subtitle=subtitle,
+                    initial_index=initial_index,
+                    allow_back=allow_back,
+                )
             )
 
         def select_green_commit(
@@ -116,8 +121,8 @@ def run_guided_app_release(
             current_sha: str | None,
             initial_index: int,
             allow_back: bool,
-        ) -> Result[SelectorResult[str], ReleaseError]:
-            return select_green_commit(
+        ) -> Result[Selection[str], ReleaseError]:
+            selected = select_green_commit(
                 workspace_root=workspace_root,
                 repo_slug=repo_slug,
                 ref=ref,
@@ -128,6 +133,9 @@ def run_guided_app_release(
                 initial_index=initial_index,
                 allow_back=allow_back,
             )
+            if isinstance(selected, Err):
+                return selected
+            return Ok(to_guided_selection(selected.value))
 
         def select_menu(
             self,
@@ -137,13 +145,15 @@ def run_guided_app_release(
             options: list[MenuOption[str]],
             initial_index: int,
             allow_back: bool,
-        ) -> SelectorResult[str]:
-            return _select_menu(
-                title=title,
-                subtitle=subtitle,
-                options=options,
-                initial_index=initial_index,
-                allow_back=allow_back,
+        ) -> Selection[str]:
+            return to_guided_selection(
+                _select_menu(
+                    title=title,
+                    subtitle=subtitle,
+                    options=options,
+                    initial_index=initial_index,
+                    allow_back=allow_back,
+                )
             )
 
         def confirm(self, *, prompt: str) -> bool:
@@ -246,7 +256,7 @@ def run_guided_app_release(
         notes_file=notes_file,
         watch=watch,
         dry_run=dry_run,
-        app_repo_slug=config.APP_REPO_SLUG,
-        app_release_repo=config.APP_RELEASE_REPO,
+        app_repo_slug=APP_REPO_SLUG,
+        app_release_repo=APP_RELEASE_REPO,
         deps=_Deps(),
     )

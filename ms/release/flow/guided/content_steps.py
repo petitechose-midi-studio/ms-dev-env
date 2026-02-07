@@ -4,13 +4,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Literal, Protocol
 
-from ms.cli.selector import SelectorResult
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleasePlan, ReleaseRepo
 from ms.release.errors import ReleaseError
 
 from .fsm import FINISH, StepHandler, StepOutcome, advance, run_state_machine
+from .selection import Selection
 from .sessions import ContentReleaseSession
 
 
@@ -40,11 +40,11 @@ class ContentGuidedDependencies(Protocol):
 
     def select_channel(
         self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> SelectorResult[Literal["stable", "beta"]]: ...
+    ) -> Selection[Literal["stable", "beta"]]: ...
 
     def select_bump(
         self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> SelectorResult[Literal["major", "minor", "patch"]]: ...
+    ) -> Selection[Literal["major", "minor", "patch"]]: ...
 
     def select_green_commit(
         self,
@@ -58,7 +58,7 @@ class ContentGuidedDependencies(Protocol):
         current_sha: str | None,
         initial_index: int,
         allow_back: bool,
-    ) -> Result[SelectorResult[str], ReleaseError]: ...
+    ) -> Result[Selection[str], ReleaseError]: ...
 
     def select_menu(
         self,
@@ -68,7 +68,7 @@ class ContentGuidedDependencies(Protocol):
         options: list[MenuOption[str]],
         initial_index: int,
         allow_back: bool,
-    ) -> SelectorResult[str]: ...
+    ) -> Selection[str]: ...
 
     def confirm(self, *, prompt: str) -> bool: ...
 

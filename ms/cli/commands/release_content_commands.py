@@ -18,7 +18,7 @@ from ms.cli.context import CLIContext, build_context
 from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
-from ms.release.domain import PinnedRepo, ReleaseBump, ReleaseChannel
+from ms.release.domain import PinnedRepo, ReleaseBump, ReleaseChannel, config
 from ms.release.flow.content_plan import build_content_release_plan
 from ms.release.flow.content_preflight import (
     collect_release_preflight_issues,
@@ -43,7 +43,6 @@ from ms.release.view.content_console import (
     print_open_control_preflight,
     print_release_preflight_issues,
 )
-from ms.services.release import config
 from ms.services.release.auto import (
     RepoReadiness,
     probe_release_readiness,

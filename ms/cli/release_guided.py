@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.cli.release_guided_app import run_guided_app_release
+from ms.cli.release_guided_common import to_guided_selection
 from ms.cli.release_guided_content import run_guided_content_release
-from ms.cli.selector import SelectorOption, is_interactive_terminal, select_one
+from ms.cli.selector import SelectorOption, SelectorResult, is_interactive_terminal, select_one
 from ms.core.result import Result
 from ms.output.console import ConsoleProtocol
+from ms.release.errors import ReleaseError
 from ms.release.flow.guided.router import MenuOption, run_guided_release_flow
-from ms.services.release.errors import ReleaseError
+from ms.release.flow.guided.selection import Selection
 
 
 def _select_product(
@@ -18,7 +20,7 @@ def _select_product(
     options: list[MenuOption[str]],
     initial_index: int,
     allow_back: bool,
-):
+) -> SelectorResult[str]:
     selector_options = [
         SelectorOption(value=option.value, label=option.label, detail=option.detail)
         for option in options
@@ -52,13 +54,15 @@ def run_guided_release(
             options: list[MenuOption[str]],
             initial_index: int,
             allow_back: bool,
-        ):
-            return _select_product(
-                title=title,
-                subtitle=subtitle,
-                options=options,
-                initial_index=initial_index,
-                allow_back=allow_back,
+        ) -> Selection[str]:
+            return to_guided_selection(
+                _select_product(
+                    title=title,
+                    subtitle=subtitle,
+                    options=options,
+                    initial_index=initial_index,
+                    allow_back=allow_back,
+                )
             )
 
         def run_guided_app_release(

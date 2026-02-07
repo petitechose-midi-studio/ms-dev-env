@@ -8,11 +8,11 @@ import pytest
 def require_arch_checks_enabled() -> None:
     """Skip architecture checks unless explicitly enabled.
 
-    Rationale: PR-A1 introduces advisory architecture checks first, then they can
-    be turned into blocking checks once the migration reaches the target shape.
+    CI sets ``MS_ARCH_CHECKS=1`` so architecture tests are blocking in pull
+    requests. Local runs can opt in the same way when needed.
     """
 
     if os.getenv("MS_ARCH_CHECKS") != "1":
         pytest.skip(
-            "architecture checks are advisory for now; set MS_ARCH_CHECKS=1 to enable",
+            "architecture checks disabled; set MS_ARCH_CHECKS=1 to enable",
         )

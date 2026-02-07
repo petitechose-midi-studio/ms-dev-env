@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from ms.cli.selector import SelectorResult
 from ms.core.result import Err, Result
 from ms.output.console import ConsoleProtocol
 from ms.release.errors import ReleaseError
+
+from .selection import Selection
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,7 +29,7 @@ class GuidedRouterDependencies(Protocol):
         options: list[MenuOption[str]],
         initial_index: int,
         allow_back: bool,
-    ) -> SelectorResult[str]: ...
+    ) -> Selection[str]: ...
 
     def run_guided_app_release(
         self,
