@@ -28,7 +28,9 @@ from ms.release.flow.app_publish import (
     publish_app_release_workflows,
     resolve_app_publish_notes,
 )
+from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.resolve.app_inputs import resolve_pinned_app
+from ms.release.resolve.plan_io import PlanInput, write_plan_file
 from ms.release.view.app_console import (
     print_app_auto_blockers,
     print_app_notes_attachment,
@@ -36,8 +38,6 @@ from ms.release.view.app_console import (
     print_app_replay,
 )
 from ms.services.release.auto import resolve_pinned_auto_strict
-from ms.services.release.notes import load_external_notes_file
-from ms.services.release.plan_file import PlanInput, write_plan_file
 from ms.services.release.service import (
     ensure_app_release_permissions,
     ensure_ci_green,

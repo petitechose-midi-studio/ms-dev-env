@@ -38,10 +38,10 @@ from ms.release.flow.guided.sessions import (
     save_app_session,
     save_content_session,
 )
+from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.infra.github.ci import fetch_green_head_shas
 from ms.release.infra.github.client import current_user, list_recent_commits
 from ms.release.view.guided_console import print_notes_status as print_notes_status_view
-from ms.services.release.notes import load_external_notes_file
 
 ResumeChoice = Literal["resume", "new"]
 NoteAction = Literal["keep", "clear"]

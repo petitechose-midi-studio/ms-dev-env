@@ -20,8 +20,8 @@ from ms.release.errors import ReleaseError
 from ms.release.flow.guided.content_steps import MenuOption, run_guided_content_release_flow
 from ms.release.flow.guided.selection import Selection
 from ms.release.flow.guided.sessions import ContentReleaseSession, clear_content_session
+from ms.release.infra.open_control import OpenControlPreflightReport, preflight_open_control
 from ms.release.view.guided_console import print_notes_status
-from ms.services.release.open_control import OpenControlPreflightReport, preflight_open_control
 from ms.services.release.service import (
     ensure_ci_green,
     ensure_release_permissions,

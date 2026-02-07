@@ -34,7 +34,9 @@ from ms.release.flow.content_remove import (
     remove_content_release_artifacts,
     resolve_remove_tags,
 )
+from ms.release.infra.open_control import preflight_open_control
 from ms.release.resolve.content_inputs import parse_override_items, resolve_pinned_content
+from ms.release.resolve.plan_io import PlanInput, write_plan_file
 from ms.release.view.content_console import (
     print_auto_blockers,
     print_auto_suggestions,
@@ -48,8 +50,6 @@ from ms.services.release.auto import (
     probe_release_readiness,
     resolve_pinned_auto_smart,
 )
-from ms.services.release.open_control import preflight_open_control
-from ms.services.release.plan_file import PlanInput, write_plan_file
 from ms.services.release.remove import (
     delete_github_releases,
     remove_distribution_artifacts,
