@@ -11,6 +11,7 @@ __pycache__/
 build/
 !ms/services/build/
 !ms/services/build/**
+ms/services/build/__pycache__/
 target/
 node_modules/
 
