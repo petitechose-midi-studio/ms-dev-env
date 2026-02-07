@@ -14,6 +14,8 @@ def test_direct_rich_imports_are_limited_to_approved_modules() -> None:
         "cli/commands/clean.py",
         "cli/commands/wipe.py",
         "oc_cli/common.py",
+        "oc_cli/common/runtime.py",
+        "oc_cli/common/output_parser.py",
     }
 
     offenders: list[str] = []

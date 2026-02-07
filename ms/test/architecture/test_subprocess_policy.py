@@ -35,6 +35,8 @@ def test_direct_subprocess_usage_is_constrained_to_allowlist() -> None:
         "services/checkers/common.py",
         "services/hardware.py",
         "oc_cli/common.py",
+        "oc_cli/common/execution.py",
+        "oc_cli/common/serial.py",
         "oc_cli/oc_build.py",
         "oc_cli/oc_upload.py",
         "oc_cli/oc_monitor.py",
