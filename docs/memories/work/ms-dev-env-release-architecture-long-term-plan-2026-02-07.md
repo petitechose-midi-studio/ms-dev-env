@@ -501,31 +501,32 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B3 (`services/repos.py` split).
 
-- B3 (repos service split): IN PROGRESS (LOCAL)
+- B3 (repos service split): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/47
   - Branch: `refactor/release-architecture-b3-repos-split`
-  - Base strategy: start from merged B2 (`base branch refactor/release-architecture-b2-toolchains-split`)
-  - Scope delivered locally:
+  - Base strategy: stacked on B2 (`base branch refactor/release-architecture-b2-toolchains-split`)
+  - Scope delivered:
     - replaced monolith `ms/services/repos.py` with package `ms/services/repos/*`
     - introduced split modules: `models`, `manifest`, `git_ops`, `lockfile`, `sync`, `service`, `_context`
     - preserved import compatibility at `ms.services.repos` via package `__init__.py`
     - preserved `RepoService` public import used by CLI/setup/tests
-  - Validation (completed locally):
+  - Validation (completed):
     - `uv run ruff check ...` (edited files)
     - `uv run pyright ...` (edited files)
     - `uv run pytest ms/test/services/test_repos_service.py -q`
     - `uv run pytest ms/test/cli -q`
     - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
-  - Next: open PR-B3.
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+  - Next: start B4 (`oc_cli/common.py` split).
 
-### 6.1) Ecart restant pour atteindre la cible release (post-B2 merged, B3 local)
+### 6.1) Ecart restant pour atteindre la cible release (post-B2 merged, B3 in review)
 
 Etat mesure sur la branche `refactor/release-architecture-b3-repos-split`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
   - lots merges: `12/19` (A1-A10 + B1 + B2)
-  - lots en review: `0/19`
-  - lot en cours local: `B3`
+  - lots en review: `1/19` (B3)
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
@@ -534,7 +535,7 @@ Etat de trajectoire:
 - Wave A est completement mergee.
 - B1 est mergee avec compat import preservee et sans changement de comportement intentionnel.
 - B2 est mergee avec le meme contrat de non-regression comportementale.
-- B3 est demarree localement avec compat import preservee et sans changement de comportement intentionnel.
+- B3 est ouverte en review avec compat import preservee et sans changement de comportement intentionnel.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -728,7 +729,7 @@ Le programme est considere termine quand:
 
 - Branche active actuelle: `refactor/release-architecture-b3-repos-split`
 - Wave A: PR `#39` -> `#44` merged
-- Stack ouverte en review: aucune (pre-PR B3)
+- Stack ouverte en review: `#47` (B3)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. ouvrir PR-B3 (`services/repos.py` -> `services/repos/*`)
+  1. finaliser review/merge PR-B3 (`#47`)
   2. demarrer PR-B4 (`oc_cli/common.py` split)
