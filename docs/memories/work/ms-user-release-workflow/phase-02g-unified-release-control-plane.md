@@ -142,7 +142,7 @@ Use one control plane model for all releaseable products.
 - Inputs: selected SHAs + candidate references
 - Downloads candidate artifacts only (no rebuild)
 - Verifies checksums/provenance
-- Signs channel manifests (content) and updater metadata (app)
+- Signs channel manifests (content); app release publishes manual-install packages
 - Publishes final release tags/assets
 
 ### Candidate storage contract (GitHub Releases RC)
@@ -217,7 +217,7 @@ Tasks:
   - upload `candidate.json` + `checksums.txt`
   - publish draft RC release `rc-<sha>`
 - For `ms-manager` candidate:
-  - build installers/update bundles
+  - build native install packages (MSI/DMG/DEB/RPM)
   - do not publish final stable release in candidate lane
 
 Tests:
@@ -281,15 +281,14 @@ Tasks:
 - Replace tag-build release flow with promotion flow:
   - input: version tag + candidate SHA
   - download candidate assets from `rc-<sha>`
-  - sign updater payloads in `app-release` environment
-  - generate `latest.json`
+  - verify native package inventory (MSI/DMG/DEB/RPM)
   - create final GitHub release
-- Keep updater channel stable-only (current decision) unless explicitly changed later.
+- Keep app update policy manual on all platforms (`releases/latest` redirect from UI).
 
 Tests:
 
 - Install app version A, publish version B via promotion-only path, in-app badge/update works.
-- `latest.json` includes linux/windows/darwin x64+arm64 entries.
+- Final release assets include MSI/DMG/DEB/RPM and no AppImage/NSIS artifacts.
 
 ### 8. Unified `ms release` orchestration (content + app)
 
@@ -354,9 +353,10 @@ Tests:
 
 - Stable/beta publish blocked until environment approval.
 
-5) App updater correctness
+5) App release policy correctness
 
-- `latest.json` generated correctly and update installs from previous version.
+- App update action redirects to GitHub `releases/latest` (manual install).
+- No in-app app-binary auto-install path is used.
 
 6) Operational recovery
 

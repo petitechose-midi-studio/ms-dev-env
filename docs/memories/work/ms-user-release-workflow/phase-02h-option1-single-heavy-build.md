@@ -37,6 +37,8 @@ For app releases:
 - Exactly one heavy build for the final release commit SHA.
 - Final publish workflow promotes existing candidate assets only.
 - No rebuild inside final release workflow.
+- App package formats are fixed to native targets: MSI (Windows), DMG (macOS), DEB/RPM (Linux).
+- App update delivery is manual (GitHub latest release page), not in-app auto-install.
 
 ## Target workflow (end-to-end, app)
 
@@ -93,6 +95,7 @@ Changes:
 - Checkout exact `source_sha`.
 - Build heavy multi-platform Tauri artifacts.
 - Publish draft candidate release `rc-<source_sha>`.
+- Candidate artifacts must include only native packages (MSI/DMG/DEB/RPM), with checksums metadata.
 
 Acceptance:
 
@@ -129,7 +132,7 @@ Requirements:
 - Inputs include `tag` and `source_sha`.
 - Validate candidate tag `rc-<source_sha>` exists.
 - Download candidate assets.
-- Rewrite `latest.json` URLs from candidate tag to final release tag.
+- Do not generate or rewrite updater `latest.json` for app auto-install.
 - Publish final release assets.
 - Keep environment gate `app-release`.
 
@@ -193,7 +196,7 @@ With explicit reproducible plan:
 2) Provenance
 
 - Verify final release assets come from `rc-<source_sha>`.
-- Verify `latest.json` points to final tag assets.
+- Verify final release contains only MSI/DMG/DEB/RPM packages (+ expected signatures/checksums).
 
 3) Safety
 

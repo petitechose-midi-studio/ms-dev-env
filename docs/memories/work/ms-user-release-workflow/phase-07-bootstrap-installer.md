@@ -18,7 +18,7 @@ Prerequisites:
 ## Approach (recommended)
 
 - Use Tauri bundler to build installers per platform.
-- The installer ships a known ms-manager build; afterwards, ms-manager can self-update (user-driven).
+- The installer ships a known ms-manager build; afterwards, app updates are manual via GitHub Releases.
 
 App self-updates are tracked in:
 - `docs/memories/work/ms-user-release-workflow/phase-07a-ms-manager-app-updates.md`
@@ -26,14 +26,14 @@ App self-updates are tracked in:
 Platform specifics (v1):
 
 - Windows 10+:
-  - Ship NSIS `-setup.exe`.
+  - Ship MSI (WiX).
   - WebView2: use `downloadBootstrapper` so WebView2 is installed if missing.
   - Fallback (offline / locked-down IT): document how to install WebView2 Runtime manually.
 - macOS:
   - Ship DMG.
   - For good UX, plan signing + notarization (Gatekeeper).
 - Linux:
-  - Start with AppImage (user-level), and later consider `.deb`/`.rpm` if we want package-managed deps.
+  - Ship native packages: `.deb` and `.rpm`.
   - Supported matrix for v1 requires WebKitGTK 4.1 (see Phase 04).
 
 ## PATH / CLI
