@@ -483,31 +483,32 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B2 (`services/toolchains.py` split).
 
-- B2 (toolchains service split): IN PROGRESS (LOCAL)
+- B2 (toolchains service split): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/46
   - Branch: `refactor/release-architecture-b2-toolchains-split`
-  - Base strategy: start from merged B1 (`base branch refactor/release-architecture-b1-build-split`)
-  - Scope delivered locally:
+  - Base strategy: stacked on B1 (`base branch refactor/release-architecture-b1-build-split`)
+  - Scope delivered:
     - replaced monolith `ms/services/toolchains.py` with package `ms/services/toolchains/*`
     - introduced split modules: `models`, `checksum`, `helpers`, `sync`, `service`, `_context`
     - preserved import compatibility at `ms.services.toolchains` via package `__init__.py`
     - preserved `ToolchainService` and `sha256_file` public imports used by CLI/tests
-  - Validation (completed locally):
+  - Validation (completed):
     - `uv run ruff check ...` (edited files)
     - `uv run pyright ...` (edited files)
     - `uv run pytest ms/test/services/test_toolchains_checksums.py -q`
     - `uv run pytest ms/test/cli -q`
     - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
-  - Next: open PR-B2.
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+  - Next: start B3 (`services/repos.py` split).
 
-### 6.1) Ecart restant pour atteindre la cible release (post-B1 merged, B2 local)
+### 6.1) Ecart restant pour atteindre la cible release (post-B1 merged, B2 in review)
 
 Etat mesure sur la branche `refactor/release-architecture-b2-toolchains-split`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
   - lots merges: `11/19` (A1-A10 + B1)
-  - lots en review: `0/19`
-  - lot en cours local: `B2`
+  - lots en review: `1/19` (B2)
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
@@ -515,7 +516,7 @@ Etat de trajectoire:
 
 - Wave A est completement mergee.
 - B1 est mergee avec compat import preservee et sans changement de comportement intentionnel.
-- B2 est demarree localement avec le meme contrat de non-regression comportementale.
+- B2 est ouverte en review avec le meme contrat de non-regression comportementale.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -706,7 +707,7 @@ Le programme est considere termine quand:
 
 - Branche active actuelle: `refactor/release-architecture-b2-toolchains-split`
 - Wave A: PR `#39` -> `#44` merged
-- Stack ouverte en review: aucune (pre-PR B2)
+- Stack ouverte en review: `#46` (B2)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. ouvrir PR-B2 (`services/toolchains.py` -> `services/toolchains/*`)
+  1. finaliser review/merge PR-B2 (`#46`)
   2. demarrer PR-B3 (`services/repos.py` -> `services/repos/*`)
