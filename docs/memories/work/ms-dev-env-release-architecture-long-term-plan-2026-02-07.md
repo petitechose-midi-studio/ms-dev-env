@@ -347,6 +347,33 @@ Snapshot date: 2026-02-07
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/38
   - Notes: introduced `ms/release/infra/repos/{git_ops,app,distribution}` and converted
     `ms/services/release/{app_repo,dist_repo}` into thin compatibility shims.
+  - Verification: base branch `refactor/release-architecture-a4-infra-repos` synced local/remote on
+    commit `0f6566e` before starting A5 work.
+
+- A5 (content resolve/flow/view extraction): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/39
+  - Branch base: `refactor/release-architecture-a4-infra-repos`
+  - Notes: extracted content path into `ms/release/{resolve,flow,view}` modules and
+    rewired `ms/cli/commands/release_content_commands.py` to delegate orchestration.
+  - Quality gate: strict typing cleanup done (no `Any`/unnecessary `cast`) and validated with:
+    `uv run ruff check ...`, `uv run pyright ...`, `uv run pytest ms/test/services/test_release_*.py`
+    `ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`.
+  - Stack: PR #39 is opened on top of #38.
+
+- A6 (app resolve/flow/view extraction): READY TO START
+  - Planned branch: `refactor/release-architecture-a6-app-flow`
+  - Planned base: merge head of A5 (or stacked on top of #39 if A5 is still open).
+  - Scope targets:
+    - `ms/release/resolve/app_inputs.py`
+    - `ms/release/flow/app_{plan,prepare,publish}.py`
+    - `ms/release/view/app_console.py`
+    - `ms/cli/commands/release_app_commands.py`
+  - Behavior contract: no intentional behavior change; keep `ms release app ...` UX stable.
+  - Quality gate before PR opening:
+    - `uv run ruff check <A6-edited-files>`
+    - `uv run pyright <A6-edited-files>`
+    - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
 
 ## Wave B - Services transverses
 
