@@ -33,7 +33,7 @@ def test_direct_subprocess_usage_is_constrained_to_allowlist() -> None:
         "platform/clipboard.py",
         "services/bridge_headless.py",
         "services/checkers/common.py",
-        "services/hardware.py",
+        "services/hardware/adapter.py",
         "oc_cli/common.py",
         "oc_cli/common/execution.py",
         "oc_cli/common/serial.py",
