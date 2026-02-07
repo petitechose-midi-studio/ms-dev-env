@@ -360,6 +360,21 @@ Snapshot date: 2026-02-07
     `ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`.
   - Stack: PR #39 is opened on top of #38.
 
+- A6 (app resolve/flow/view extraction): READY TO START
+  - Planned branch: `refactor/release-architecture-a6-app-flow`
+  - Planned base: merge head of A5 (or stacked on top of #39 if A5 is still open).
+  - Scope targets:
+    - `ms/release/resolve/app_inputs.py`
+    - `ms/release/flow/app_{plan,prepare,publish}.py`
+    - `ms/release/view/app_console.py`
+    - `ms/cli/commands/release_app_commands.py`
+  - Behavior contract: no intentional behavior change; keep `ms release app ...` UX stable.
+  - Quality gate before PR opening:
+    - `uv run ruff check <A6-edited-files>`
+    - `uv run pyright <A6-edited-files>`
+    - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+
 ## Wave B - Services transverses
 
 PR-B1: split `services/build.py` -> `services/build/*`
