@@ -354,7 +354,7 @@ Snapshot date: 2026-02-07
   - Verification: base branch `refactor/release-architecture-a4-infra-repos` synced local/remote on
     commit `0f6566e` before starting A5 work.
 
-- A5 (content resolve/flow/view extraction): IN REVIEW
+- A5 (content resolve/flow/view extraction): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/39
   - Branch base: `refactor/release-architecture-a4-infra-repos`
   - Notes: extracted content path into `ms/release/{resolve,flow,view}` modules and
@@ -364,7 +364,7 @@ Snapshot date: 2026-02-07
     `ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`.
   - Stack: PR #39 is opened on top of #38.
 
-- A6 (app resolve/flow/view extraction): IN REVIEW
+- A6 (app resolve/flow/view extraction): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/40
   - Branch: `refactor/release-architecture-a6-app-flow`
   - Base strategy: stacked on A5 (`base PR #39`).
@@ -381,7 +381,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #40 is opened on top of #39.
 
-- A7 (guided split + sessions extraction): IN REVIEW
+- A7 (guided split + sessions extraction): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/41
   - Branch: `refactor/release-architecture-a7-guided-split`
   - Base strategy: stacked on A6 (`base PR #40`).
@@ -399,7 +399,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #41 is opened on top of #40.
 
-- A8 (legacy shim reduction + architecture gates): IN REVIEW
+- A8 (legacy shim reduction + architecture gates): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/42
   - Branch: `refactor/release-architecture-a8-shim-reduction`
   - Base strategy: stacked on A7 (`base PR #41`).
@@ -420,7 +420,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #42 is opened on top of #41.
 
-- A9 (plan_io + artifacts + open_control extraction): IN REVIEW
+- A9 (plan_io + artifacts + open_control extraction): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/43
   - Branch: `refactor/release-architecture-a9-plan-artifacts-open-control`
   - Base strategy: stacked on A8 (`base PR #42`).
@@ -444,7 +444,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #43 is opened on top of #42.
 
-- A10 (auto resolvers + ci/permissions flow extraction): IN REVIEW
+- A10 (auto resolvers + ci/permissions flow extraction): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/44
   - Branch: `refactor/release-architecture-a10-auto-ci-permissions`
   - Base strategy: stacked on A9 (`base PR #43`).
@@ -466,22 +466,38 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #44 is opened on top of #43.
 
-### 6.1) Ecart restant pour atteindre la cible release (post-A10)
+- B1 (build service split): IN PROGRESS (LOCAL)
+  - Branch: `refactor/release-architecture-b1-build-split`
+  - Base strategy: start Wave B after full Wave A merge
+  - Scope delivered locally:
+    - replaced monolith `ms/services/build.py` with package `ms/services/build/*`
+    - introduced split modules: `_context`, `models`, `helpers`, `targets`, `runtime`, `service`
+    - preserved import compatibility at `ms.services.build` via package `__init__.py`
+    - updated `.gitignore` to unignore `ms/services/build/*` path explicitly
+  - Validation (completed locally):
+    - `uv run ruff check ...` (edited files)
+    - `uv run pyright ...` (edited files)
+    - `uv run pytest ms/test/cli -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
+  - Next: open PR-B1.
 
-Etat mesure sur la branche `refactor/release-architecture-a10-auto-ci-permissions`:
+### 6.1) Ecart restant pour atteindre la cible release (post-A10 merged, B1 local)
 
-- Position stack: A5 -> A10 ouverts en review (`#39`, `#40`, `#41`, `#42`, `#43`, `#44`)
-- Progression lots long-terme (apres ajout A9/A10):
-  - lots merges: `4/19` (A1-A4)
-  - lots en review: `6/19` (A5-A10)
+Etat mesure sur la branche `refactor/release-architecture-b1-build-split`:
+
+- Position stack Wave A: PR `#39` -> `#44` merged
+- Progression lots long-terme:
+  - lots merges: `10/19` (A1-A10)
+  - lots en review: `0/19`
+  - lot en cours local: `B1`
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
 Etat de trajectoire:
 
-- `A9` est ouvert en review: extraction `plan_io`, `infra/artifacts/*`, `infra/open_control` + rewiring CLI valide.
-- `A10` est ouvert en review et complete la cible treeview release (`resolve/auto/*` + `flow/{permissions,ci_gate}`).
-- Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus.
+- Wave A est completement mergee.
+- B1 est demarre localement avec compat import preservee et sans changement de comportement intentionnel.
+- Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
 
@@ -556,7 +572,7 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-A10 local, mesure locale)
+### 7.3 Snapshot courant (post-A10 merged + B1 local, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
@@ -565,14 +581,17 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
 - Legacy release actif (hors shims): `5` fichiers, `1120` lignes
 - Fichiers CLI important encore `ms.services.release.*`: `4` (4 points d'import)
 - Modules legacy release importes par CLI: `2` (`ms.services.release.service`, `ms.services.release.remove`)
-- Surface restante Wave B (hotspots): `2379` lignes
-  - `ms/services/build.py`: `541`
+- Surface restante Wave B (hotspots): `1838` lignes
   - `ms/services/toolchains.py`: `479`
   - `ms/services/repos.py`: `369`
   - `ms/oc_cli/common.py`: `504`
   - `ms/services/hardware.py`: `173`
   - `ms/cli/commands/status.py`: `313`
-- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~3499` lignes
+- Build split B1 (decompose):
+  - `ms/services/build/targets.py`: `210`
+  - `ms/services/build/helpers.py`: `141`
+  - `ms/services/build/runtime.py`: `110`
+- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~2958` lignes
 
 Mesure hotspots (script guardrail simple):
 
@@ -663,9 +682,9 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche active actuelle: `refactor/release-architecture-a10-auto-ci-permissions`
-- Stack ouverte en review: `#39` -> `#44`
-- Ordre de merge recommande: `#39` -> `#40` -> `#41` -> `#42` -> `#43` -> `#44`
+- Branche active actuelle: `refactor/release-architecture-b1-build-split`
+- Wave A: PR `#39` -> `#44` merged
+- Stack ouverte en review: aucune (pre-PR B1)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. finaliser reviews/merge de la stack A5-A10
-  2. demarrer PR-B1 (`services/build.py` -> `services/build/*`)
+  1. ouvrir PR-B1 (`services/build.py` -> `services/build/*`)
+  2. demarrer PR-B2 (`services/toolchains.py` -> `services/toolchains/*`)
