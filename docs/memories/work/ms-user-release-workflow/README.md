@@ -115,6 +115,14 @@ Reference:
   - macOS: macOS 13+.
   - Linux (WebKitGTK 4.1): Debian 13+, Ubuntu 24.04+, Fedora current, RHEL-family 10+.
   - Not supported: RHEL 9.
+- ms-manager app packaging targets (locked):
+  - Windows: MSI (WiX)
+  - macOS: DMG
+  - Linux: DEB + RPM
+  - AppImage is not shipped.
+- ms-manager app updates (locked): manual on all platforms.
+  - In-app action opens GitHub `releases/latest` for download.
+  - In-app auto-install is reserved for runtime/content bundles only (distribution manifest flow).
 - Windows installer (v1): use WebView2 `downloadBootstrapper`.
 - No PATH modifications by default (end users should not rely on CLI).
 - Unified release architecture direction:
@@ -159,6 +167,9 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 02h (TODO): Option 1 - Single Heavy Build per App Release
   - File: `phase-02h-option1-single-heavy-build.md`
 
+- Execution Plan (ACTIVE): 02g/02h manual app updates + native package cutover
+  - File: `phase-02gh-execution-plan-manual-app-updates.md`
+
 - Runbook (ACTIVE): Release Operations (Simple + Safe)
   - File: `runbook-release-operations.md`
 
@@ -177,7 +188,7 @@ Status values: TODO | IN PROGRESS | DONE
 - Phase 07 (TODO): Stable Bootstrap Installer + Shortcuts
   - File: `phase-07-bootstrap-installer.md`
 
-- Phase 07a (TODO): ms-manager App Updates (Tauri updater) - Silent badge
+- Phase 07a (TODO): ms-manager App Updates (Manual latest-release redirect)
   - File: `phase-07a-ms-manager-app-updates.md`
 
 - Phase 08 (TODO): End-to-end Validation + First Public Release

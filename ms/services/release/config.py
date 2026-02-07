@@ -15,6 +15,7 @@ DIST_PUBLISH_WORKFLOW = "publish.yml"
 APP_REPO_SLUG = "petitechose-midi-studio/ms-manager"
 APP_LOCAL_DIR = "ms-manager"
 APP_DEFAULT_BRANCH = "main"
+APP_CANDIDATE_WORKFLOW = "candidate.yml"
 APP_RELEASE_WORKFLOW = "release.yml"
 APP_RELEASE_ENV = "app-release"
 

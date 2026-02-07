@@ -10,6 +10,7 @@ from ms.core.structured import as_obj_list, as_str_dict, get_int, get_str
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
 from ms.services.release.config import (
+    APP_CANDIDATE_WORKFLOW,
     APP_DEFAULT_BRANCH,
     APP_RELEASE_WORKFLOW,
     APP_REPO_SLUG,
@@ -179,6 +180,24 @@ def dispatch_app_release_workflow(
         workflow_file=APP_RELEASE_WORKFLOW,
         ref=APP_DEFAULT_BRANCH,
         inputs=(("tag", tag), ("source_sha", source_sha)),
+        console=console,
+        dry_run=dry_run,
+    )
+
+
+def dispatch_app_candidate_workflow(
+    *,
+    workspace_root: Path,
+    source_sha: str,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[WorkflowRun, ReleaseError]:
+    return _dispatch_workflow(
+        workspace_root=workspace_root,
+        repo_slug=APP_REPO_SLUG,
+        workflow_file=APP_CANDIDATE_WORKFLOW,
+        ref=APP_DEFAULT_BRANCH,
+        inputs=(("source_sha", source_sha),),
         console=console,
         dry_run=dry_run,
     )

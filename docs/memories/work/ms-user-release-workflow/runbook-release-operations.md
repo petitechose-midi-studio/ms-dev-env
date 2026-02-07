@@ -89,9 +89,16 @@ What happens:
 
 - `ms` selects CI-green SHAs (safe defaults).
 - `ms` prepares/merges the version bump PR in `ms-manager`.
-- `ms-manager` Candidate workflow builds release assets once on `main` and stores them as draft `rc-<sha>`.
+- `ms` dispatches `ms-manager` Candidate for the exact merged `source_sha`; candidate stores draft `rc-<sha>` assets.
 - `ms` dispatches `ms-manager` Release workflow, which promotes candidate assets to final tag release (no rebuild).
 - Final publication is blocked on environment `app-release` approval.
+
+App package policy:
+
+- Windows: MSI
+- macOS: DMG
+- Linux: DEB/RPM
+- App updates are manual for all platforms (UI redirects to GitHub `releases/latest`).
 
 No approval = no app publication.
 

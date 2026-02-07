@@ -45,6 +45,7 @@ from ms.services.release.notes import write_release_notes
 from ms.services.release.planner import ReleaseHistory, compute_history, suggest_tag, validate_tag
 from ms.services.release.spec import write_release_spec
 from ms.services.release.workflow import (
+    dispatch_app_candidate_workflow,
     dispatch_app_release_workflow,
     dispatch_publish_workflow,
     watch_run,
@@ -526,21 +527,20 @@ def publish_app_release(
     source_sha: str,
     watch: bool,
     dry_run: bool,
-) -> Result[str, ReleaseError]:
-    run = dispatch_app_release_workflow(
+) -> Result[tuple[str, str], ReleaseError]:
+    candidate = dispatch_app_candidate_workflow(
         workspace_root=workspace_root,
-        tag=tag,
         source_sha=source_sha,
         console=console,
         dry_run=dry_run,
     )
-    if isinstance(run, Err):
-        return run
+    if isinstance(candidate, Err):
+        return candidate
 
     if watch:
         watched = watch_run(
             workspace_root=workspace_root,
-            run_id=run.value.id,
+            run_id=candidate.value.id,
             repo_slug=config.APP_REPO_SLUG,
             console=console,
             dry_run=dry_run,
@@ -548,7 +548,28 @@ def publish_app_release(
         if isinstance(watched, Err):
             return watched
 
-    return Ok(run.value.url)
+    release = dispatch_app_release_workflow(
+        workspace_root=workspace_root,
+        tag=tag,
+        source_sha=source_sha,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(release, Err):
+        return release
+
+    if watch:
+        watched = watch_run(
+            workspace_root=workspace_root,
+            run_id=release.value.id,
+            repo_slug=config.APP_REPO_SLUG,
+            console=console,
+            dry_run=dry_run,
+        )
+        if isinstance(watched, Err):
+            return watched
+
+    return Ok((candidate.value.url, release.value.url))
 
 
 def app_main_head_sha(*, workspace_root: Path) -> Result[str, ReleaseError]:
