@@ -347,6 +347,17 @@ Snapshot date: 2026-02-07
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/38
   - Notes: introduced `ms/release/infra/repos/{git_ops,app,distribution}` and converted
     `ms/services/release/{app_repo,dist_repo}` into thin compatibility shims.
+  - Verification: base branch `refactor/release-architecture-a4-infra-repos` synced local/remote on
+    commit `0f6566e` before starting A5 work.
+
+- A5 (content resolve/flow/view extraction): IN PROGRESS (code complete, PR pending)
+  - Branch base: `refactor/release-architecture-a4-infra-repos`
+  - Notes: extracted content path into `ms/release/{resolve,flow,view}` modules and
+    rewired `ms/cli/commands/release_content_commands.py` to delegate orchestration.
+  - Pre-PR gate (completed): strict typing cleanup done (no `Any`/unnecessary `cast`) and validated with:
+    `uv run ruff check ...`, `uv run pyright ...`, `uv run pytest ms/test/services/test_release_*.py`
+    `ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`.
+  - Remaining: commit A5, push branch, open stacked PR on top of #38.
 
 ## Wave B - Services transverses
 
