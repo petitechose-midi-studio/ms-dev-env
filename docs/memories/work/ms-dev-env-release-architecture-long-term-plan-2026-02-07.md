@@ -420,9 +420,11 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #42 is opened on top of #41.
 
-- A9 (plan_io + artifacts + open_control extraction): IN PROGRESS (LOCAL)
-  - Branch: `refactor/release-architecture-a8-shim-reduction` (stack continuation)
-  - Scope delivered locally:
+- A9 (plan_io + artifacts + open_control extraction): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/43
+  - Branch: `refactor/release-architecture-a9-plan-artifacts-open-control`
+  - Base strategy: stacked on A8 (`base PR #42`).
+  - Scope delivered:
     - added `ms/release/resolve/plan_io.py`
     - added `ms/release/infra/open_control.py`
     - added `ms/release/infra/artifacts/{spec_writer,notes_writer,app_version_writer}.py`
@@ -434,22 +436,22 @@ Snapshot date: 2026-02-07
       - `ms/cli/commands/release_app_commands.py`
       - `ms/cli/release_guided_common.py`
       - `ms/cli/release_guided_content.py`
-  - Validation (completed locally):
+  - Validation (completed):
     - `uv run ruff check ...` (edited files)
     - `uv run pyright ...` (edited files)
     - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
     - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
-  - Next: open stacked PR-A9 (base PR #42).
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+  - Stack: PR #43 is opened on top of #42.
 
 ### 6.1) Ecart restant pour atteindre la cible release (post-A8)
 
-Etat mesure sur la branche `refactor/release-architecture-a8-shim-reduction`:
+Etat mesure sur la branche `refactor/release-architecture-a9-plan-artifacts-open-control`:
 
-- Position stack: A5 -> A8 ouverts en review (`#39`, `#40`, `#41`, `#42`)
+- Position stack: A5 -> A9 ouverts en review (`#39`, `#40`, `#41`, `#42`, `#43`)
 - Progression lots long-terme (apres ajout A9/A10):
   - lots merges: `4/19` (A1-A4)
-  - lots en review: `4/19` (A5-A8)
-  - lot en cours local: `A9` (partie extraction)
+  - lots en review: `5/19` (A5-A9)
 - Modules cibles release presents: `34/41`
 - Modules cibles release manquants: `7`
   - `ms/release/resolve/auto/{diagnostics,strict,smart,head_mode,carry_mode}.py`
@@ -457,7 +459,7 @@ Etat mesure sur la branche `refactor/release-architecture-a8-shim-reduction`:
 
 Etat de trajectoire:
 
-- `A9` est lance: extraction `plan_io`, `infra/artifacts/*`, `infra/open_control` et rewiring CLI deja appliques localement.
+- `A9` est ouvert en review: extraction `plan_io`, `infra/artifacts/*`, `infra/open_control` + rewiring CLI valide.
 - `A10` reste la fermeture structurelle release (auto resolvers + permissions/ci gate).
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus.
 
@@ -534,7 +536,7 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-A8, mesure locale)
+### 7.3 Snapshot courant (post-A9, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
@@ -640,11 +642,10 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche active actuelle: `refactor/release-architecture-a8-shim-reduction`
-- Stack ouverte en review: `#39` -> `#42`
-- Ordre de merge recommande: `#39` -> `#40` -> `#41` -> `#42`
+- Branche active actuelle: `refactor/release-architecture-a9-plan-artifacts-open-control`
+- Stack ouverte en review: `#39` -> `#43`
+- Ordre de merge recommande: `#39` -> `#40` -> `#41` -> `#42` -> `#43`
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. ouvrir PR-A9 (etat local deja prepare)
-  2. finaliser reviews/merge de la stack A5-A9
-  3. ouvrir PR-A10
-  4. demarrer PR-B1 (`services/build.py` -> `services/build/*`)
+  1. finaliser reviews/merge de la stack A5-A9
+  2. ouvrir PR-A10
+  3. demarrer PR-B1 (`services/build.py` -> `services/build/*`)
