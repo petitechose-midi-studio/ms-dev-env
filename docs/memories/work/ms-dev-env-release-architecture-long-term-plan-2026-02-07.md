@@ -466,7 +466,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #44 is opened on top of #43.
 
-- B1 (build service split): IN REVIEW
+- B1 (build service split): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/45
   - Branch: `refactor/release-architecture-b1-build-split`
   - Base strategy: stacked on A10 (`base branch refactor/release-architecture-a10-auto-ci-permissions`)
@@ -483,21 +483,39 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B2 (`services/toolchains.py` split).
 
-### 6.1) Ecart restant pour atteindre la cible release (post-A10 merged, B1 in review)
+- B2 (toolchains service split): IN PROGRESS (LOCAL)
+  - Branch: `refactor/release-architecture-b2-toolchains-split`
+  - Base strategy: start from merged B1 (`base branch refactor/release-architecture-b1-build-split`)
+  - Scope delivered locally:
+    - replaced monolith `ms/services/toolchains.py` with package `ms/services/toolchains/*`
+    - introduced split modules: `models`, `checksum`, `helpers`, `sync`, `service`, `_context`
+    - preserved import compatibility at `ms.services.toolchains` via package `__init__.py`
+    - preserved `ToolchainService` and `sha256_file` public imports used by CLI/tests
+  - Validation (completed locally):
+    - `uv run ruff check ...` (edited files)
+    - `uv run pyright ...` (edited files)
+    - `uv run pytest ms/test/services/test_toolchains_checksums.py -q`
+    - `uv run pytest ms/test/cli -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
+  - Next: open PR-B2.
 
-Etat mesure sur la branche `refactor/release-architecture-b1-build-split`:
+### 6.1) Ecart restant pour atteindre la cible release (post-B1 merged, B2 local)
+
+Etat mesure sur la branche `refactor/release-architecture-b2-toolchains-split`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
-  - lots merges: `10/19` (A1-A10)
-  - lots en review: `1/19` (B1)
+  - lots merges: `11/19` (A1-A10 + B1)
+  - lots en review: `0/19`
+  - lot en cours local: `B2`
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
 Etat de trajectoire:
 
 - Wave A est completement mergee.
-- B1 est ouvert en review avec compat import preservee et sans changement de comportement intentionnel.
+- B1 est mergee avec compat import preservee et sans changement de comportement intentionnel.
+- B2 est demarree localement avec le meme contrat de non-regression comportementale.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -573,7 +591,7 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-A10 merged + B1 local, mesure locale)
+### 7.3 Snapshot courant (post-A10/B1 merged + B2 local, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
@@ -582,8 +600,7 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
 - Legacy release actif (hors shims): `5` fichiers, `1120` lignes
 - Fichiers CLI important encore `ms.services.release.*`: `4` (4 points d'import)
 - Modules legacy release importes par CLI: `2` (`ms.services.release.service`, `ms.services.release.remove`)
-- Surface restante Wave B (hotspots): `1838` lignes
-  - `ms/services/toolchains.py`: `479`
+- Surface restante Wave B (hotspots): `1359` lignes
   - `ms/services/repos.py`: `369`
   - `ms/oc_cli/common.py`: `504`
   - `ms/services/hardware.py`: `173`
@@ -592,7 +609,11 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
   - `ms/services/build/targets.py`: `210`
   - `ms/services/build/helpers.py`: `141`
   - `ms/services/build/runtime.py`: `110`
-- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~2958` lignes
+- Toolchains split B2 (decompose):
+  - `ms/services/toolchains/helpers.py`: `236`
+  - `ms/services/toolchains/sync.py`: `173`
+  - `ms/services/toolchains/models.py`: `64`
+- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~2479` lignes
 
 Mesure hotspots (script guardrail simple):
 
@@ -683,9 +704,9 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche active actuelle: `refactor/release-architecture-b1-build-split`
+- Branche active actuelle: `refactor/release-architecture-b2-toolchains-split`
 - Wave A: PR `#39` -> `#44` merged
-- Stack ouverte en review: `#45` (B1)
+- Stack ouverte en review: aucune (pre-PR B2)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. finaliser review/merge PR-B1 (`#45`)
-  2. demarrer PR-B2 (`services/toolchains.py` -> `services/toolchains/*`)
+  1. ouvrir PR-B2 (`services/toolchains.py` -> `services/toolchains/*`)
+  2. demarrer PR-B3 (`services/repos.py` -> `services/repos/*`)
