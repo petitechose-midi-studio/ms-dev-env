@@ -537,31 +537,32 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B5 (`services/hardware.py` split).
 
-- B5 (hardware service split): IN PROGRESS (LOCAL)
+- B5 (hardware service split): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/49
   - Branch: `refactor/release-architecture-b5-hardware-split`
-  - Base strategy: start from merged B4 (`base branch refactor/release-architecture-b4-oc-cli-common-split`)
-  - Scope delivered locally:
+  - Base strategy: stacked on B4 (`base branch refactor/release-architecture-b4-oc-cli-common-split`)
+  - Scope delivered:
     - replaced monolith `ms/services/hardware.py` with package `ms/services/hardware/*`
     - introduced split modules: `models`, `adapter`, `exporter`, `service`, `_context`, `__init__`
     - preserved import compatibility at `ms.services.hardware` (same public API exports)
     - updated subprocess policy allowlist for relocated hardware adapter calls
-  - Validation (completed locally):
+  - Validation (completed):
     - `uv run ruff check ...` (edited files)
     - `uv run pyright ...` (edited files)
     - `uv run pytest ms/test/services/test_hardware_service.py ms/test/oc_cli/test_common.py -q`
     - `uv run pytest ms/test/cli -q`
     - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
-  - Next: open PR-B5.
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+  - Next: start B6 (`cli/status` extraction).
 
-### 6.1) Ecart restant pour atteindre la cible release (post-B4 merged, B5 local)
+### 6.1) Ecart restant pour atteindre la cible release (post-B4 merged, B5 in review)
 
 Etat mesure sur la branche `refactor/release-architecture-b5-hardware-split`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
   - lots merges: `14/19` (A1-A10 + B1 + B2 + B3 + B4)
-  - lots en review: `0/19`
-  - lot en cours local: `B5`
+  - lots en review: `1/19` (B5)
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
@@ -572,7 +573,7 @@ Etat de trajectoire:
 - B2 est mergee avec le meme contrat de non-regression comportementale.
 - B3 est mergee avec compat import preservee et sans changement de comportement intentionnel.
 - B4 est mergee avec compat API preservee et sans changement de comportement intentionnel.
-- B5 est livree localement (split hardware) avec contrat `no behavior change`.
+- B5 est ouverte en review (split hardware) avec contrat `no behavior change`.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -772,7 +773,7 @@ Le programme est considere termine quand:
 
 - Branche active actuelle: `refactor/release-architecture-b5-hardware-split`
 - Wave A: PR `#39` -> `#44` merged
-- Stack ouverte en review: aucune (pre-PR B5)
+- Stack ouverte en review: `#49` (B5)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. ouvrir PR-B5 (`services/hardware.py` split)
+  1. finaliser review/merge PR-B5 (`#49`)
   2. demarrer PR-B6 (`cli/status` extraction)
