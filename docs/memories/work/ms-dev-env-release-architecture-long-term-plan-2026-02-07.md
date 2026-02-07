@@ -540,7 +540,17 @@ Snapshot date: 2026-02-07
 - B5 (hardware service split): IN PROGRESS (LOCAL)
   - Branch: `refactor/release-architecture-b5-hardware-split`
   - Base strategy: start from merged B4 (`base branch refactor/release-architecture-b4-oc-cli-common-split`)
-  - Scope: split `ms/services/hardware.py` via adapter-oriented modules while preserving CLI behavior.
+  - Scope delivered locally:
+    - replaced monolith `ms/services/hardware.py` with package `ms/services/hardware/*`
+    - introduced split modules: `models`, `adapter`, `exporter`, `service`, `_context`, `__init__`
+    - preserved import compatibility at `ms.services.hardware` (same public API exports)
+    - updated subprocess policy allowlist for relocated hardware adapter calls
+  - Validation (completed locally):
+    - `uv run ruff check ...` (edited files)
+    - `uv run pyright ...` (edited files)
+    - `uv run pytest ms/test/services/test_hardware_service.py ms/test/oc_cli/test_common.py -q`
+    - `uv run pytest ms/test/cli -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
   - Next: open PR-B5.
 
 ### 6.1) Ecart restant pour atteindre la cible release (post-B4 merged, B5 local)
@@ -562,7 +572,7 @@ Etat de trajectoire:
 - B2 est mergee avec le meme contrat de non-regression comportementale.
 - B3 est mergee avec compat import preservee et sans changement de comportement intentionnel.
 - B4 est mergee avec compat API preservee et sans changement de comportement intentionnel.
-- B5 est demarree localement (split hardware) avec contrat `no behavior change`.
+- B5 est livree localement (split hardware) avec contrat `no behavior change`.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -647,8 +657,7 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
 - Legacy release actif (hors shims): `5` fichiers, `1120` lignes
 - Fichiers CLI important encore `ms.services.release.*`: `4` (4 points d'import)
 - Modules legacy release importes par CLI: `2` (`ms.services.release.service`, `ms.services.release.remove`)
-- Surface restante Wave B (hotspots): `486` lignes
-  - `ms/services/hardware.py`: `173`
+- Surface restante Wave B (hotspots): `313` lignes
   - `ms/cli/commands/status.py`: `313`
 - Build split B1 (decompose):
   - `ms/services/build/targets.py`: `210`
@@ -666,7 +675,11 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
   - `ms/oc_cli/common/output_parser.py`: `220`
   - `ms/oc_cli/common/serial.py`: `98`
   - `ms/oc_cli/common/runtime.py`: `89`
-- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~1606` lignes
+- Hardware split B5 (decompose):
+  - `ms/services/hardware/adapter.py`: `81`
+  - `ms/services/hardware/service.py`: `58`
+  - `ms/services/hardware/exporter.py`: `38`
+- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~1433` lignes
 
 Mesure hotspots (script guardrail simple):
 
