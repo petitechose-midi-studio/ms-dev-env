@@ -343,10 +343,10 @@ Snapshot date: 2026-02-07
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/37
   - Notes: `ms/release/infra/github/*` introduced; legacy GH modules preserved as compatibility wrappers.
 
-- A4 (infra repos extraction + shared git ops): IN PROGRESS
-  - Branch: `refactor/release-architecture-a4-infra-repos`
-  - Goal: extract `ms/release/infra/repos/{git_ops,app,distribution}` and convert
-    `ms/services/release/{app_repo,dist_repo}` into thin shims.
+- A4 (infra repos extraction + shared git ops): DONE
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/38
+  - Notes: introduced `ms/release/infra/repos/{git_ops,app,distribution}` and converted
+    `ms/services/release/{app_repo,dist_repo}` into thin compatibility shims.
 
 ## Wave B - Services transverses
 
