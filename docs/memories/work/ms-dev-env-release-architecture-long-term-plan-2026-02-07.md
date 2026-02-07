@@ -444,10 +444,11 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #43 is opened on top of #42.
 
-- A10 (auto resolvers + ci/permissions flow extraction): IN PROGRESS (LOCAL)
+- A10 (auto resolvers + ci/permissions flow extraction): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/44
   - Branch: `refactor/release-architecture-a10-auto-ci-permissions`
   - Base strategy: stacked on A9 (`base PR #43`).
-  - Scope delivered locally:
+  - Scope delivered:
     - added `ms/release/resolve/auto/{diagnostics,strict,smart,head_mode,carry_mode}.py`
     - added `ms/release/flow/{permissions,ci_gate}.py`
     - converted `ms/services/release/auto.py` to compatibility shim
@@ -457,29 +458,29 @@ Snapshot date: 2026-02-07
       - `ms/cli/commands/release_app_commands.py`
       - `ms/cli/release_guided_content.py`
       - `ms/cli/release_guided_app.py`
-  - Validation (completed locally):
+  - Validation (completed):
     - `uv run ruff check ...` (edited files)
     - `uv run pyright ...` (edited files)
     - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
     - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
-  - Next: open stacked PR-A10 (base PR #43).
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+  - Stack: PR #44 is opened on top of #43.
 
-### 6.1) Ecart restant pour atteindre la cible release (post-A10 local)
+### 6.1) Ecart restant pour atteindre la cible release (post-A10)
 
 Etat mesure sur la branche `refactor/release-architecture-a10-auto-ci-permissions`:
 
-- Position stack: A5 -> A9 ouverts en review (`#39`, `#40`, `#41`, `#42`, `#43`)
+- Position stack: A5 -> A10 ouverts en review (`#39`, `#40`, `#41`, `#42`, `#43`, `#44`)
 - Progression lots long-terme (apres ajout A9/A10):
   - lots merges: `4/19` (A1-A4)
-  - lots en review: `5/19` (A5-A9)
-  - lot en cours local: `A10`
+  - lots en review: `6/19` (A5-A10)
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
 Etat de trajectoire:
 
 - `A9` est ouvert en review: extraction `plan_io`, `infra/artifacts/*`, `infra/open_control` + rewiring CLI valide.
-- `A10` complete localement la cible treeview release (`resolve/auto/*` + `flow/{permissions,ci_gate}`).
+- `A10` est ouvert en review et complete la cible treeview release (`resolve/auto/*` + `flow/{permissions,ci_gate}`).
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus.
 
 ## Wave B - Services transverses
@@ -663,9 +664,8 @@ Le programme est considere termine quand:
 ## 12) Notes operationnelles immediate
 
 - Branche active actuelle: `refactor/release-architecture-a10-auto-ci-permissions`
-- Stack ouverte en review: `#39` -> `#43`
-- Ordre de merge recommande: `#39` -> `#40` -> `#41` -> `#42` -> `#43`
+- Stack ouverte en review: `#39` -> `#44`
+- Ordre de merge recommande: `#39` -> `#40` -> `#41` -> `#42` -> `#43` -> `#44`
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. ouvrir PR-A10 (etat local deja prepare)
-  2. finaliser reviews/merge de la stack A5-A10
-  3. demarrer PR-B1 (`services/build.py` -> `services/build/*`)
+  1. finaliser reviews/merge de la stack A5-A10
+  2. demarrer PR-B1 (`services/build.py` -> `services/build/*`)
