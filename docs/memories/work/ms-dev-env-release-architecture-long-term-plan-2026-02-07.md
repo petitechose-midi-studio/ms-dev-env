@@ -327,6 +327,10 @@ PR-A7: guided split (`flow/guided/*` + `view/guided_console`) + sessions
 
 PR-A8: reduction shims legacy release + architecture tests en mode bloquant
 
+PR-A9: extraction `resolve/plan_io` + `infra/artifacts/*` + `infra/open_control`
+
+PR-A10: extraction `resolve/auto/*` + `flow/{permissions,ci_gate}` + reduction finale des imports legacy release
+
 ### 6.0) Tracking progression (live)
 
 Snapshot date: 2026-02-07
@@ -416,6 +420,47 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #42 is opened on top of #41.
 
+- A9 (plan_io + artifacts + open_control extraction): IN PROGRESS (LOCAL)
+  - Branch: `refactor/release-architecture-a8-shim-reduction` (stack continuation)
+  - Scope delivered locally:
+    - added `ms/release/resolve/plan_io.py`
+    - added `ms/release/infra/open_control.py`
+    - added `ms/release/infra/artifacts/{spec_writer,notes_writer,app_version_writer}.py`
+    - converted legacy modules to compatibility shims:
+      - `ms/services/release/{plan_file,open_control,spec,notes,app_version}.py`
+    - rewired CLI imports to canonical modules in touched paths:
+      - `ms/cli/commands/release_common.py`
+      - `ms/cli/commands/release_content_commands.py`
+      - `ms/cli/commands/release_app_commands.py`
+      - `ms/cli/release_guided_common.py`
+      - `ms/cli/release_guided_content.py`
+  - Validation (completed locally):
+    - `uv run ruff check ...` (edited files)
+    - `uv run pyright ...` (edited files)
+    - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
+  - Next: open stacked PR-A9 (base PR #42).
+
+### 6.1) Ecart restant pour atteindre la cible release (post-A8)
+
+Etat mesure sur la branche `refactor/release-architecture-a8-shim-reduction`:
+
+- Position stack: A5 -> A8 ouverts en review (`#39`, `#40`, `#41`, `#42`)
+- Progression lots long-terme (apres ajout A9/A10):
+  - lots merges: `4/19` (A1-A4)
+  - lots en review: `4/19` (A5-A8)
+  - lot en cours local: `A9` (partie extraction)
+- Modules cibles release presents: `34/41`
+- Modules cibles release manquants: `7`
+  - `ms/release/resolve/auto/{diagnostics,strict,smart,head_mode,carry_mode}.py`
+  - `ms/release/flow/{permissions,ci_gate}.py`
+
+Etat de trajectoire:
+
+- `A9` est lance: extraction `plan_io`, `infra/artifacts/*`, `infra/open_control` et rewiring CLI deja appliques localement.
+- `A10` reste la fermeture structurelle release (auto resolvers + permissions/ci gate).
+- Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus.
+
 ## Wave B - Services transverses
 
 PR-B1: split `services/build.py` -> `services/build/*`
@@ -488,6 +533,23 @@ Mesures architecture (a ajouter et faire tourner en CI):
 ```bash
 uv run pytest ms/test/architecture -q
 ```
+
+### 7.3 Snapshot courant (post-A8, mesure locale)
+
+Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
+
+- `ms/services/release/*`: `22` fichiers, `2278` lignes totales
+- Shims release approximatifs: `16` fichiers, `315` lignes
+- Legacy release actif (hors shims): `6` fichiers, `1963` lignes
+- Fichiers CLI important encore `ms.services.release.*`: `4` (7 points d'import)
+- Surface restante Wave B (hotspots): `2379` lignes
+  - `ms/services/build.py`: `541`
+  - `ms/services/toolchains.py`: `479`
+  - `ms/services/repos.py`: `369`
+  - `ms/oc_cli/common.py`: `504`
+  - `ms/services/hardware.py`: `173`
+  - `ms/cli/commands/status.py`: `313`
+- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~4342` lignes
 
 Mesure hotspots (script guardrail simple):
 
@@ -578,5 +640,11 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche dediee creee: `refactor/release-architecture-long-term`
-- Prochaine action recommandee: ouvrir PR-A1 (scaffold + tests architecture non bloquants)
+- Branche active actuelle: `refactor/release-architecture-a8-shim-reduction`
+- Stack ouverte en review: `#39` -> `#42`
+- Ordre de merge recommande: `#39` -> `#40` -> `#41` -> `#42`
+- Sequence execution recommandee pour rester sur la trajectoire:
+  1. ouvrir PR-A9 (etat local deja prepare)
+  2. finaliser reviews/merge de la stack A5-A9
+  3. ouvrir PR-A10
+  4. demarrer PR-B1 (`services/build.py` -> `services/build/*`)
