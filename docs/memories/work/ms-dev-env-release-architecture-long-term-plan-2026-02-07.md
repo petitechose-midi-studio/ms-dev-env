@@ -444,23 +444,42 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Stack: PR #43 is opened on top of #42.
 
-### 6.1) Ecart restant pour atteindre la cible release (post-A8)
+- A10 (auto resolvers + ci/permissions flow extraction): IN PROGRESS (LOCAL)
+  - Branch: `refactor/release-architecture-a10-auto-ci-permissions`
+  - Base strategy: stacked on A9 (`base PR #43`).
+  - Scope delivered locally:
+    - added `ms/release/resolve/auto/{diagnostics,strict,smart,head_mode,carry_mode}.py`
+    - added `ms/release/flow/{permissions,ci_gate}.py`
+    - converted `ms/services/release/auto.py` to compatibility shim
+    - rewired `ms/services/release/service.py` access checks to delegate to release flow modules
+    - reduced CLI legacy imports by switching auto/permission/ci usages to canonical modules in:
+      - `ms/cli/commands/release_content_commands.py`
+      - `ms/cli/commands/release_app_commands.py`
+      - `ms/cli/release_guided_content.py`
+      - `ms/cli/release_guided_app.py`
+  - Validation (completed locally):
+    - `uv run ruff check ...` (edited files)
+    - `uv run pyright ...` (edited files)
+    - `uv run pytest ms/test/services/test_release_*.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
+  - Next: open stacked PR-A10 (base PR #43).
 
-Etat mesure sur la branche `refactor/release-architecture-a9-plan-artifacts-open-control`:
+### 6.1) Ecart restant pour atteindre la cible release (post-A10 local)
+
+Etat mesure sur la branche `refactor/release-architecture-a10-auto-ci-permissions`:
 
 - Position stack: A5 -> A9 ouverts en review (`#39`, `#40`, `#41`, `#42`, `#43`)
 - Progression lots long-terme (apres ajout A9/A10):
   - lots merges: `4/19` (A1-A4)
   - lots en review: `5/19` (A5-A9)
-- Modules cibles release presents: `34/41`
-- Modules cibles release manquants: `7`
-  - `ms/release/resolve/auto/{diagnostics,strict,smart,head_mode,carry_mode}.py`
-  - `ms/release/flow/{permissions,ci_gate}.py`
+  - lot en cours local: `A10`
+- Modules cibles release presents: `41/41`
+- Modules cibles release manquants: `0`
 
 Etat de trajectoire:
 
 - `A9` est ouvert en review: extraction `plan_io`, `infra/artifacts/*`, `infra/open_control` + rewiring CLI valide.
-- `A10` reste la fermeture structurelle release (auto resolvers + permissions/ci gate).
+- `A10` complete localement la cible treeview release (`resolve/auto/*` + `flow/{permissions,ci_gate}`).
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus.
 
 ## Wave B - Services transverses
@@ -536,14 +555,15 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-A9, mesure locale)
+### 7.3 Snapshot courant (post-A10 local, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
-- `ms/services/release/*`: `22` fichiers, `2278` lignes totales
-- Shims release approximatifs: `16` fichiers, `315` lignes
-- Legacy release actif (hors shims): `6` fichiers, `1963` lignes
-- Fichiers CLI important encore `ms.services.release.*`: `4` (7 points d'import)
+- `ms/services/release/*`: `22` fichiers, `1449` lignes totales
+- Shims release approximatifs: `17` fichiers, `329` lignes
+- Legacy release actif (hors shims): `5` fichiers, `1120` lignes
+- Fichiers CLI important encore `ms.services.release.*`: `4` (4 points d'import)
+- Modules legacy release importes par CLI: `2` (`ms.services.release.service`, `ms.services.release.remove`)
 - Surface restante Wave B (hotspots): `2379` lignes
   - `ms/services/build.py`: `541`
   - `ms/services/toolchains.py`: `479`
@@ -551,7 +571,7 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
   - `ms/oc_cli/common.py`: `504`
   - `ms/services/hardware.py`: `173`
   - `ms/cli/commands/status.py`: `313`
-- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~4342` lignes
+- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~3499` lignes
 
 Mesure hotspots (script guardrail simple):
 
@@ -642,10 +662,10 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche active actuelle: `refactor/release-architecture-a9-plan-artifacts-open-control`
+- Branche active actuelle: `refactor/release-architecture-a10-auto-ci-permissions`
 - Stack ouverte en review: `#39` -> `#43`
 - Ordre de merge recommande: `#39` -> `#40` -> `#41` -> `#42` -> `#43`
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. finaliser reviews/merge de la stack A5-A9
-  2. ouvrir PR-A10
+  1. ouvrir PR-A10 (etat local deja prepare)
+  2. finaliser reviews/merge de la stack A5-A10
   3. demarrer PR-B1 (`services/build.py` -> `services/build/*`)
