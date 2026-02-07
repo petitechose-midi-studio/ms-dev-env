@@ -1,13 +1,31 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 from ms.cli.selector import SelectorOption, SelectorResult, select_one
 from ms.core.result import Err, Ok, Result
-from ms.output.console import ConsoleProtocol, Style
+from ms.output.console import ConsoleProtocol
+from ms.release.flow.guided.bootstrap import (
+    bootstrap_app_session as bootstrap_app_session_flow,
+)
+from ms.release.flow.guided.bootstrap import (
+    bootstrap_content_session as bootstrap_content_session_flow,
+)
+from ms.release.flow.guided.bootstrap import (
+    load_notes_snapshot as load_notes_snapshot_flow,
+)
+from ms.release.flow.guided.bootstrap import (
+    preflight_with_permission as preflight_with_permission_flow,
+)
+from ms.release.flow.guided.bootstrap import (
+    save_app_state as save_app_state_flow,
+)
+from ms.release.flow.guided.bootstrap import (
+    save_content_state as save_content_state_flow,
+)
+from ms.release.view.guided_console import print_notes_status as print_notes_status_view
 from ms.services.release.ci import fetch_green_head_shas
 from ms.services.release.errors import ReleaseError
 from ms.services.release.gh import current_user, list_recent_commits
@@ -34,55 +52,46 @@ PermissionCheck = Callable[..., Result[None, ReleaseError]]
 def select_channel(
     *, title: str, subtitle: str, initial_index: int, allow_back: bool
 ) -> SelectorResult[ReleaseChannel]:
-    options = [
+    options: list[SelectorOption[ReleaseChannel]] = [
         SelectorOption(value="stable", label="stable", detail="Production release"),
         SelectorOption(value="beta", label="beta", detail="Pre-release channel"),
     ]
-    return cast(
-        SelectorResult[ReleaseChannel],
-        select_one(
-            title=title,
-            subtitle=subtitle,
-            options=options,
-            initial_index=initial_index,
-            allow_back=allow_back,
-        ),
+    return select_one(
+        title=title,
+        subtitle=subtitle,
+        options=options,
+        initial_index=initial_index,
+        allow_back=allow_back,
     )
 
 
 def select_bump(
     *, title: str, subtitle: str, initial_index: int, allow_back: bool
 ) -> SelectorResult[ReleaseBump]:
-    options = [
+    options: list[SelectorOption[ReleaseBump]] = [
         SelectorOption(value="patch", label="patch", detail="Bug fixes and minor updates"),
         SelectorOption(value="minor", label="minor", detail="Feature release"),
         SelectorOption(value="major", label="major", detail="Breaking release"),
     ]
-    return cast(
-        SelectorResult[ReleaseBump],
-        select_one(
-            title=title,
-            subtitle=subtitle,
-            options=options,
-            initial_index=initial_index,
-            allow_back=allow_back,
-        ),
+    return select_one(
+        title=title,
+        subtitle=subtitle,
+        options=options,
+        initial_index=initial_index,
+        allow_back=allow_back,
     )
 
 
 def select_resume_or_new(*, title: str, subtitle: str) -> SelectorResult[ResumeChoice]:
-    options = [
+    options: list[SelectorOption[ResumeChoice]] = [
         SelectorOption(value="resume", label="Resume", detail="Continue previous selections"),
         SelectorOption(value="new", label="Start new", detail="Discard previous selections"),
     ]
-    return cast(
-        SelectorResult[ResumeChoice],
-        select_one(
-            title=title,
-            subtitle=subtitle,
-            options=options,
-            allow_back=False,
-        ),
+    return select_one(
+        title=title,
+        subtitle=subtitle,
+        options=options,
+        allow_back=False,
     )
 
 
@@ -92,37 +101,21 @@ def preflight_with_permission(
     console: ConsoleProtocol,
     permission_check: PermissionCheck,
 ) -> Result[str, ReleaseError]:
-    ok = permission_check(
+    return preflight_with_permission_flow(
         workspace_root=workspace_root,
         console=console,
-        require_write=True,
+        permission_check=permission_check,
+        current_user_fn=current_user,
     )
-    if isinstance(ok, Err):
-        return ok
-
-    who = current_user(workspace_root=workspace_root)
-    if isinstance(who, Err):
-        return who
-    return Ok(who.value.login)
 
 
 def load_notes_snapshot(
     *,
     notes_file: Path | None,
 ) -> Result[tuple[str, str, str] | None, ReleaseError]:
-    if notes_file is None:
-        return Ok(None)
-
-    notes = load_external_notes_file(path=notes_file)
-    if isinstance(notes, Err):
-        return notes
-
-    return Ok(
-        (
-            str(notes.value.source_path.resolve()),
-            notes.value.markdown,
-            notes.value.sha256,
-        )
+    return load_notes_snapshot_flow(
+        notes_file=notes_file,
+        load_external_notes_file_fn=load_external_notes_file,
     )
 
 
@@ -134,7 +127,7 @@ def notes_step_selector(
     subtitle: str,
     clear_detail: str,
 ) -> SelectorResult[NoteAction]:
-    options: list[SelectorOption[str]] = [
+    options: list[SelectorOption[NoteAction]] = [
         SelectorOption(
             value="keep",
             label=("Keep notes" if has_notes else "No notes configured"),
@@ -150,15 +143,12 @@ def notes_step_selector(
             )
         )
 
-    return cast(
-        SelectorResult[NoteAction],
-        select_one(
-            title=title,
-            subtitle=subtitle,
-            options=options,
-            initial_index=0,
-            allow_back=True,
-        ),
+    return select_one(
+        title=title,
+        subtitle=subtitle,
+        options=options,
+        initial_index=0,
+        allow_back=True,
     )
 
 
@@ -170,15 +160,12 @@ def print_notes_status(
     notes_sha256: str | None,
     auto_label: str,
 ) -> None:
-    if notes_markdown is None:
-        console.print(auto_label, Style.DIM)
-        return
-
-    digest = notes_sha256[:12] if notes_sha256 is not None else "n/a"
-    source = notes_path or "(unknown source)"
-    console.print(
-        f"notes: attached from {source} ({len(notes_markdown)} bytes, sha256={digest})",
-        Style.DIM,
+    print_notes_status_view(
+        console=console,
+        notes_markdown=notes_markdown,
+        notes_path=notes_path,
+        notes_sha256=notes_sha256,
+        auto_label=auto_label,
     )
 
 
@@ -217,14 +204,14 @@ def select_green_commit(
         green_shas = set(green_r.value.green_head_shas)
 
     options: list[SelectorOption[str]] = []
-    for c in commits_r.value:
-        if green_shas is not None and c.sha not in green_shas:
+    for commit in commits_r.value:
+        if green_shas is not None and commit.sha not in green_shas:
             continue
         options.append(
             SelectorOption(
-                value=c.sha,
-                label=f"{c.short_sha}  {c.message}",
-                detail=(c.date_utc or ""),
+                value=commit.sha,
+                label=f"{commit.short_sha}  {commit.message}",
+                detail=(commit.date_utc or ""),
             )
         )
 
@@ -261,38 +248,15 @@ def bootstrap_app_session(
     created_by: str,
     notes_file: Path | None,
 ) -> Result[AppReleaseSession, ReleaseError]:
-    loaded = load_app_session(workspace_root=workspace_root)
-    if isinstance(loaded, Err):
-        return loaded
-
-    if loaded.value is not None:
-        resume = select_resume_or_new(
-            title="Resume App Release Session",
-            subtitle="An unfinished app release session exists",
-        )
-        if resume.action == "cancel":
-            return Err(ReleaseError(kind="invalid_input", message="release cancelled"))
-        session = (
-            loaded.value
-            if resume.value == "resume"
-            else new_app_session(created_by=created_by, notes_path=notes_file)
-        )
-    else:
-        session = new_app_session(created_by=created_by, notes_path=notes_file)
-
-    notes = load_notes_snapshot(notes_file=notes_file)
-    if isinstance(notes, Err):
-        return notes
-    if notes.value is not None:
-        notes_path, notes_markdown, notes_sha256 = notes.value
-        session = replace(
-            session,
-            notes_path=notes_path,
-            notes_markdown=notes_markdown,
-            notes_sha256=notes_sha256,
-        )
-
-    return Ok(session)
+    return bootstrap_app_session_flow(
+        workspace_root=workspace_root,
+        created_by=created_by,
+        notes_file=notes_file,
+        load_app_session_fn=load_app_session,
+        new_app_session_fn=new_app_session,
+        select_resume_or_new_fn=select_resume_or_new,
+        load_notes_snapshot_fn=load_notes_snapshot,
+    )
 
 
 def bootstrap_content_session(
@@ -301,53 +265,32 @@ def bootstrap_content_session(
     created_by: str,
     notes_file: Path | None,
 ) -> Result[ContentReleaseSession, ReleaseError]:
-    loaded = load_content_session(workspace_root=workspace_root)
-    if isinstance(loaded, Err):
-        return loaded
-
-    if loaded.value is not None:
-        resume = select_resume_or_new(
-            title="Resume Content Release Session",
-            subtitle="An unfinished content release session exists",
-        )
-        if resume.action == "cancel":
-            return Err(ReleaseError(kind="invalid_input", message="release cancelled"))
-        session = (
-            loaded.value
-            if resume.value == "resume"
-            else new_content_session(created_by=created_by, notes_path=notes_file)
-        )
-    else:
-        session = new_content_session(created_by=created_by, notes_path=notes_file)
-
-    notes = load_notes_snapshot(notes_file=notes_file)
-    if isinstance(notes, Err):
-        return notes
-    if notes.value is not None:
-        notes_path, notes_markdown, notes_sha256 = notes.value
-        session = replace(
-            session,
-            notes_path=notes_path,
-            notes_markdown=notes_markdown,
-            notes_sha256=notes_sha256,
-        )
-
-    return Ok(session)
+    return bootstrap_content_session_flow(
+        workspace_root=workspace_root,
+        created_by=created_by,
+        notes_file=notes_file,
+        load_content_session_fn=load_content_session,
+        new_content_session_fn=new_content_session,
+        select_resume_or_new_fn=select_resume_or_new,
+        load_notes_snapshot_fn=load_notes_snapshot,
+    )
 
 
 def save_app_state(
     *, workspace_root: Path, session: AppReleaseSession
 ) -> Result[AppReleaseSession, ReleaseError]:
-    saved = save_app_session(workspace_root=workspace_root, session=session)
-    if isinstance(saved, Err):
-        return saved
-    return Ok(session)
+    return save_app_state_flow(
+        workspace_root=workspace_root,
+        session=session,
+        save_app_session_fn=save_app_session,
+    )
 
 
 def save_content_state(
     *, workspace_root: Path, session: ContentReleaseSession
 ) -> Result[ContentReleaseSession, ReleaseError]:
-    saved = save_content_session(workspace_root=workspace_root, session=session)
-    if isinstance(saved, Err):
-        return saved
-    return Ok(session)
+    return save_content_state_flow(
+        workspace_root=workspace_root,
+        session=session,
+        save_content_session_fn=save_content_session,
+    )
