@@ -28,8 +28,11 @@ from ms.release.flow.app_publish import (
     publish_app_release_workflows,
     resolve_app_publish_notes,
 )
+from ms.release.flow.ci_gate import ensure_ci_green
+from ms.release.flow.permissions import ensure_app_release_permissions
 from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.resolve.app_inputs import resolve_pinned_app
+from ms.release.resolve.auto.strict import resolve_pinned_auto_strict
 from ms.release.resolve.plan_io import PlanInput, write_plan_file
 from ms.release.view.app_console import (
     print_app_auto_blockers,
@@ -37,10 +40,7 @@ from ms.release.view.app_console import (
     print_app_plan,
     print_app_replay,
 )
-from ms.services.release.auto import resolve_pinned_auto_strict
 from ms.services.release.service import (
-    ensure_app_release_permissions,
-    ensure_ci_green,
     plan_app_release,
     prepare_app_pr,
     publish_app_release,

@@ -19,6 +19,7 @@ from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import PinnedRepo, ReleaseBump, ReleaseChannel, config
+from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.content_plan import build_content_release_plan
 from ms.release.flow.content_preflight import (
     collect_release_preflight_issues,
@@ -34,7 +35,10 @@ from ms.release.flow.content_remove import (
     remove_content_release_artifacts,
     resolve_remove_tags,
 )
+from ms.release.flow.permissions import ensure_release_permissions
 from ms.release.infra.open_control import preflight_open_control
+from ms.release.resolve.auto.diagnostics import RepoReadiness, probe_release_readiness
+from ms.release.resolve.auto.smart import resolve_pinned_auto_smart
 from ms.release.resolve.content_inputs import parse_override_items, resolve_pinned_content
 from ms.release.resolve.plan_io import PlanInput, write_plan_file
 from ms.release.view.content_console import (
@@ -45,19 +49,12 @@ from ms.release.view.content_console import (
     print_open_control_preflight,
     print_release_preflight_issues,
 )
-from ms.services.release.auto import (
-    RepoReadiness,
-    probe_release_readiness,
-    resolve_pinned_auto_smart,
-)
 from ms.services.release.remove import (
     delete_github_releases,
     remove_distribution_artifacts,
     validate_remove_tags,
 )
 from ms.services.release.service import (
-    ensure_ci_green,
-    ensure_release_permissions,
     plan_release,
     prepare_distribution_pr,
     publish_distribution_release,

@@ -17,14 +17,14 @@ from ms.output.console import ConsoleProtocol
 from ms.release.domain.config import APP_RELEASE_REPO, APP_REPO_SLUG
 from ms.release.domain.models import PinnedRepo, ReleaseBump, ReleaseChannel
 from ms.release.errors import ReleaseError
+from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.guided.app_steps import MenuOption, run_guided_app_release_flow
 from ms.release.flow.guided.selection import Selection
 from ms.release.flow.guided.sessions import AppReleaseSession, clear_app_session
+from ms.release.flow.permissions import ensure_app_release_permissions
 from ms.release.view.guided_console import print_notes_status
 from ms.services.release.service import (
     AppPrepareResult,
-    ensure_app_release_permissions,
-    ensure_ci_green,
     plan_app_release,
     prepare_app_pr,
     publish_app_release,

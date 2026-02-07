@@ -7,6 +7,13 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.flow.ci_gate import ensure_ci_green as ensure_ci_green_flow
+from ms.release.flow.permissions import (
+    ensure_app_release_permissions as ensure_app_release_permissions_flow,
+)
+from ms.release.flow.permissions import (
+    ensure_release_permissions as ensure_release_permissions_flow,
+)
 from ms.services.release import config
 from ms.services.release.app_repo import (
     checkout_main_and_pull as app_checkout_main_and_pull,
@@ -35,7 +42,6 @@ from ms.services.release.app_version import (
     current_version,
     version_from_tag,
 )
-from ms.services.release.ci import is_ci_green_for_sha
 from ms.services.release.dist_repo import (
     checkout_main_and_pull,
     commit_and_push,
@@ -46,12 +52,7 @@ from ms.services.release.dist_repo import (
     open_pr,
 )
 from ms.services.release.errors import ReleaseError
-from ms.services.release.gh import (
-    ensure_gh_auth,
-    ensure_gh_available,
-    list_distribution_releases,
-    viewer_permission,
-)
+from ms.services.release.gh import list_distribution_releases
 from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
 from ms.services.release.notes import write_release_notes
 from ms.services.release.planner import ReleaseHistory, compute_history, suggest_tag, validate_tag
@@ -76,32 +77,11 @@ def ensure_release_permissions(
     console: ConsoleProtocol,
     require_write: bool,
 ) -> Result[None, ReleaseError]:
-    ok = ensure_gh_available()
-    if isinstance(ok, Err):
-        return ok
-    ok = ensure_gh_auth(workspace_root=workspace_root)
-    if isinstance(ok, Err):
-        return ok
-
-    if not require_write:
-        return Ok(None)
-
-    perm = viewer_permission(workspace_root=workspace_root, repo=config.DIST_REPO_SLUG)
-    if isinstance(perm, Err):
-        return perm
-
-    allowed = {"ADMIN", "MAINTAIN", "WRITE"}
-    if perm.value not in allowed:
-        console.print(f"permission: {perm.value}", Style.DIM)
-        return Err(
-            ReleaseError(
-                kind="permission_denied",
-                message="insufficient permission for distribution repo",
-                hint="You need WRITE/MAINTAIN/ADMIN on petitechose-midi-studio/distribution.",
-            )
-        )
-
-    return Ok(None)
+    return ensure_release_permissions_flow(
+        workspace_root=workspace_root,
+        console=console,
+        require_write=require_write,
+    )
 
 
 def ensure_app_release_permissions(
@@ -110,32 +90,11 @@ def ensure_app_release_permissions(
     console: ConsoleProtocol,
     require_write: bool,
 ) -> Result[None, ReleaseError]:
-    ok = ensure_gh_available()
-    if isinstance(ok, Err):
-        return ok
-    ok = ensure_gh_auth(workspace_root=workspace_root)
-    if isinstance(ok, Err):
-        return ok
-
-    if not require_write:
-        return Ok(None)
-
-    perm = viewer_permission(workspace_root=workspace_root, repo=config.APP_REPO_SLUG)
-    if isinstance(perm, Err):
-        return perm
-
-    allowed = {"ADMIN", "MAINTAIN", "WRITE"}
-    if perm.value not in allowed:
-        console.print(f"permission: {perm.value}", Style.DIM)
-        return Err(
-            ReleaseError(
-                kind="permission_denied",
-                message="insufficient permission for app repo",
-                hint=f"You need WRITE/MAINTAIN/ADMIN on {config.APP_REPO_SLUG}.",
-            )
-        )
-
-    return Ok(None)
+    return ensure_app_release_permissions_flow(
+        workspace_root=workspace_root,
+        console=console,
+        require_write=require_write,
+    )
 
 
 def load_app_history(*, workspace_root: Path) -> Result[ReleaseHistory, ReleaseError]:
@@ -221,35 +180,11 @@ def ensure_ci_green(
     pinned: tuple[PinnedRepo, ...],
     allow_non_green: bool,
 ) -> Result[None, ReleaseError]:
-    for p in pinned:
-        wf = p.repo.required_ci_workflow_file
-        if wf is None:
-            # No CI gating configured for this repo.
-            continue
-        ok = is_ci_green_for_sha(
-            workspace_root=workspace_root,
-            repo=p.repo.slug,
-            workflow=wf,
-            sha=p.sha,
-        )
-        if isinstance(ok, Err):
-            return ok
-
-        if ok.value:
-            continue
-
-        if allow_non_green:
-            continue
-
-        return Err(
-            ReleaseError(
-                kind="ci_not_green",
-                message=f"CI not green for {p.repo.slug}@{p.sha}",
-                hint="Pick a SHA with successful CI, or pass --allow-non-green.",
-            )
-        )
-
-    return Ok(None)
+    return ensure_ci_green_flow(
+        workspace_root=workspace_root,
+        pinned=pinned,
+        allow_non_green=allow_non_green,
+    )
 
 
 def _prepare_distribution_repo(
