@@ -327,6 +327,27 @@ PR-A7: guided split (`flow/guided/*` + `view/guided_console`) + sessions
 
 PR-A8: reduction shims legacy release + architecture tests en mode bloquant
 
+### 6.0) Tracking progression (live)
+
+Snapshot date: 2026-02-07
+
+- A1 (scaffold + architecture advisory): DONE
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/35
+  - Notes: baseline checkpoint merged in dedicated branch flow.
+
+- A2 (domain extraction + shims): DONE
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/36
+  - Notes: `ms/release/domain/*` introduced; `ms/services/release/{model,config,semver,planner,errors}` now shims.
+
+- A3 (infra GitHub extraction + shims): DONE
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/37
+  - Notes: `ms/release/infra/github/*` introduced; legacy GH modules preserved as compatibility wrappers.
+
+- A4 (infra repos extraction + shared git ops): IN PROGRESS
+  - Branch: `refactor/release-architecture-a4-infra-repos`
+  - Goal: extract `ms/release/infra/repos/{git_ops,app,distribution}` and convert
+    `ms/services/release/{app_repo,dist_repo}` into thin shims.
+
 ## Wave B - Services transverses
 
 PR-B1: split `services/build.py` -> `services/build/*`
