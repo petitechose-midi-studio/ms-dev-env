@@ -483,7 +483,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B2 (`services/toolchains.py` split).
 
-- B2 (toolchains service split): IN REVIEW
+- B2 (toolchains service split): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/46
   - Branch: `refactor/release-architecture-b2-toolchains-split`
   - Base strategy: stacked on B1 (`base branch refactor/release-architecture-b1-build-split`)
@@ -501,14 +501,31 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B3 (`services/repos.py` split).
 
-### 6.1) Ecart restant pour atteindre la cible release (post-B1 merged, B2 in review)
+- B3 (repos service split): IN PROGRESS (LOCAL)
+  - Branch: `refactor/release-architecture-b3-repos-split`
+  - Base strategy: start from merged B2 (`base branch refactor/release-architecture-b2-toolchains-split`)
+  - Scope delivered locally:
+    - replaced monolith `ms/services/repos.py` with package `ms/services/repos/*`
+    - introduced split modules: `models`, `manifest`, `git_ops`, `lockfile`, `sync`, `service`, `_context`
+    - preserved import compatibility at `ms.services.repos` via package `__init__.py`
+    - preserved `RepoService` public import used by CLI/setup/tests
+  - Validation (completed locally):
+    - `uv run ruff check ...` (edited files)
+    - `uv run pyright ...` (edited files)
+    - `uv run pytest ms/test/services/test_repos_service.py -q`
+    - `uv run pytest ms/test/cli -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
+  - Next: open PR-B3.
 
-Etat mesure sur la branche `refactor/release-architecture-b2-toolchains-split`:
+### 6.1) Ecart restant pour atteindre la cible release (post-B2 merged, B3 local)
+
+Etat mesure sur la branche `refactor/release-architecture-b3-repos-split`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
-  - lots merges: `11/19` (A1-A10 + B1)
-  - lots en review: `1/19` (B2)
+  - lots merges: `12/19` (A1-A10 + B1 + B2)
+  - lots en review: `0/19`
+  - lot en cours local: `B3`
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
@@ -516,7 +533,8 @@ Etat de trajectoire:
 
 - Wave A est completement mergee.
 - B1 est mergee avec compat import preservee et sans changement de comportement intentionnel.
-- B2 est ouverte en review avec le meme contrat de non-regression comportementale.
+- B2 est mergee avec le meme contrat de non-regression comportementale.
+- B3 est demarree localement avec compat import preservee et sans changement de comportement intentionnel.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -592,7 +610,7 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-A10/B1 merged + B2 local, mesure locale)
+### 7.3 Snapshot courant (post-A10/B1/B2 merged + B3 local, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
@@ -601,8 +619,7 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
 - Legacy release actif (hors shims): `5` fichiers, `1120` lignes
 - Fichiers CLI important encore `ms.services.release.*`: `4` (4 points d'import)
 - Modules legacy release importes par CLI: `2` (`ms.services.release.service`, `ms.services.release.remove`)
-- Surface restante Wave B (hotspots): `1359` lignes
-  - `ms/services/repos.py`: `369`
+- Surface restante Wave B (hotspots): `990` lignes
   - `ms/oc_cli/common.py`: `504`
   - `ms/services/hardware.py`: `173`
   - `ms/cli/commands/status.py`: `313`
@@ -614,7 +631,11 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
   - `ms/services/toolchains/helpers.py`: `236`
   - `ms/services/toolchains/sync.py`: `173`
   - `ms/services/toolchains/models.py`: `64`
-- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~2479` lignes
+- Repos split B3 (decompose):
+  - `ms/services/repos/sync.py`: `141`
+  - `ms/services/repos/manifest.py`: `107`
+  - `ms/services/repos/git_ops.py`: `54`
+- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~2110` lignes
 
 Mesure hotspots (script guardrail simple):
 
@@ -705,9 +726,9 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche active actuelle: `refactor/release-architecture-b2-toolchains-split`
+- Branche active actuelle: `refactor/release-architecture-b3-repos-split`
 - Wave A: PR `#39` -> `#44` merged
-- Stack ouverte en review: `#46` (B2)
+- Stack ouverte en review: aucune (pre-PR B3)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. finaliser review/merge PR-B2 (`#46`)
-  2. demarrer PR-B3 (`services/repos.py` -> `services/repos/*`)
+  1. ouvrir PR-B3 (`services/repos.py` -> `services/repos/*`)
+  2. demarrer PR-B4 (`oc_cli/common.py` split)
