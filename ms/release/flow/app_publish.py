@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import config
-from ms.release.domain.notes import AppPublishNotes
+from ms.release.domain.notes import AppPublishNotes, ExternalNotesSnapshot
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.workflows import (
     dispatch_app_candidate_workflow,
@@ -16,17 +15,6 @@ from ms.release.infra.github.workflows import (
 )
 
 from .app_prepare import PreparedAppRelease
-
-
-class ExternalNotesSnapshotLike(Protocol):
-    @property
-    def source_path(self) -> Path: ...
-
-    @property
-    def markdown(self) -> str: ...
-
-    @property
-    def sha256(self) -> str: ...
 
 
 def publish_app_release(
@@ -96,10 +84,10 @@ def publish_app_release(
     return Ok((candidate.value.url, release.value.url))
 
 
-def resolve_app_publish_notes[SnapshotT: ExternalNotesSnapshotLike](
+def resolve_app_publish_notes(
     *,
     notes_file: Path | None,
-    load_external_notes_file_fn: Callable[..., Result[SnapshotT, ReleaseError]],
+    load_external_notes_file_fn: Callable[..., Result[ExternalNotesSnapshot, ReleaseError]],
 ) -> Result[AppPublishNotes, ReleaseError]:
     if notes_file is None:
         return Ok(AppPublishNotes(markdown=None, source_path=None, sha256=None))

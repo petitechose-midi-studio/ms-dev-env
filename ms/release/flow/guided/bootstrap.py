@@ -7,6 +7,7 @@ from typing import Literal, Protocol
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
+from ms.release.domain.notes import ExternalNotesSnapshot
 from ms.release.errors import ReleaseError
 
 from .sessions import (
@@ -21,17 +22,6 @@ PermissionCheck = Callable[..., Result[None, ReleaseError]]
 class CurrentUserLike(Protocol):
     @property
     def login(self) -> str: ...
-
-
-class ExternalNotesSnapshotLike(Protocol):
-    @property
-    def source_path(self) -> Path: ...
-
-    @property
-    def markdown(self) -> str: ...
-
-    @property
-    def sha256(self) -> str: ...
 
 
 class ResumeSelectionLike(Protocol):
@@ -63,10 +53,10 @@ def preflight_with_permission[UserT: CurrentUserLike](
     return Ok(who.value.login)
 
 
-def load_notes_snapshot[NotesT: ExternalNotesSnapshotLike](
+def load_notes_snapshot(
     *,
     notes_file: Path | None,
-    load_external_notes_file_fn: Callable[..., Result[NotesT, ReleaseError]],
+    load_external_notes_file_fn: Callable[..., Result[ExternalNotesSnapshot, ReleaseError]],
 ) -> Result[tuple[str, str, str] | None, ReleaseError]:
     if notes_file is None:
         return Ok(None)

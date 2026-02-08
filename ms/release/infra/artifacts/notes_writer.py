@@ -8,6 +8,7 @@ from ms.core.result import Err, Ok, Result
 from ms.platform.files import atomic_write_text
 from ms.release.domain.config import DIST_NOTES_DIR
 from ms.release.domain.models import PinnedRepo, ReleaseChannel
+from ms.release.domain.notes import ExternalNotesSnapshot
 from ms.release.errors import ReleaseError
 
 
@@ -15,13 +16,6 @@ from ms.release.errors import ReleaseError
 class WrittenNotes:
     rel_path: str
     abs_path: Path
-
-
-@dataclass(frozen=True, slots=True)
-class ExternalNotesSnapshot:
-    source_path: Path
-    markdown: str
-    sha256: str
 
 
 def load_external_notes_file(*, path: Path) -> Result[ExternalNotesSnapshot, ReleaseError]:
