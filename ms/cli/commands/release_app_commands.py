@@ -22,11 +22,9 @@ from ms.release.domain import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseCh
 from ms.release.flow.app_plan import plan_app_release
 from ms.release.flow.app_prepare import (
     PreparedAppRelease,
-    prepare_app_pr,
     prepare_app_release_distribution,
 )
 from ms.release.flow.app_publish import publish_app_release, resolve_app_publish_notes
-from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.permissions import ensure_app_release_permissions
 from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.resolve.app_inputs import resolve_pinned_app
@@ -233,8 +231,6 @@ def _prepare_app_release(
     )
 
     prepared = prepare_app_release_distribution(
-        ensure_ci_green_fn=ensure_ci_green,
-        prepare_app_pr_fn=prepare_app_pr,
         workspace_root=ctx.workspace.root,
         console=ctx.console,
         plan=request,

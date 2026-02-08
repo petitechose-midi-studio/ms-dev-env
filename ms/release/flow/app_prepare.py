@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -9,6 +8,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import AppReleasePlan, PinnedRepo
 from ms.release.errors import ReleaseError
+from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.infra.artifacts.app_version_writer import (
     app_version_files,
     apply_version,
@@ -235,17 +235,15 @@ def prepare_app_pr(
     )
 
 
-def prepare_app_release_distribution[PrepareT: AppPrepareResultLike](
+def prepare_app_release_distribution(
     *,
-    ensure_ci_green_fn: Callable[..., Result[None, ReleaseError]],
-    prepare_app_pr_fn: Callable[..., Result[PrepareT, ReleaseError]],
     workspace_root: Path,
     console: ConsoleProtocol,
     plan: AppReleasePlan,
     allow_non_green: bool,
     dry_run: bool,
 ) -> Result[PreparedAppRelease, ReleaseError]:
-    green = ensure_ci_green_fn(
+    green = ensure_ci_green(
         workspace_root=workspace_root,
         pinned=plan.pinned,
         allow_non_green=allow_non_green,
@@ -253,7 +251,7 @@ def prepare_app_release_distribution[PrepareT: AppPrepareResultLike](
     if isinstance(green, Err):
         return green
 
-    prepared = prepare_app_pr_fn(
+    prepared = prepare_app_pr(
         workspace_root=workspace_root,
         console=console,
         tag=plan.tag,
