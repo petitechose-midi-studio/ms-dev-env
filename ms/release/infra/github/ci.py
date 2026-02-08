@@ -8,7 +8,7 @@ from urllib.parse import quote
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_list, get_str
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.client import gh_api_json, run_gh_read
+from ms.release.infra.github.gh_base import gh_api_json, run_gh_read
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
 

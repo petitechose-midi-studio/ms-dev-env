@@ -6,7 +6,8 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import config
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.client import ensure_gh_auth, ensure_gh_available, viewer_permission
+from ms.release.infra.github.client import viewer_permission
+from ms.release.infra.github.gh_base import ensure_gh_auth, ensure_gh_available
 
 _ALLOWED_WRITE_PERMISSIONS = frozenset({"ADMIN", "MAINTAIN", "WRITE"})
 

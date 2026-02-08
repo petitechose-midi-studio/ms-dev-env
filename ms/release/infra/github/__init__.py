@@ -6,15 +6,17 @@ from ms.release.infra.github.client import (
     GhViewer,
     compare_commits,
     current_user,
-    ensure_gh_auth,
-    ensure_gh_available,
     get_ref_head_sha,
     get_repo_file_text,
-    gh_api_json,
     list_distribution_releases,
     list_recent_commits,
-    run_gh_read,
     viewer_permission,
+)
+from ms.release.infra.github.gh_base import (
+    ensure_gh_auth,
+    ensure_gh_available,
+    gh_api_json,
+    run_gh_read,
 )
 from ms.release.infra.github.pr_merge import create_pull_request, merge_pull_request
 from ms.release.infra.github.run_watch import watch_run
