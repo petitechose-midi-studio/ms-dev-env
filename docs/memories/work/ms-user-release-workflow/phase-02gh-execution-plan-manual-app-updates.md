@@ -219,9 +219,9 @@ Repo: `ms-dev-env`
 
 Files:
 
-- `ms/services/release/config.py`
-- `ms/services/release/workflow.py`
-- `ms/services/release/service.py`
+- `ms/release/domain/config.py`
+- `ms/release/infra/github/workflows.py`
+- `ms/release/flow/*`
 - `ms/cli/commands/release_cmd.py`
 
 Required edits:

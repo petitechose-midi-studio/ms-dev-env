@@ -128,7 +128,7 @@ Publish workflow integration (required):
 
 ## Architecture (avoid monolith)
 
-Add a dedicated package under `ms/services/release/`:
+Add a dedicated package under `ms/release/`:
 
 - `config.py`: distribution repo slug, release repos list, tag regexes, defaults.
 - `model.py`: typed dataclasses (no `typing.Any`).
@@ -157,7 +157,7 @@ Mitigations:
 - No shell evaluation (`subprocess.run([...])` only; no `shell=True`).
 - Dry-run and explicit confirmation before side effects.
 - Repo policy:
-  - CODEOWNERS for `ms/cli/commands/release_*.py` and `ms/services/release/**`
+  - CODEOWNERS for `ms/cli/commands/release_*.py` and `ms/release/**`
   - branch protection for `ms-dev-env/main`
 
 ## Exit Criteria
@@ -179,7 +179,7 @@ Implemented in `ms-dev-env`:
   - `ms release prepare`
   - `ms release publish`
   - `ms release remove`
-- Modules: `ms/services/release/*` (semver, planning, CI checks, spec/notes generation, dist PR, workflow dispatch)
+- Modules: `ms/release/*` (domain, resolve, flow, view, infra)
 - Guardrails:
   - permission gating via `viewerPermission` on `petitechose-midi-studio/distribution`
   - monotone tags enforced

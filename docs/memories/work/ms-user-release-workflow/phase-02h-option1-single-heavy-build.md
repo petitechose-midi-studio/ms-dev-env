@@ -107,8 +107,8 @@ Acceptance:
 Files:
 
 - `ms/cli/commands/release_cmd.py`
-- `ms/services/release/workflow.py`
-- `ms/services/release/service.py`
+- `ms/release/infra/github/workflows.py`
+- `ms/release/flow/*`
 
 Changes:
 

@@ -29,7 +29,7 @@ Date: 2026-02-06
 Completed in this phase so far:
 
 - Added release PR non-squash behavior in `ms release` distribution merge path:
-  - `ms/services/release/dist_repo.py` now uses `gh pr merge --rebase --auto`.
+  - `ms/release/infra/repos/distribution.py` now uses `gh pr merge --rebase --auto`.
 - Added workflow run cancellation (`concurrency.cancel-in-progress: true`) in:
   - `distribution`: `CI`, `Publish`, `Nightly`
   - `ms-manager`: `CI`, `Release`
@@ -69,8 +69,8 @@ Completed in this phase so far:
 
 - `ms release` already provides strict CI-gated pin selection and safe planning:
   - `ms/cli/commands/release_cmd.py`
-  - `ms/services/release/auto.py`
-  - `ms/services/release/service.py`
+  - `ms/release/resolve/auto/*`
+  - `ms/release/flow/*`
 - `distribution` publish pipeline has strong release controls:
   - explicit `environment: release` gate for stable/beta signing
   - manifest signing + verification + uploaded-assets verification
@@ -294,7 +294,7 @@ Tests:
 
 Tasks:
 
-- Add product-aware release config and planner in `ms/services/release/*`.
+- Add product-aware release config and planner in `ms/release/domain/*`.
 - Add commands (or sub-commands) with same lifecycle:
   - `plan` (auto/manual)
   - `prepare` (PR/version bump/spec changes)

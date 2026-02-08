@@ -113,7 +113,7 @@ Implement minimal CI workflows in:
 
 Then:
 
-- Update `ms/services/release/config.py` to set `required_ci_workflow_file` for `core` and `plugin-bitwig`.
+- Update `ms/release/domain/config.py` to set `required_ci_workflow_file` for `core` and `plugin-bitwig`.
 - Update `distribution/release-specs/nightly.template.json` to CI-gate `core` and `plugin-bitwig`.
 
 ### C) Validate strict auto end-to-end (done)
