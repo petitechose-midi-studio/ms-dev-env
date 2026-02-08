@@ -23,12 +23,13 @@ from ms.release.infra.repos.distribution import (
 )
 
 from .pinned_body import build_pinned_body
+from .pr_outcome import PrMergeOutcome
 
 
 @dataclass(frozen=True, slots=True)
 class PreparedContentRelease:
     plan: ReleasePlan
-    pr_url: str
+    pr: PrMergeOutcome
 
 
 def _prepare_distribution_repo(
@@ -131,7 +132,7 @@ def prepare_distribution_pr(
     user_notes: str | None,
     user_notes_file: Path | None,
     dry_run: bool,
-) -> Result[str, ReleaseError]:
+) -> Result[PrMergeOutcome, ReleaseError]:
     dist_root_r = _prepare_distribution_repo(
         workspace_root=workspace_root,
         console=console,
@@ -145,7 +146,13 @@ def prepare_distribution_pr(
     # skip PR creation and proceed.
     if not dry_run and _distribution_artifacts_match_plan(dist_root=dist_root, plan=plan):
         console.print("distribution spec already present on main; skipping PR", Style.DIM)
-        return Ok(f"(already merged) {plan.spec_path}")
+        return Ok(
+            PrMergeOutcome(
+                kind="already_merged",
+                url=None,
+                label=f"(already merged) {plan.spec_path}",
+            )
+        )
 
     branch = f"release/{plan.tag}"
     br = create_branch(repo_root=dist_root, branch=branch, console=console, dry_run=dry_run)
@@ -206,13 +213,13 @@ def prepare_distribution_pr(
     if isinstance(merged, Err):
         return merged
 
-    return Ok(pr.value)
+    return Ok(PrMergeOutcome(kind="merged_pr", url=pr.value, label=pr.value))
 
 
 def prepare_content_release_distribution(
     *,
     ensure_ci_green_fn: Callable[..., Result[None, ReleaseError]],
-    prepare_distribution_pr_fn: Callable[..., Result[str, ReleaseError]],
+    prepare_distribution_pr_fn: Callable[..., Result[PrMergeOutcome, ReleaseError]],
     workspace_root: Path,
     console: ConsoleProtocol,
     plan: ReleasePlan,
@@ -241,4 +248,4 @@ def prepare_content_release_distribution(
     if isinstance(pr, Err):
         return pr
 
-    return Ok(PreparedContentRelease(plan=plan, pr_url=pr.value))
+    return Ok(PreparedContentRelease(plan=plan, pr=pr.value))

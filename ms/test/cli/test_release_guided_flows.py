@@ -16,6 +16,7 @@ from ms.release.flow.guided.sessions import (
     new_app_session,
     new_content_session,
 )
+from ms.release.flow.pr_outcome import PrMergeOutcome
 
 
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:
@@ -71,7 +72,16 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         return Ok(None)
 
     def fake_prepare(*args: object, **kwargs: object):
-        return Ok(AppPrepareResult(pr_url="https://example/pr/1", source_sha="b" * 40))
+        return Ok(
+            AppPrepareResult(
+                pr=PrMergeOutcome(
+                    kind="merged_pr",
+                    url="https://example/pr/1",
+                    label="https://example/pr/1",
+                ),
+                source_sha="b" * 40,
+            )
+        )
 
     published: dict[str, object] = {}
 
@@ -166,7 +176,16 @@ def test_guided_app_summary_edit_recomputes_tag(
         return Ok(None)
 
     def fake_prepare(*args: object, **kwargs: object):
-        return Ok(AppPrepareResult(pr_url="https://example/pr/2", source_sha="b" * 40))
+        return Ok(
+            AppPrepareResult(
+                pr=PrMergeOutcome(
+                    kind="merged_pr",
+                    url="https://example/pr/2",
+                    label="https://example/pr/2",
+                ),
+                source_sha="b" * 40,
+            )
+        )
 
     def fake_publish(*args: object, **kwargs: object):
         return Ok(("c", "r"))
@@ -260,7 +279,11 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         return SimpleNamespace(dirty_repos=_dirty_repos)
 
     def fake_prepare(*args: object, **kwargs: object):
-        return Ok("https://example/pr/3")
+        return Ok(
+            PrMergeOutcome(
+                kind="merged_pr", url="https://example/pr/3", label="https://example/pr/3"
+            )
+        )
 
     published: dict[str, object] = {}
 

@@ -25,6 +25,7 @@ from ms.release.flow.guided.content_steps import MenuOption, run_guided_content_
 from ms.release.flow.guided.selection import Selection
 from ms.release.flow.guided.sessions import ContentReleaseSession, clear_content_session
 from ms.release.flow.permissions import ensure_release_permissions
+from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.open_control import OpenControlPreflightReport, preflight_open_control
 from ms.release.view.guided_console import print_notes_status
 
@@ -201,7 +202,7 @@ def run_guided_content_release(
             user_notes: str | None,
             user_notes_file: Path | None,
             dry_run: bool,
-        ) -> Result[str, ReleaseError]:
+        ) -> Result[PrMergeOutcome, ReleaseError]:
             return prepare_distribution_pr(
                 workspace_root=workspace_root,
                 console=console,

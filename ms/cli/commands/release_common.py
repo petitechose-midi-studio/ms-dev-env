@@ -79,33 +79,6 @@ def print_current_release_user(*, workspace_root: Path, console: ConsoleProtocol
     return login
 
 
-def parse_overrides(items: list[str], *, flag: str) -> dict[str, str]:
-    out: dict[str, str] = {}
-    for item in items:
-        if "=" not in item:
-            exit_release(f"invalid {flag} (expected id=value): {item}", code=ErrorCode.USER_ERROR)
-        k, v = item.split("=", 1)
-        k = k.strip()
-        v = v.strip()
-        if not k or not v:
-            exit_release(f"invalid {flag} (expected id=value): {item}", code=ErrorCode.USER_ERROR)
-        out[k] = v
-    return out
-
-
-def enforce_auto_constraints(
-    *, auto: bool, overrides: dict[str, str], allow_non_green: bool
-) -> None:
-    if not auto:
-        return
-
-    if overrides:
-        exit_release("--auto cannot be combined with --repo overrides", code=ErrorCode.USER_ERROR)
-
-    if allow_non_green:
-        exit_release("--auto is strict: remove --allow-non-green", code=ErrorCode.USER_ERROR)
-
-
 def pick_pinned_repo_interactive(
     *,
     workspace_root: Path,

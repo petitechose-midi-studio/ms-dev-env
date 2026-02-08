@@ -18,8 +18,6 @@ def test_legacy_release_hotspots_do_not_grow_unbounded() -> None:
         "cli/commands/release_app_commands.py",
         "cli/release_guided_content.py",
         "cli/release_guided_app.py",
-        "services/release/service.py",
-        "services/release/auto.py",
     ]
 
     offenders: list[str] = []

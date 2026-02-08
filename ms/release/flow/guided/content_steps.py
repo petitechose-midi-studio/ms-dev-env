@@ -8,6 +8,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleasePlan, ReleaseRepo
 from ms.release.errors import ReleaseError
+from ms.release.flow.pr_outcome import PrMergeOutcome
 
 from .fsm import FINISH, StepHandler, StepOutcome, advance, run_state_machine
 from .selection import Selection
@@ -106,7 +107,7 @@ class ContentGuidedDependencies(Protocol):
         user_notes: str | None,
         user_notes_file: Path | None,
         dry_run: bool,
-    ) -> Result[str, ReleaseError]: ...
+    ) -> Result[PrMergeOutcome, ReleaseError]: ...
 
     def publish_distribution_release(
         self,

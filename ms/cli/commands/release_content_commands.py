@@ -43,7 +43,8 @@ from ms.release.flow.permissions import ensure_release_permissions
 from ms.release.infra.open_control import preflight_open_control
 from ms.release.resolve.auto.diagnostics import RepoReadiness, probe_release_readiness
 from ms.release.resolve.auto.smart import resolve_pinned_auto_smart
-from ms.release.resolve.content_inputs import parse_override_items, resolve_pinned_content
+from ms.release.resolve.content_inputs import resolve_pinned_content
+from ms.release.resolve.overrides import parse_override_items
 from ms.release.resolve.plan_io import PlanInput, write_plan_file
 from ms.release.view.content_console import (
     print_auto_blockers,
@@ -363,7 +364,7 @@ def prepare_cmd(
         dry_run=dry_run,
     )
 
-    ctx.console.success(f"PR: {prepared.pr_url}")
+    ctx.console.success(f"PR: {prepared.pr}")
 
 
 def publish_cmd(
@@ -420,7 +421,7 @@ def publish_cmd(
         dry_run=dry_run,
     )
 
-    ctx.console.success(f"PR merged: {prepared.pr_url}")
+    ctx.console.success(f"PR merged: {prepared.pr}")
 
     run = publish_content_release(
         publish_distribution_release_fn=publish_distribution_release,

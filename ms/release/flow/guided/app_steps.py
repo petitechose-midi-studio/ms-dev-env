@@ -8,6 +8,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleaseRepo
 from ms.release.errors import ReleaseError
+from ms.release.flow.pr_outcome import PrMergeOutcome
 
 from .fsm import FINISH, StepHandler, StepOutcome, advance, run_state_machine
 from .selection import Selection
@@ -23,7 +24,7 @@ class MenuOption[T]:
 
 class AppPrepareResultLike(Protocol):
     @property
-    def pr_url(self) -> str: ...
+    def pr(self) -> PrMergeOutcome: ...
 
     @property
     def source_sha(self) -> str: ...
@@ -434,7 +435,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         if isinstance(prepared, Err):
             return prepared
 
-        ctx.console.success(f"PR merged: {prepared.value.pr_url}")
+        ctx.console.success(f"PR merged: {prepared.value.pr}")
         ctx.console.print(f"source sha: {prepared.value.source_sha}", Style.DIM)
         deps.print_notes_status(
             console=ctx.console,

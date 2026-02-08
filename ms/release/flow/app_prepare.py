@@ -37,11 +37,12 @@ from ms.release.infra.repos.app import (
 )
 
 from .pinned_body import build_pinned_body
+from .pr_outcome import PrMergeOutcome
 
 
 class AppPrepareResultLike(Protocol):
     @property
-    def pr_url(self) -> str: ...
+    def pr(self) -> PrMergeOutcome: ...
 
     @property
     def source_sha(self) -> str: ...
@@ -49,14 +50,14 @@ class AppPrepareResultLike(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class AppPrepareResult:
-    pr_url: str
+    pr: PrMergeOutcome
     source_sha: str
 
 
 @dataclass(frozen=True, slots=True)
 class PreparedAppRelease:
     plan: AppReleasePlan
-    pr_url: str
+    pr: PrMergeOutcome
     source_sha: str
 
 
@@ -160,7 +161,16 @@ def prepare_app_pr(
             return already_r
         if already_r.value:
             console.print("app version already present on main; skipping PR", Style.DIM)
-            return Ok(AppPrepareResult(pr_url=f"(already merged) {tag}", source_sha=base_sha))
+            return Ok(
+                AppPrepareResult(
+                    pr=PrMergeOutcome(
+                        kind="already_merged",
+                        url=None,
+                        label=f"(already merged) {tag}",
+                    ),
+                    source_sha=base_sha,
+                )
+            )
 
     branch = f"release/{tag}-{base_sha[:8]}"
     br = app_create_branch(
@@ -217,7 +227,12 @@ def prepare_app_pr(
     if isinstance(merged, Err):
         return merged
 
-    return Ok(AppPrepareResult(pr_url=pr.value, source_sha=source_sha))
+    return Ok(
+        AppPrepareResult(
+            pr=PrMergeOutcome(kind="merged_pr", url=pr.value, label=pr.value),
+            source_sha=source_sha,
+        )
+    )
 
 
 def prepare_app_release_distribution[PrepareT: AppPrepareResultLike](
@@ -253,7 +268,7 @@ def prepare_app_release_distribution[PrepareT: AppPrepareResultLike](
     return Ok(
         PreparedAppRelease(
             plan=plan,
-            pr_url=prepared.value.pr_url,
+            pr=prepared.value.pr,
             source_sha=prepared.value.source_sha,
         )
     )

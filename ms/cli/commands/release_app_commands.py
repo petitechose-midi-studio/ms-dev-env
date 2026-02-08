@@ -301,7 +301,7 @@ def app_prepare_cmd(
         dry_run=dry_run,
     )
 
-    ctx.console.success(f"PR: {prepared.pr_url}")
+    ctx.console.success(f"PR: {prepared.pr}")
     ctx.console.print(f"source sha: {prepared.source_sha}", Style.DIM)
 
 
@@ -361,7 +361,7 @@ def app_publish_cmd(
 
     print_app_notes_attachment(console=ctx.console, notes=notes.value)
 
-    ctx.console.success(f"PR merged: {prepared.pr_url}")
+    ctx.console.success(f"PR merged: {prepared.pr}")
     ctx.console.print(f"source sha: {prepared.source_sha}", Style.DIM)
 
     run = publish_app_release_workflows(
