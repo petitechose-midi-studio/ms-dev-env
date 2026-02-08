@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -53,22 +52,4 @@ def plan_app_release(
             pinned=pinned,
             title=f"release(app): {tag}",
         )
-    )
-
-
-def build_app_release_plan(
-    *,
-    planner: Callable[..., Result[AppReleasePlan, ReleaseError]],
-    workspace_root: Path,
-    channel: ReleaseChannel,
-    bump: ReleaseBump,
-    tag_override: str | None,
-    pinned: tuple[PinnedRepo, ...],
-) -> Result[AppReleasePlan, ReleaseError]:
-    return planner(
-        workspace_root=workspace_root,
-        channel=channel,
-        bump=bump,
-        tag_override=tag_override,
-        pinned=pinned,
     )

@@ -20,7 +20,7 @@ from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import PinnedRepo, ReleaseBump, ReleaseChannel, config
 from ms.release.flow.ci_gate import ensure_ci_green
-from ms.release.flow.content_plan import build_content_release_plan, plan_release
+from ms.release.flow.content_plan import plan_release
 from ms.release.flow.content_preflight import (
     collect_release_preflight_issues,
     load_open_control_report,
@@ -191,8 +191,7 @@ def plan_cmd(
             Style.DIM,
         )
 
-    plan_r = build_content_release_plan(
-        planner=plan_release,
+    plan_r = plan_release(
         workspace_root=ctx.workspace.root,
         channel=channel,
         bump=bump,
@@ -272,8 +271,7 @@ def _prepare_content_release(
             code=ErrorCode.USER_ERROR,
         )
 
-    planned = build_content_release_plan(
-        planner=plan_release,
+    planned = plan_release(
         workspace_root=ctx.workspace.root,
         channel=resolved.channel,
         bump=bump,

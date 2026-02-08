@@ -19,7 +19,7 @@ from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel, config
-from ms.release.flow.app_plan import build_app_release_plan, plan_app_release
+from ms.release.flow.app_plan import plan_app_release
 from ms.release.flow.app_prepare import (
     PreparedAppRelease,
     prepare_app_pr,
@@ -125,8 +125,7 @@ def app_plan_cmd(
         interactive=not no_interactive,
     )
 
-    planned = build_app_release_plan(
-        planner=plan_app_release,
+    planned = plan_app_release(
         workspace_root=ctx.workspace.root,
         channel=channel,
         bump=bump,
@@ -189,8 +188,7 @@ def _prepare_app_release_request(
         ),
     )
 
-    planned = build_app_release_plan(
-        planner=plan_app_release,
+    planned = plan_app_release(
         workspace_root=ctx.workspace.root,
         channel=resolved.channel,
         bump=bump,
