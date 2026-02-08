@@ -35,8 +35,6 @@ from ms.release.flow.content_remove import (
     validate_remove_tags,
 )
 from ms.release.flow.permissions import ensure_release_permissions
-from ms.release.infra.open_control import preflight_open_control
-from ms.release.resolve.auto.diagnostics import RepoReadiness, probe_release_readiness
 from ms.release.resolve.auto.smart import resolve_pinned_auto_smart
 from ms.release.resolve.content_inputs import resolve_pinned_content
 from ms.release.resolve.overrides import parse_override_items
@@ -73,18 +71,6 @@ def _resolve_pinned(
                 workspace_root=workspace_root,
                 release_repos=config.RELEASE_REPOS,
                 refs=refs.value,
-                probe_readiness_fn=probe_release_readiness,
-                make_error_readiness_fn=lambda repo, ref, message: RepoReadiness(
-                    repo=repo,
-                    ref=ref,
-                    local_path=workspace_root,
-                    local_exists=False,
-                    status=None,
-                    local_head_sha=None,
-                    remote_head_sha=None,
-                    head_green=None,
-                    error=message,
-                ),
             ),
         )
 
@@ -175,7 +161,6 @@ def plan_cmd(
     report = load_open_control_report(
         workspace_root=ctx.workspace.root,
         pinned=pinned,
-        preflight_fn=preflight_open_control,
     )
     if report is not None:
         print_open_control_preflight(console=ctx.console, report=report)
@@ -256,7 +241,6 @@ def _prepare_content_release(
     report = load_open_control_report(
         workspace_root=ctx.workspace.root,
         pinned=resolved.pinned,
-        preflight_fn=preflight_open_control,
     )
     if report is not None:
         print_open_control_preflight(console=ctx.console, report=report)
