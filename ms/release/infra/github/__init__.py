@@ -17,6 +17,7 @@ from ms.release.infra.github.client import (
     viewer_permission,
 )
 from ms.release.infra.github.pr_merge import create_pull_request, merge_pull_request
+from ms.release.infra.github.run_watch import watch_run
 from ms.release.infra.github.timeouts import (
     GH_CLONE_TIMEOUT_SECONDS,
     GH_READ_RETRY_ATTEMPTS,
@@ -31,7 +32,6 @@ from ms.release.infra.github.workflows import (
     dispatch_app_candidate_workflow,
     dispatch_app_release_workflow,
     dispatch_publish_workflow,
-    watch_run,
 )
 
 __all__ = [

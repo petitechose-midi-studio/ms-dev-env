@@ -22,7 +22,7 @@ from ms.release.domain.config import (
 )
 from ms.release.domain.models import ReleaseChannel
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS, GH_WATCH_TIMEOUT_SECONDS
+from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
 _RUN_LOOKUP_MAX_ATTEMPTS = 6
 _RUN_LOOKUP_DELAY_SECONDS = 1.0
@@ -271,31 +271,3 @@ def dispatch_app_candidate_workflow(
         console=console,
         dry_run=dry_run,
     )
-
-
-def watch_run(
-    *,
-    workspace_root: Path,
-    run_id: int,
-    repo_slug: str,
-    console: ConsoleProtocol,
-    dry_run: bool,
-) -> Result[None, ReleaseError]:
-    if run_id <= 0:
-        return Ok(None)
-    cmd = ["gh", "run", "watch", "--repo", repo_slug, str(run_id), "--exit-status"]
-    console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
-    if dry_run:
-        return Ok(None)
-
-    result = run_process(cmd, cwd=workspace_root, timeout=GH_WATCH_TIMEOUT_SECONDS)
-    if isinstance(result, Err):
-        e = result.error
-        return Err(
-            ReleaseError(
-                kind="workflow_failed",
-                message="workflow run failed",
-                hint=e.stderr.strip() or None,
-            )
-        )
-    return Ok(None)

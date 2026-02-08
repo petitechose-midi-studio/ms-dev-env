@@ -8,10 +8,10 @@ from ms.release.domain import config
 from ms.release.domain.notes import AppPublishNotes
 from ms.release.errors import ReleaseError
 from ms.release.infra.artifacts.notes_writer import load_external_notes_file
+from ms.release.infra.github.run_watch import watch_run
 from ms.release.infra.github.workflows import (
     dispatch_app_candidate_workflow,
     dispatch_app_release_workflow,
-    watch_run,
 )
 
 
