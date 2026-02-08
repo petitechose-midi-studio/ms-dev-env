@@ -1,32 +1,39 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol
 
-from ms.core.result import Err, Result
+from ms.core.result import Err
+from ms.release.domain.diagnostics import RepoReadiness
 from ms.release.domain.models import PinnedRepo, ReleaseRepo
-from ms.release.errors import ReleaseError
+from ms.release.domain.open_control_models import OpenControlPreflightReport
+from ms.release.infra.open_control import preflight_open_control
+from ms.release.resolve.auto.diagnostics import (
+    build_diag_blocker,
+    probe_release_readiness,
+    resolve_repo_ref,
+)
 
 
-class SupportsReady(Protocol):
-    def is_ready(self) -> bool: ...
-
-
-def collect_release_preflight_issues[ReadinessT: SupportsReady](
+def collect_release_preflight_issues(
     *,
     workspace_root: Path,
     release_repos: tuple[ReleaseRepo, ...],
     refs: dict[str, str],
-    probe_readiness_fn: Callable[..., Result[ReadinessT, ReleaseError]],
-    make_error_readiness_fn: Callable[[ReleaseRepo, str, str], ReadinessT],
-) -> tuple[ReadinessT, ...]:
-    issues: list[ReadinessT] = []
+) -> tuple[RepoReadiness, ...]:
+    issues: list[RepoReadiness] = []
     for repo in release_repos:
-        ref = refs.get(repo.id, repo.ref)
-        readiness = probe_readiness_fn(workspace_root=workspace_root, repo=repo, ref=ref)
+        ref = resolve_repo_ref(repo=repo, ref_overrides=refs)
+        readiness = probe_release_readiness(workspace_root=workspace_root, repo=repo, ref=ref)
         if isinstance(readiness, Err):
-            issues.append(make_error_readiness_fn(repo, ref, readiness.error.message))
+            issues.append(
+                build_diag_blocker(
+                    workspace_root=workspace_root,
+                    repo=repo,
+                    ref=ref,
+                    diagnostics=None,
+                    error=readiness.error.message,
+                )
+            )
             continue
 
         value = readiness.value
@@ -37,13 +44,12 @@ def collect_release_preflight_issues[ReadinessT: SupportsReady](
     return tuple(issues)
 
 
-def load_open_control_report[ReportT](
+def load_open_control_report(
     *,
     workspace_root: Path,
     pinned: tuple[PinnedRepo, ...],
-    preflight_fn: Callable[..., ReportT],
-) -> ReportT | None:
+) -> OpenControlPreflightReport | None:
     core = next((p for p in pinned if p.repo.id == "core"), None)
     if core is None:
         return None
-    return preflight_fn(workspace_root=workspace_root, core_sha=core.sha)
+    return preflight_open_control(workspace_root=workspace_root, core_sha=core.sha)
