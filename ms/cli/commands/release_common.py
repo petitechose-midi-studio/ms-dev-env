@@ -48,7 +48,7 @@ def release_error_code(kind: str) -> ErrorCode:
         return ErrorCode.ENV_ERROR
     if kind in {"workflow_failed"}:
         return ErrorCode.NETWORK_ERROR
-    if kind in {"dist_repo_failed", "dist_repo_dirty"}:
+    if kind in {"repo_failed", "repo_dirty"}:
         return ErrorCode.IO_ERROR
     return ErrorCode.USER_ERROR
 

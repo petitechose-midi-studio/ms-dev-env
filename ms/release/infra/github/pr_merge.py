@@ -31,7 +31,7 @@ def _parse_view_payload(*, payload: str, pr_url: str) -> Result[dict[str, object
     except json.JSONDecodeError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"invalid JSON from gh pr view: {e}",
                 hint=pr_url,
             )
@@ -41,7 +41,7 @@ def _parse_view_payload(*, payload: str, pr_url: str) -> Result[dict[str, object
     if data is None:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="unexpected gh pr view payload",
                 hint=pr_url,
             )
@@ -76,7 +76,7 @@ def _wait_until_mergeable(
             e = view.error
             return Err(
                 ReleaseError(
-                    kind="dist_repo_failed",
+                    kind="repo_failed",
                     message=f"failed to query {repo_label} PR merge status",
                     hint=e.stderr.strip() or pr_url,
                 )
@@ -91,7 +91,7 @@ def _wait_until_mergeable(
         if isinstance(state, str) and state != "OPEN":
             return Err(
                 ReleaseError(
-                    kind="dist_repo_failed",
+                    kind="repo_failed",
                     message=f"{repo_label} PR is {state.lower()} without merge",
                     hint=pr_url,
                 )
@@ -102,7 +102,7 @@ def _wait_until_mergeable(
 
     return Err(
         ReleaseError(
-            kind="dist_repo_failed",
+            kind="repo_failed",
             message=f"timed out waiting for {repo_label} PR to become mergeable",
             hint=pr_url,
         )
@@ -136,7 +136,7 @@ def _wait_until_merged(
             e = view.error
             return Err(
                 ReleaseError(
-                    kind="dist_repo_failed",
+                    kind="repo_failed",
                     message=f"failed to query {repo_label} PR state",
                     hint=e.stderr.strip() or pr_url,
                 )
@@ -157,7 +157,7 @@ def _wait_until_merged(
         if isinstance(state, str) and state != "OPEN":
             return Err(
                 ReleaseError(
-                    kind="dist_repo_failed",
+                    kind="repo_failed",
                     message=f"{repo_label} PR is {state.lower()} without merge",
                     hint=pr_url,
                 )
@@ -166,7 +166,7 @@ def _wait_until_merged(
 
     return Err(
         ReleaseError(
-            kind="dist_repo_failed",
+            kind="repo_failed",
             message=f"timed out waiting for {repo_label} PR merge",
             hint=pr_url,
         )
@@ -210,7 +210,7 @@ def create_pull_request(
         e = result.error
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to create PR in {repo_label} repo",
                 hint=e.stderr.strip() or None,
             )
@@ -220,7 +220,7 @@ def create_pull_request(
     if not url.startswith("https://"):
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="unexpected gh pr create output",
                 hint=url,
             )
@@ -288,7 +288,7 @@ def merge_pull_request(
                 de = direct.error
                 return Err(
                     ReleaseError(
-                        kind="dist_repo_failed",
+                        kind="repo_failed",
                         message=f"failed to merge {repo_label} PR",
                         hint=de.stderr.strip() or pr_url,
                     )
@@ -296,7 +296,7 @@ def merge_pull_request(
         else:
             return Err(
                 ReleaseError(
-                    kind="dist_repo_failed",
+                    kind="repo_failed",
                     message=f"failed to merge {repo_label} PR",
                     hint=e.stderr.strip() or pr_url,
                 )

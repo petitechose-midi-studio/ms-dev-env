@@ -166,7 +166,7 @@ def write_release_spec(
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to write release spec: {e}",
                 hint=str(path),
             )

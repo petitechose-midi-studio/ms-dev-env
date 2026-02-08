@@ -112,7 +112,7 @@ def commit_and_push(
             return Ok(value)
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="missing app branch head sha",
             )
         )

@@ -303,7 +303,7 @@ def _prepare_content_release(
     if isinstance(prepared, Err):
         code = (
             ErrorCode.IO_ERROR
-            if prepared.error.kind in {"dist_repo_failed", "dist_repo_dirty"}
+            if prepared.error.kind in {"repo_failed", "repo_dirty"}
             else ErrorCode.USER_ERROR
         )
         exit_release(prepared.error.message, code=code)

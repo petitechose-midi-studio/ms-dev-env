@@ -45,7 +45,7 @@ def ensure_repo_clone(
         e = result.error
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=clone_error_message,
                 hint=e.stderr.strip() or None,
             )
@@ -65,7 +65,7 @@ def ensure_clean_git_repo(
         e = result.error
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="failed to check git status",
                 hint=e.stderr.strip() or None,
             )
@@ -74,7 +74,7 @@ def ensure_clean_git_repo(
     if result.value.strip():
         return Err(
             ReleaseError(
-                kind="dist_repo_dirty",
+                kind="repo_dirty",
                 message=f"{repo_label} repo is dirty: {repo_root}",
                 hint=dirty_hint,
             )
@@ -104,7 +104,7 @@ def checkout_main_and_pull(
             e = result.error
             return Err(
                 ReleaseError(
-                    kind="dist_repo_failed",
+                    kind="repo_failed",
                     message=f"git failed: {' '.join(cmd[:3])}",
                     hint=e.stderr.strip() or None,
                 )
@@ -137,7 +137,7 @@ def create_branch(
         e = result.error
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to create branch: {branch}",
                 hint=e.stderr.strip() or None,
             )
@@ -172,7 +172,7 @@ def commit_and_push(
         e = add.error
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="git add failed",
                 hint=e.stderr.strip() or None,
             )
@@ -186,7 +186,7 @@ def commit_and_push(
             hint = "Configure git user.name/user.email, then retry."
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="git commit failed",
                 hint=hint,
             )
@@ -201,7 +201,7 @@ def commit_and_push(
         e = push.error
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="git push failed",
                 hint=e.stderr.strip() or None,
             )
@@ -215,7 +215,7 @@ def commit_and_push(
         e = head.error
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=head_sha_read_error or "failed to read branch head sha",
                 hint=e.stderr.strip() or None,
             )
@@ -225,7 +225,7 @@ def commit_and_push(
     if len(sha) != 40:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=head_sha_invalid_error or "invalid branch head sha",
                 hint=sha,
             )

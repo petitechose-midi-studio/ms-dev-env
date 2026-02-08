@@ -132,7 +132,7 @@ def _resolve_app_changed_paths(
     if not changed.value:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message="version update produced no file changes",
                 hint=f"Target version: {version}",
             )

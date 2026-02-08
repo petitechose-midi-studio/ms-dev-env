@@ -18,8 +18,8 @@ class ReleaseError:
         "invalid_tag",
         "tag_exists",
         "ci_not_green",
-        "dist_repo_dirty",
-        "dist_repo_failed",
+        "repo_dirty",
+        "repo_failed",
         "workflow_failed",
     ]
     message: str

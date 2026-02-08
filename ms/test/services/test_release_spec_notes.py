@@ -78,7 +78,7 @@ def test_write_release_spec_reports_atomic_write_error(
         pinned=pinned,
     )
     assert isinstance(result, Err)
-    assert result.error.kind == "dist_repo_failed"
+    assert result.error.kind == "repo_failed"
 
 
 def test_write_release_notes_reports_atomic_write_error(
@@ -102,4 +102,4 @@ def test_write_release_notes_reports_atomic_write_error(
         user_notes_file=None,
     )
     assert isinstance(result, Err)
-    assert result.error.kind == "dist_repo_failed"
+    assert result.error.kind == "repo_failed"

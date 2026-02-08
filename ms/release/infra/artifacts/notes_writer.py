@@ -144,7 +144,7 @@ def write_release_notes(
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to write release notes: {e}",
                 hint=str(path),
             )

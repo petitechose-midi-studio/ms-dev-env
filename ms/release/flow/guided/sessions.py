@@ -241,7 +241,7 @@ def save_app_session(
     except OSError as exc:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to write release session: {exc}",
                 hint=str(path),
             )
@@ -343,7 +343,7 @@ def clear_app_session(*, workspace_root: Path) -> Result[None, ReleaseError]:
     except OSError as exc:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to delete release session: {exc}",
                 hint=str(path),
             )
@@ -382,7 +382,7 @@ def save_content_session(
     except OSError as exc:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to write release session: {exc}",
                 hint=str(path),
             )
@@ -498,7 +498,7 @@ def clear_content_session(*, workspace_root: Path) -> Result[None, ReleaseError]
     except OSError as exc:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to delete release session: {exc}",
                 hint=str(path),
             )

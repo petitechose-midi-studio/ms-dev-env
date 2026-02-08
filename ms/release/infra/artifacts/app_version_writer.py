@@ -96,7 +96,7 @@ def _read_json_version(*, path: Path) -> Result[str, ReleaseError]:
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to read {path.name}: {e}",
                 hint=str(path),
             )
@@ -141,7 +141,7 @@ def _write_json_version(*, path: Path, version: str) -> Result[bool, ReleaseErro
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to read {path.name}: {e}",
                 hint=str(path),
             )
@@ -179,7 +179,7 @@ def _write_json_version(*, path: Path, version: str) -> Result[bool, ReleaseErro
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to write {path.name}: {e}",
                 hint=str(path),
             )
@@ -194,7 +194,7 @@ def _read_cargo_package_version(*, path: Path) -> Result[str, ReleaseError]:
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to read Cargo.toml: {e}",
                 hint=str(path),
             )
@@ -230,7 +230,7 @@ def _write_cargo_package_version(*, path: Path, version: str) -> Result[bool, Re
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to read Cargo.toml: {e}",
                 hint=str(path),
             )
@@ -272,7 +272,7 @@ def _write_cargo_package_version(*, path: Path, version: str) -> Result[bool, Re
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to write Cargo.toml: {e}",
                 hint=str(path),
             )

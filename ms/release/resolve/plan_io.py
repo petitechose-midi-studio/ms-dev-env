@@ -45,7 +45,7 @@ def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError
     except OSError as e:
         return Err(
             ReleaseError(
-                kind="dist_repo_failed",
+                kind="repo_failed",
                 message=f"failed to write plan file: {e}",
                 hint=str(path),
             )

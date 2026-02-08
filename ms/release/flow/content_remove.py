@@ -209,7 +209,7 @@ def delete_github_releases(
                 continue
             return Err(
                 ReleaseError(
-                    kind="dist_repo_failed",
+                    kind="repo_failed",
                     message=f"failed to delete release: {tag}",
                     hint=msg,
                 )
