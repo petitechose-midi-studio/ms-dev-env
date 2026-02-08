@@ -25,11 +25,7 @@ from ms.release.flow.app_prepare import (
     prepare_app_pr,
     prepare_app_release_distribution,
 )
-from ms.release.flow.app_publish import (
-    publish_app_release,
-    publish_app_release_workflows,
-    resolve_app_publish_notes,
-)
+from ms.release.flow.app_publish import publish_app_release, resolve_app_publish_notes
 from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.permissions import ensure_app_release_permissions
 from ms.release.infra.artifacts.notes_writer import load_external_notes_file
@@ -362,12 +358,13 @@ def app_publish_cmd(
     ctx.console.success(f"PR merged: {prepared.pr}")
     ctx.console.print(f"source sha: {prepared.source_sha}", Style.DIM)
 
-    run = publish_app_release_workflows(
-        publish_app_release_fn=publish_app_release,
+    run = publish_app_release(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
-        prepared=prepared,
-        notes=notes.value,
+        tag=prepared.plan.tag,
+        source_sha=prepared.source_sha,
+        notes_markdown=notes.value.markdown,
+        notes_source_path=notes.value.source_path,
         watch=watch,
         dry_run=dry_run,
     )

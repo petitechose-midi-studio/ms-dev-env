@@ -14,8 +14,6 @@ from ms.release.infra.github.workflows import (
     watch_run,
 )
 
-from .app_prepare import PreparedAppRelease
-
 
 def publish_app_release(
     *,
@@ -102,26 +100,4 @@ def resolve_app_publish_notes(
             source_path=str(notes.value.source_path.resolve()),
             sha256=notes.value.sha256,
         )
-    )
-
-
-def publish_app_release_workflows(
-    *,
-    publish_app_release_fn: Callable[..., Result[tuple[str, str], ReleaseError]],
-    workspace_root: Path,
-    console: ConsoleProtocol,
-    prepared: PreparedAppRelease,
-    notes: AppPublishNotes,
-    watch: bool,
-    dry_run: bool,
-) -> Result[tuple[str, str], ReleaseError]:
-    return publish_app_release_fn(
-        workspace_root=workspace_root,
-        console=console,
-        tag=prepared.plan.tag,
-        source_sha=prepared.source_sha,
-        notes_markdown=notes.markdown,
-        notes_source_path=notes.source_path,
-        watch=watch,
-        dry_run=dry_run,
     )
