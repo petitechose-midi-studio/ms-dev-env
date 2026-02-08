@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 
 from ms.cli.release_fsm import FINISH, StepOutcome, advance, run_state_machine
 from ms.core.result import Err, Ok, Result
-from ms.services.release.errors import ReleaseError
+from ms.release.errors import ReleaseError
 
 
 @dataclass(frozen=True, slots=True)

@@ -7,6 +7,10 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain import config
+from ms.release.domain.models import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
+from ms.release.domain.planner import ReleaseHistory, compute_history, suggest_tag, validate_tag
+from ms.release.errors import ReleaseError
 from ms.release.flow.ci_gate import ensure_ci_green as ensure_ci_green_flow
 from ms.release.flow.permissions import (
     ensure_app_release_permissions as ensure_app_release_permissions_flow,
@@ -14,35 +18,43 @@ from ms.release.flow.permissions import (
 from ms.release.flow.permissions import (
     ensure_release_permissions as ensure_release_permissions_flow,
 )
-from ms.services.release import config
-from ms.services.release.app_repo import (
-    checkout_main_and_pull as app_checkout_main_and_pull,
-)
-from ms.services.release.app_repo import (
-    commit_and_push as app_commit_and_push,
-)
-from ms.services.release.app_repo import (
-    create_branch as app_create_branch,
-)
-from ms.services.release.app_repo import (
-    ensure_app_repo,
-)
-from ms.services.release.app_repo import (
-    ensure_clean_git_repo as ensure_clean_app_repo,
-)
-from ms.services.release.app_repo import (
-    merge_pr as app_merge_pr,
-)
-from ms.services.release.app_repo import (
-    open_pr as app_open_pr,
-)
-from ms.services.release.app_version import (
+from ms.release.infra.artifacts.app_version_writer import (
     app_version_files,
     apply_version,
     current_version,
     version_from_tag,
 )
-from ms.services.release.dist_repo import (
+from ms.release.infra.artifacts.notes_writer import write_release_notes
+from ms.release.infra.artifacts.spec_writer import write_release_spec
+from ms.release.infra.github.client import list_distribution_releases
+from ms.release.infra.github.workflows import (
+    dispatch_app_candidate_workflow,
+    dispatch_app_release_workflow,
+    dispatch_publish_workflow,
+    watch_run,
+)
+from ms.release.infra.repos.app import (
+    checkout_main_and_pull as app_checkout_main_and_pull,
+)
+from ms.release.infra.repos.app import (
+    commit_and_push as app_commit_and_push,
+)
+from ms.release.infra.repos.app import (
+    create_branch as app_create_branch,
+)
+from ms.release.infra.repos.app import (
+    ensure_app_repo,
+)
+from ms.release.infra.repos.app import (
+    ensure_clean_git_repo as ensure_clean_app_repo,
+)
+from ms.release.infra.repos.app import (
+    merge_pr as app_merge_pr,
+)
+from ms.release.infra.repos.app import (
+    open_pr as app_open_pr,
+)
+from ms.release.infra.repos.distribution import (
     checkout_main_and_pull,
     commit_and_push,
     create_branch,
@@ -50,18 +62,6 @@ from ms.services.release.dist_repo import (
     ensure_distribution_repo,
     merge_pr,
     open_pr,
-)
-from ms.services.release.errors import ReleaseError
-from ms.services.release.gh import list_distribution_releases
-from ms.services.release.model import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
-from ms.services.release.notes import write_release_notes
-from ms.services.release.planner import ReleaseHistory, compute_history, suggest_tag, validate_tag
-from ms.services.release.spec import write_release_spec
-from ms.services.release.workflow import (
-    dispatch_app_candidate_workflow,
-    dispatch_app_release_workflow,
-    dispatch_publish_workflow,
-    watch_run,
 )
 
 

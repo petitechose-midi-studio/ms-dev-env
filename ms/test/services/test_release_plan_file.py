@@ -3,9 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok
-from ms.services.release.config import APP_RELEASE_REPO, RELEASE_REPOS
-from ms.services.release.model import PinnedRepo
-from ms.services.release.plan_file import PlanInput, read_plan_file, write_plan_file
+from ms.release.domain.config import APP_RELEASE_REPO, RELEASE_REPOS
+from ms.release.domain.models import PinnedRepo
+from ms.release.resolve.plan_io import PlanInput, read_plan_file, write_plan_file
 
 
 def test_plan_file_roundtrip_content_schema_v2(tmp_path: Path) -> None:

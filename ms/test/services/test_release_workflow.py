@@ -8,7 +8,7 @@ import pytest
 
 from ms.core.result import Err, Ok
 from ms.output.console import MockConsole
-from ms.services.release import workflow as workflow_mod
+from ms.release.infra.github import workflows as workflow_mod
 
 
 def _dispatch_item(*, run_id: int, title: str, branch: str = "main") -> dict[str, object]:

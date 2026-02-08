@@ -6,7 +6,7 @@ import pytest
 
 from ms.core.result import Err, Ok
 from ms.platform.process import ProcessError
-from ms.services.release import gh as gh_mod
+from ms.release.infra.github import client as gh_mod
 
 
 def _err(*, stderr: str, returncode: int = 1) -> Err[ProcessError]:

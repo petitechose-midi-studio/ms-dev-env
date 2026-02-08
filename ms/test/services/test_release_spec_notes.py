@@ -5,15 +5,15 @@ from pathlib import Path
 import pytest
 
 from ms.core.result import Err, Ok
-from ms.services.release import notes as notes_mod
-from ms.services.release import spec as spec_mod
-from ms.services.release.model import PinnedRepo
-from ms.services.release.notes import write_release_notes
-from ms.services.release.spec import write_release_spec
+from ms.release.domain.models import PinnedRepo
+from ms.release.infra.artifacts import notes_writer as notes_mod
+from ms.release.infra.artifacts import spec_writer as spec_mod
+from ms.release.infra.artifacts.notes_writer import write_release_notes
+from ms.release.infra.artifacts.spec_writer import write_release_spec
 
 
 def _pinned() -> tuple[PinnedRepo, ...]:
-    from ms.services.release.config import RELEASE_REPOS
+    from ms.release.domain.config import RELEASE_REPOS
 
     # Fixed SHAs for tests.
     return tuple(PinnedRepo(repo=r, sha=str(i) * 40) for i, r in enumerate(RELEASE_REPOS))

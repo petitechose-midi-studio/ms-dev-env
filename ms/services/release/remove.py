@@ -6,8 +6,11 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
-from ms.services.release import config
-from ms.services.release.dist_repo import (
+from ms.release.domain import config
+from ms.release.domain.semver import parse_stable_tag
+from ms.release.errors import ReleaseError
+from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS, GIT_TIMEOUT_SECONDS
+from ms.release.infra.repos.distribution import (
     checkout_main_and_pull,
     commit_and_push,
     create_branch,
@@ -16,9 +19,6 @@ from ms.services.release.dist_repo import (
     merge_pr,
     open_pr,
 )
-from ms.services.release.errors import ReleaseError
-from ms.services.release.semver import parse_stable_tag
-from ms.services.release.timeouts import GH_TIMEOUT_SECONDS, GIT_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True, slots=True)

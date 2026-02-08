@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok
-from ms.services.release.notes import load_external_notes_file
+from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 
 
 def test_load_external_notes_file_ok(tmp_path: Path) -> None:

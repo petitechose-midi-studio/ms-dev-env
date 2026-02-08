@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Ok
-from ms.services.release.wizard_session import (
+from ms.release.flow.guided.sessions import (
     clear_app_session,
     clear_content_session,
     load_app_session,
