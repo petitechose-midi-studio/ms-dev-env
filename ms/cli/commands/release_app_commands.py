@@ -26,7 +26,6 @@ from ms.release.flow.app_prepare import (
 )
 from ms.release.flow.app_publish import publish_app_release, resolve_app_publish_notes
 from ms.release.flow.permissions import ensure_app_release_permissions
-from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.resolve.app_inputs import resolve_pinned_app
 from ms.release.resolve.auto.strict import resolve_pinned_auto_strict
 from ms.release.resolve.plan_io import PlanInput, write_plan_file
@@ -344,7 +343,6 @@ def app_publish_cmd(
 
     notes = resolve_app_publish_notes(
         notes_file=notes_file,
-        load_external_notes_file_fn=load_external_notes_file,
     )
     if isinstance(notes, Err):
         exit_release(notes.error.message, code=ErrorCode.USER_ERROR)
