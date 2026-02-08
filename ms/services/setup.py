@@ -1,25 +1,29 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Literal
 
 from ms.core.config import Config
 from ms.core.result import Err, Ok, Result
 from ms.core.workspace import Workspace
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.detection import PlatformInfo
+from ms.platform.files import atomic_write_text
 from ms.platform.process import run_silent
-from ms.services.check import CheckService
 from ms.services.bridge import BridgeService
-from ms.services.repos import RepoService
-from ms.services.repo_profiles import RepoProfile, repo_manifest_path
+from ms.services.check import CheckService
 from ms.services.prereqs import PrereqsService
+from ms.services.repo_profiles import RepoProfile, repo_manifest_path
+from ms.services.repos import RepoService
 from ms.services.toolchains import ToolchainService
 
 if TYPE_CHECKING:
     from ms.services.check import CheckReport
+
+
+_UV_SYNC_TIMEOUT_SECONDS = 15 * 60.0
 
 
 # -----------------------------------------------------------------------------
@@ -204,7 +208,7 @@ class SetupService:
 
         return Ok(None)
 
-    def _print_check_issues(self, report: "CheckReport") -> None:
+    def _print_check_issues(self, report: CheckReport) -> None:
         from ms.services.checkers import CheckStatus
 
         def print_group(title: str, results: Sequence[object]) -> None:
@@ -240,12 +244,12 @@ class SetupService:
                 "",
             ]
         )
-        self._workspace.state_path.write_text(content, encoding="utf-8")
+        atomic_write_text(self._workspace.state_path, content, encoding="utf-8")
 
     def _sync_python_deps(self, *, dry_run: bool) -> bool:
         cmd = ["uv", "sync", "--frozen", "--extra", "dev"]
         self._console.print(" ".join(cmd), Style.DIM)
         if dry_run:
             return True
-        result = run_silent(cmd, cwd=self._workspace.root)
+        result = run_silent(cmd, cwd=self._workspace.root, timeout=_UV_SYNC_TIMEOUT_SECONDS)
         return not isinstance(result, Err)

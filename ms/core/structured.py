@@ -6,7 +6,8 @@ They provide runtime validation and static type narrowing.
 
 from __future__ import annotations
 
-from typing import Mapping, TypeGuard, cast
+from collections.abc import Mapping
+from typing import TypeGuard, cast
 
 StrDict = dict[str, object]
 ObjList = list[object]
@@ -17,7 +18,7 @@ def is_str_dict(obj: object) -> TypeGuard[StrDict]:
     if not isinstance(obj, dict):
         return False
     d = cast(dict[object, object], obj)
-    return all(isinstance(k, str) for k in d.keys())
+    return all(isinstance(k, str) for k in d)
 
 
 def as_str_dict(obj: object) -> StrDict | None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ms.core.result import Err, Ok
-from ms.services.release.open_control import OC_SDK_LOCK_FILE, parse_oc_sdk_ini
+from ms.release.infra.open_control import OC_SDK_LOCK_FILE, parse_oc_sdk_ini
 
 
 def test_parse_oc_sdk_ini_ok() -> None:

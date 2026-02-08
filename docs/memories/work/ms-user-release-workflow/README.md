@@ -170,6 +170,9 @@ Status values: TODO | IN PROGRESS | DONE
 - Execution Plan (ACTIVE): 02g/02h manual app updates + native package cutover
   - File: `phase-02gh-execution-plan-manual-app-updates.md`
 
+- Phase 09 (ACTIVE): Guided release wizard + schema v2 (no legacy)
+  - File: `phase-09-guided-release-wizard-schema2.md`
+
 - Runbook (ACTIVE): Release Operations (Simple + Safe)
   - File: `runbook-release-operations.md`
 

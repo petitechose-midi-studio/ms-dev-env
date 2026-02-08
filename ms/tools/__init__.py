@@ -13,7 +13,7 @@ from ms.tools.base import (
     Tool,
     ToolSpec,
 )
-from ms.tools.download import DownloadResult, Downloader
+from ms.tools.download import Downloader, DownloadResult
 from ms.tools.github import GitHubTool
 from ms.tools.http import (
     HttpClient,
@@ -21,7 +21,7 @@ from ms.tools.http import (
     MockHttpClient,
     RealHttpClient,
 )
-from ms.tools.installer import InstallError, InstallResult, Installer
+from ms.tools.installer import Installer, InstallError, InstallResult
 from ms.tools.resolver import ResolvedTool, ToolNotFoundError, ToolResolver
 from ms.tools.state import ToolState, get_installed_version, load_state, save_state
 

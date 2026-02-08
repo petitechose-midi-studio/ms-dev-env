@@ -40,9 +40,9 @@ class WorkspaceChecker:
         bitwig_paths: Platform-specific Bitwig paths from raw config
     """
 
-    workspace: "Workspace"
-    platform: "Platform"
-    config: "Config | None" = None
+    workspace: Workspace
+    platform: Platform
+    config: Config | None = None
     bitwig_paths: dict[str, str] = field(default_factory=_empty_bitwig_paths)
 
     def check_all(self) -> list[CheckResult]:

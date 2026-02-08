@@ -39,8 +39,8 @@ class RuntimeChecker:
         runner: Command runner for checks
     """
 
-    platform: "Platform"
-    distro: "LinuxDistro | None" = None
+    platform: Platform
+    distro: LinuxDistro | None = None
     hints: Hints = field(default_factory=Hints.empty)
     runner: CommandRunner = field(default_factory=DefaultCommandRunner)
 
@@ -87,7 +87,7 @@ class RuntimeChecker:
                 "not loaded",
                 hint=self.hints.get_runtime_hint("virmidi", "linux"),
             )
-        except Exception:
+        except OSError:
             return CheckResult.warning("virmidi", "check failed")
 
     def _check_serial_permissions(self) -> CheckResult:
@@ -100,7 +100,7 @@ class RuntimeChecker:
                 if result.returncode == 0:
                     groups = set(result.stdout.split())
                     groups_ok = bool(groups.intersection({"dialout", "uucp"}))
-            except Exception:
+            except OSError:
                 pass
 
         udev_candidates = [
@@ -176,7 +176,7 @@ class RuntimeChecker:
             if result.returncode == 0:
                 version = first_line(result.stdout + result.stderr)
                 return CheckResult.success(name, version if version else "ok")
-        except Exception:
+        except OSError:
             pass
         return CheckResult.success(name, "ok")
 

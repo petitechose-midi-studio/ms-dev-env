@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import shutil
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -8,6 +10,7 @@ from typing import TYPE_CHECKING, Literal
 from ms.core.config import Config
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok, Result
+from ms.core.structured import as_str_dict, get_str
 from ms.core.versions import RUST_MIN_VERSION, RUST_MIN_VERSION_TEXT
 from ms.core.workspace import Workspace
 from ms.output.console import ConsoleProtocol, Style
@@ -15,10 +18,13 @@ from ms.platform.detection import PlatformInfo
 from ms.platform.process import run, run_silent
 from ms.services.checkers.common import format_version_triplet, parse_version_triplet
 from ms.tools.download import Downloader
-from ms.tools.http import RealHttpClient
+from ms.tools.http import HttpClient, RealHttpClient
 
 if TYPE_CHECKING:
     from ms.platform.detection import Arch, Platform
+
+
+_CARGO_BUILD_TIMEOUT_SECONDS = 30 * 60.0
 
 # -----------------------------------------------------------------------------
 # Error Types
@@ -38,6 +44,10 @@ class BridgeError:
         "build_failed",
         "binary_missing",
         "download_failed",
+        "release_metadata_failed",
+        "checksum_manifest_invalid",
+        "checksum_missing",
+        "checksum_mismatch",
         "unsupported_platform",
     ]
     message: str
@@ -118,7 +128,9 @@ class BridgeService:
                     return Err(
                         BridgeError(
                             kind="rust_too_old",
-                            message=f"rustc too old (found {found}, need >= {RUST_MIN_VERSION_TEXT})",
+                            message=(
+                                f"rustc too old (found {found}, need >= {RUST_MIN_VERSION_TEXT})"
+                            ),
                             hint="Install rustup: https://rustup.rs",
                         )
                     )
@@ -146,7 +158,7 @@ class BridgeService:
             self._console.print(f"would install bridge -> {dst}", Style.DIM)
             return Ok(dst)
 
-        result = run_silent(cmd, cwd=bridge_dir)
+        result = run_silent(cmd, cwd=bridge_dir, timeout=_CARGO_BUILD_TIMEOUT_SECONDS)
         if isinstance(result, Err):
             return Err(BridgeError(kind="build_failed", message="bridge build failed"))
 
@@ -178,6 +190,7 @@ class BridgeService:
         *,
         version: str | None = None,
         force: bool = False,
+        strict: bool = True,
         dry_run: bool = False,
     ) -> Result[Path, BridgeError]:
         """Install oc-bridge from GitHub releases.
@@ -197,31 +210,53 @@ class BridgeService:
                 )
             )
 
-        url = _release_asset_url(asset, version=version)
         dst = self._installed_bridge_bin()
 
         if dst.exists() and not force:
             self._console.success(str(dst))
             return Ok(dst)
 
+        requested_tag = _normalize_release_tag(version)
+        url = _release_asset_url(asset, version=requested_tag)
         self._console.print(f"download {url}", Style.DIM)
         if dry_run:
             self._console.print(f"would install bridge -> {dst}", Style.DIM)
             return Ok(dst)
 
-        downloader = Downloader(RealHttpClient(), self._workspace.download_cache_dir)
+        http = RealHttpClient()
+        release_tag_result = _resolve_release_tag(version=version, http=http)
+        if isinstance(release_tag_result, Err):
+            return release_tag_result
+        release_tag = release_tag_result.value
+        url = _release_asset_url(asset, version=release_tag)
+
+        downloader = Downloader(http, self._workspace.download_cache_dir)
         downloaded = downloader.download(url, force=force)
         if isinstance(downloaded, Err):
             e = downloaded.error
             return Err(
                 BridgeError(
                     kind="download_failed",
-                    message=f"download failed: {e}",
-                    hint="Check your network, then retry."
-                    if version is None
-                    else "Check the version and asset name, then retry.",
+                    message=f"download failed for {asset}@{release_tag}: {e}",
+                    hint=f"asset={asset} version={release_tag}",
                 )
             )
+
+        checksums = _load_bridge_checksums(path=_bridge_checksums_path())
+        if isinstance(checksums, Err):
+            return checksums
+
+        verified = _verify_prebuilt_checksum(
+            checksums=checksums.value,
+            release_tag=release_tag,
+            asset=asset,
+            downloaded_path=downloaded.value.path,
+            strict=strict,
+        )
+        if isinstance(verified, Err):
+            return verified
+        if strict:
+            self._console.print(f"checksum ok {asset}@{release_tag}", Style.DIM)
 
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(downloaded.value.path, dst)
@@ -251,7 +286,7 @@ class BridgeService:
 
         cmd = [str(exe), *args]
         self._console.print(" ".join(cmd), Style.DIM)
-        result = run_silent(cmd, cwd=self._workspace.root)
+        result = run_silent(cmd, cwd=self._workspace.root, timeout=None)
         match result:
             case Ok(_):
                 return 0
@@ -278,7 +313,7 @@ class BridgeService:
         return self._installed_bridge_bin().exists()
 
 
-def _asset_name_for_platform(*, platform: "Platform", arch: "Arch") -> str | None:
+def _asset_name_for_platform(*, platform: Platform, arch: Arch) -> str | None:
     from ms.platform.detection import Arch, Platform
 
     match platform:
@@ -296,11 +331,179 @@ def _asset_name_for_platform(*, platform: "Platform", arch: "Arch") -> str | Non
             return None
 
 
-def _release_asset_url(asset: str, *, version: str | None) -> str:
+_BRIDGE_RELEASES_LATEST_URL = "https://api.github.com/repos/open-control/bridge/releases/latest"
+
+
+def _bridge_checksums_path() -> Path:
+    return Path(__file__).parent.parent / "data" / "bridge_checksums.toml"
+
+
+def _normalize_release_tag(version: str | None) -> str | None:
     if version is None:
-        return f"https://github.com/open-control/bridge/releases/latest/download/{asset}"
+        return None
     v = version.strip()
     if not v:
+        return None
+    return v if v.startswith("v") else f"v{v}"
+
+
+def _resolve_release_tag(*, version: str | None, http: HttpClient) -> Result[str, BridgeError]:
+    explicit = _normalize_release_tag(version)
+    if explicit is not None:
+        return Ok(explicit)
+
+    latest = http.get_json(_BRIDGE_RELEASES_LATEST_URL)
+    if isinstance(latest, Err):
+        e = latest.error
+        return Err(
+            BridgeError(
+                kind="release_metadata_failed",
+                message=f"failed to resolve latest bridge release: {e}",
+                hint=_BRIDGE_RELEASES_LATEST_URL,
+            )
+        )
+
+    tag = get_str(latest.value, "tag_name")
+    if tag is None:
+        return Err(
+            BridgeError(
+                kind="release_metadata_failed",
+                message="missing tag_name in bridge release metadata",
+                hint=_BRIDGE_RELEASES_LATEST_URL,
+            )
+        )
+
+    normalized = _normalize_release_tag(tag)
+    if normalized is None:
+        return Err(
+            BridgeError(
+                kind="release_metadata_failed",
+                message=f"invalid release tag from metadata: {tag!r}",
+                hint=_BRIDGE_RELEASES_LATEST_URL,
+            )
+        )
+    return Ok(normalized)
+
+
+def _load_bridge_checksums(*, path: Path) -> Result[dict[str, str], BridgeError]:
+    try:
+        with path.open("rb") as f:
+            data_obj: object = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError) as e:
+        return Err(
+            BridgeError(
+                kind="checksum_manifest_invalid",
+                message=f"failed to load bridge checksum manifest: {e}",
+                hint=str(path),
+            )
+        )
+
+    data = as_str_dict(data_obj)
+    if data is None:
+        return Err(
+            BridgeError(
+                kind="checksum_manifest_invalid",
+                message="invalid bridge checksum manifest root",
+                hint=str(path),
+            )
+        )
+
+    schema = data.get("schema")
+    if schema != 1:
+        return Err(
+            BridgeError(
+                kind="checksum_manifest_invalid",
+                message=f"unsupported bridge checksum schema: {schema}",
+                hint=str(path),
+            )
+        )
+
+    raw_checksums = as_str_dict(data.get("checksums"))
+    if raw_checksums is None:
+        return Err(
+            BridgeError(
+                kind="checksum_manifest_invalid",
+                message="missing [checksums] table in bridge checksum manifest",
+                hint=str(path),
+            )
+        )
+
+    checksums: dict[str, str] = {}
+    for key, value in raw_checksums.items():
+        if not isinstance(value, str):
+            return Err(
+                BridgeError(
+                    kind="checksum_manifest_invalid",
+                    message=f"invalid checksum value for key: {key}",
+                    hint=str(path),
+                )
+            )
+        digest = value.strip().lower()
+        if not _is_sha256(digest):
+            return Err(
+                BridgeError(
+                    kind="checksum_manifest_invalid",
+                    message=f"invalid sha256 digest for key: {key}",
+                    hint=digest,
+                )
+            )
+        checksums[key.strip()] = digest
+
+    return Ok(checksums)
+
+
+def _verify_prebuilt_checksum(
+    *,
+    checksums: dict[str, str],
+    release_tag: str,
+    asset: str,
+    downloaded_path: Path,
+    strict: bool,
+) -> Result[None, BridgeError]:
+    key = f"{release_tag}:{asset}"
+    expected = checksums.get(key)
+    if expected is None:
+        if not strict:
+            return Ok(None)
+        return Err(
+            BridgeError(
+                kind="checksum_missing",
+                message=f"missing checksum for bridge asset {asset}@{release_tag}",
+                hint=f"add key '{key}' to {_bridge_checksums_path()}",
+            )
+        )
+
+    actual = _sha256_file(downloaded_path)
+    if actual != expected:
+        return Err(
+            BridgeError(
+                kind="checksum_mismatch",
+                message=f"checksum mismatch for bridge asset {asset}@{release_tag}",
+                hint=f"expected {expected}, got {actual}",
+            )
+        )
+    return Ok(None)
+
+
+def _is_sha256(value: str) -> bool:
+    if len(value) != 64:
+        return False
+    return all(ch in "0123456789abcdef" for ch in value)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _release_asset_url(asset: str, *, version: str | None) -> str:
+    tag = _normalize_release_tag(version)
+    if tag is None:
         return f"https://github.com/open-control/bridge/releases/latest/download/{asset}"
-    tag = v if v.startswith("v") else f"v{v}"
     return f"https://github.com/open-control/bridge/releases/download/{tag}/{asset}"

@@ -29,7 +29,7 @@ def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) 
         project_root = find_project_root()
     except FileNotFoundError as e:
         console.print(f"error: {e}", style="red bold")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     pio_env = build_pio_env(project_root, platform)
     pio = pio_env.get("PIO", "pio")

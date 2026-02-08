@@ -8,11 +8,14 @@ This module provides an Installer class that:
 
 from __future__ import annotations
 
+import contextlib
+import os
 import shutil
+import stat
 import tarfile
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from ms.core.result import Err, Ok, Result
 
@@ -101,6 +104,34 @@ class Installer:
                 )
             )
 
+    def _safe_relative_path(self, member_name: str, strip_components: int) -> Path | None:
+        """Return a sanitized relative extraction path, or None if unsafe."""
+        normalized = member_name.replace("\\", "/")
+        if normalized.startswith("/"):
+            return None
+
+        posix = PurePosixPath(normalized)
+        parts = posix.parts
+        if len(parts) <= strip_components:
+            return None
+
+        kept = parts[strip_components:]
+        if not kept:
+            return None
+        if any(part in {"", ".", ".."} for part in kept):
+            return None
+        if kept[0].endswith(":"):
+            return None
+
+        return Path(*kept)
+
+    def _is_within_root(self, root: Path, target: Path) -> bool:
+        """Check whether target resolves under root."""
+        try:
+            return target.resolve().is_relative_to(root.resolve())
+        except OSError:
+            return False
+
     def _extract_tar(
         self,
         archive: Path,
@@ -124,38 +155,39 @@ class Installer:
             if install_dir.exists():
                 shutil.rmtree(install_dir)
             install_dir.mkdir(parents=True, exist_ok=True)
+            install_root = install_dir.resolve()
 
             files_count = 0
 
-            # Open archive based on compression type
-            if compression == "gz":
-                tar = tarfile.open(archive, "r:gz")
-            else:
-                tar = tarfile.open(archive, "r:xz")
-
-            try:
+            mode = "r:gz" if compression == "gz" else "r:xz"
+            with tarfile.open(archive, mode) as tar:
                 for member in tar.getmembers():
-                    # Skip directories at root level
-                    if member.isdir() and "/" not in member.name:
+                    # Skip directories and non-regular entries (symlink, hardlink, device, fifo)
+                    if member.isdir() or not member.isreg():
                         continue
 
-                    # Strip leading path components
-                    parts = Path(member.name).parts
-                    if len(parts) <= strip_components:
+                    rel_path = self._safe_relative_path(member.name, strip_components)
+                    if rel_path is None:
                         continue
 
-                    new_path = Path(*parts[strip_components:])
-                    member.name = str(new_path)
-
-                    # Security check: prevent path traversal
-                    full_path = install_dir / new_path
-                    if not str(full_path.resolve()).startswith(str(install_dir.resolve())):
+                    full_path = install_dir / rel_path
+                    if not self._is_within_root(install_root, full_path):
                         continue
 
-                    tar.extract(member, install_dir, filter="data")
+                    src = tar.extractfile(member)
+                    if src is None:
+                        continue
+
+                    full_path.parent.mkdir(parents=True, exist_ok=True)
+                    with src, open(full_path, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+
+                    mode = member.mode & 0o777
+                    if mode:
+                        with contextlib.suppress(OSError):
+                            os.chmod(full_path, mode)
+
                     files_count += 1
-            finally:
-                tar.close()
 
             return Ok(InstallResult(install_dir=install_dir, files_count=files_count))
 
@@ -185,6 +217,7 @@ class Installer:
             if install_dir.exists():
                 shutil.rmtree(install_dir)
             install_dir.mkdir(parents=True, exist_ok=True)
+            install_root = install_dir.resolve()
 
             files_count = 0
 
@@ -194,16 +227,17 @@ class Installer:
                     if info.is_dir():
                         continue
 
-                    # Strip leading path components
-                    parts = Path(info.filename).parts
-                    if len(parts) <= strip_components:
+                    rel_path = self._safe_relative_path(info.filename, strip_components)
+                    if rel_path is None:
                         continue
 
-                    new_path = Path(*parts[strip_components:])
+                    # Skip symlinks in zip archives
+                    file_type_bits = (info.external_attr >> 16) & 0o170000
+                    if file_type_bits == stat.S_IFLNK:
+                        continue
 
-                    # Security check: prevent path traversal
-                    full_path = install_dir / new_path
-                    if not str(full_path.resolve()).startswith(str(install_dir.resolve())):
+                    full_path = install_dir / rel_path
+                    if not self._is_within_root(install_root, full_path):
                         continue
 
                     # Create parent directories

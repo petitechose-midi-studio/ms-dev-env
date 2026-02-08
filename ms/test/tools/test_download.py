@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from ms.core.result import Err, Ok
-from ms.tools.download import DownloadResult, Downloader
+from ms.tools.download import Downloader, DownloadResult
 from ms.tools.http import HttpError, MockHttpClient
 
 

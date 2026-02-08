@@ -54,8 +54,8 @@ class SystemChecker:
         runner: Command runner for checks
     """
 
-    platform: "Platform"
-    distro: "LinuxDistro | None" = None
+    platform: Platform
+    distro: LinuxDistro | None = None
     tools_dir: Path | None = None
     hints: Hints = field(default_factory=Hints.empty)
     runner: CommandRunner = field(default_factory=DefaultCommandRunner)

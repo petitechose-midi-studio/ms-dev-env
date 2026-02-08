@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ms.services.release.semver import SemVer, format_beta_tag, parse_beta_tag, parse_stable_tag
+from ms.release.domain.semver import SemVer, format_beta_tag, parse_beta_tag, parse_stable_tag
 
 
 def test_parse_stable_tag() -> None:

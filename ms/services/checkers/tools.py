@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ms.core.versions import RUST_MIN_VERSION, RUST_MIN_VERSION_TEXT
 from ms.services.checkers.base import CheckResult
 from ms.services.checkers.common import (
     CommandRunner,
@@ -23,8 +24,6 @@ from ms.services.checkers.common import (
     get_platform_key,
     parse_version_triplet,
 )
-
-from ms.core.versions import RUST_MIN_VERSION, RUST_MIN_VERSION_TEXT
 
 if TYPE_CHECKING:
     from ms.platform.detection import LinuxDistro, Platform
@@ -43,10 +42,10 @@ class ToolsChecker:
         runner: Command runner for version checks
     """
 
-    platform: "Platform"
+    platform: Platform
     tools_dir: Path
     hints: Hints = field(default_factory=Hints.empty)
-    distro: "LinuxDistro | None" = None
+    distro: LinuxDistro | None = None
     runner: CommandRunner = field(default_factory=DefaultCommandRunner)
 
     def check_all(self) -> list[CheckResult]:
@@ -102,7 +101,7 @@ class ToolsChecker:
 
     def check_bundled_tool(
         self,
-        tool: "Tool",
+        tool: Tool,
         version_args: list[str] | None = None,
         *,
         required: bool = True,
@@ -211,7 +210,7 @@ class ToolsChecker:
                 "not logged in",
                 hint="Run: gh auth login",
             )
-        except Exception:
+        except OSError:
             return CheckResult.warning("gh auth", "check failed")
 
     def check_python_deps(self) -> CheckResult:
@@ -232,7 +231,7 @@ class ToolsChecker:
                 "not synced",
                 hint="Run: uv sync --frozen --extra dev",
             )
-        except Exception:
+        except OSError:
             return CheckResult.warning("python deps", "check failed")
 
     def _get_version(self, name: str, version_args: list[str] | None) -> str:
@@ -243,7 +242,7 @@ class ToolsChecker:
             result = self.runner.run([name, *version_args])
             if result.returncode == 0:
                 return first_line(result.stdout + result.stderr)
-        except Exception:
+        except OSError:
             pass
         return ""
 
@@ -255,7 +254,7 @@ class ToolsChecker:
             result = self.runner.run([str(path), *version_args])
             if result.returncode == 0:
                 return first_line(result.stdout + result.stderr)
-        except Exception:
+        except OSError:
             pass
         return ""
 

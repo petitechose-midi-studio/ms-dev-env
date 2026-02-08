@@ -8,8 +8,8 @@ from __future__ import annotations
 import os
 import shutil
 import stat
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 
 import typer
 from rich.console import Console

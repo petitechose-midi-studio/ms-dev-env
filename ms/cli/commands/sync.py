@@ -8,8 +8,8 @@ from ms.cli.context import build_context
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
 from ms.output.console import Style
-from ms.services.repos import RepoService
 from ms.services.repo_profiles import RepoProfile, repo_manifest_path
+from ms.services.repos import RepoService
 from ms.services.toolchains import ToolchainService
 
 

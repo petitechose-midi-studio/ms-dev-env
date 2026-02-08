@@ -59,7 +59,7 @@ def _parse_toml(path: Path) -> Result[StrDict, UserWorkspaceError]:
         return Err(UserWorkspaceError(f"Invalid TOML syntax: {e}", path=path))
     except UnicodeDecodeError as e:
         return Err(UserWorkspaceError(f"Invalid UTF-8 in config: {e}", path=path))
-    except Exception as e:  # noqa: BLE001
+    except ValueError as e:
         return Err(UserWorkspaceError(f"Error parsing config: {e}", path=path))
 
     data = as_str_dict(data_obj)

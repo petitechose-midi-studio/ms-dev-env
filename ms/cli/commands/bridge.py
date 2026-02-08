@@ -10,7 +10,6 @@ from ms.core.result import Err, Ok
 from ms.output.console import Style
 from ms.services.bridge import BridgeService
 
-
 bridge_app = typer.Typer(
     add_completion=False,
     no_args_is_help=False,
@@ -39,10 +38,7 @@ def bridge(
         console=c.console,
     )
 
-    if build:
-        result = service.build()
-    else:
-        result = service.install_prebuilt()
+    result = service.build() if build else service.install_prebuilt()
 
     match result:
         case Err(e):

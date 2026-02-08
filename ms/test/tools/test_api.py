@@ -10,7 +10,6 @@ from ms.tools.api import (
 )
 from ms.tools.http import HttpError, MockHttpClient
 
-
 # =============================================================================
 # github_latest_release tests
 # =============================================================================

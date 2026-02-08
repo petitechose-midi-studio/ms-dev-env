@@ -26,8 +26,9 @@ Usage:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Generic, TypeAlias, TypeGuard, TypeVar
+from typing import TypeGuard, TypeVar
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -36,7 +37,7 @@ F = TypeVar("F")
 
 
 @dataclass(frozen=True, slots=True)
-class Ok(Generic[T]):
+class Ok[T]:
     """Represents a successful result containing a value.
 
     Attributes:
@@ -118,7 +119,7 @@ class Ok(Generic[T]):
 
 
 @dataclass(frozen=True, slots=True)
-class Err(Generic[E]):
+class Err[E]:
     """Represents a failed result containing an error.
 
     Attributes:
@@ -200,10 +201,10 @@ class Err(Generic[E]):
 
 
 # Type alias for Result
-Result: TypeAlias = Ok[T] | Err[E]
+type Result[T, E] = Ok[T] | Err[E]
 
 
-def is_ok(result: Result[T, E]) -> TypeGuard[Ok[T]]:
+def is_ok[T, E](result: Result[T, E]) -> TypeGuard[Ok[T]]:
     """Type guard that checks if a Result is Ok.
 
     This function narrows the type for static type checkers.
@@ -223,7 +224,7 @@ def is_ok(result: Result[T, E]) -> TypeGuard[Ok[T]]:
     return isinstance(result, Ok)
 
 
-def is_err(result: Result[T, E]) -> TypeGuard[Err[E]]:
+def is_err[T, E](result: Result[T, E]) -> TypeGuard[Err[E]]:
     """Type guard that checks if a Result is Err.
 
     This function narrows the type for static type checkers.

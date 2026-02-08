@@ -12,7 +12,6 @@ from ms.tools.base import Mode
 from ms.tools.definitions.jdk import DEFAULT_JDK_MAJOR, JdkTool
 from ms.tools.http import HttpError, MockHttpClient
 
-
 # Sample Adoptium API response
 ADOPTIUM_RESPONSE = [
     {

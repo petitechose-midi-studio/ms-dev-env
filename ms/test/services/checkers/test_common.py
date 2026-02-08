@@ -9,8 +9,8 @@ from ms.platform.detection import LinuxDistro, Platform
 from ms.services.checkers.common import (
     DefaultCommandRunner,
     Hints,
-    format_version_triplet,
     first_line,
+    format_version_triplet,
     get_platform_key,
     load_hints,
     parse_version_triplet,

@@ -10,7 +10,6 @@ from ms.platform.detection import Arch, Platform
 from ms.tools.base import Mode, Tool, ToolSpec
 from ms.tools.http import HttpClient, HttpError, MockHttpClient
 
-
 # =============================================================================
 # Mode enum tests
 # =============================================================================

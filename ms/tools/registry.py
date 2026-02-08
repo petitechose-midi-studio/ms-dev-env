@@ -129,10 +129,7 @@ class ToolRegistry:
         Returns:
             List of tools required for that mode
         """
-        if isinstance(mode, Mode):
-            mode_str = "dev" if mode == Mode.DEV else "enduser"
-        else:
-            mode_str = mode
+        mode_str = ("dev" if mode == Mode.DEV else "enduser") if isinstance(mode, Mode) else mode
         return get_tools_by_mode(mode_str)
 
     def is_installed(self, tool: Tool | str) -> bool:

@@ -97,10 +97,7 @@ def resolve(name: str, workspace: Path) -> Result[App, AppError]:
     midi_studio = workspace / "midi-studio"
 
     # Determine path based on name
-    if name == "core":
-        path = midi_studio / "core"
-    else:
-        path = midi_studio / f"plugin-{name}"
+    path = midi_studio / "core" if name == "core" else midi_studio / f"plugin-{name}"
 
     # Check if path exists
     if not path.is_dir():

@@ -241,7 +241,8 @@ def detect_workspace_info(
     return Err(
         WorkspaceError(
             message=(
-                f"Default workspace configured in {user_workspace_config_path()} is set to '{root}' "
+                "Default workspace configured in "
+                f"{user_workspace_config_path()} is set to '{root}' "
                 "but it is not a valid workspace"
             ),
             searched_from=root if root.is_dir() else None,

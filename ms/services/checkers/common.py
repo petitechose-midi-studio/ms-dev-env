@@ -9,9 +9,9 @@ This module provides shared functionality used by all checkers:
 
 from __future__ import annotations
 
+import re
 import subprocess
 import tomllib
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -104,7 +104,7 @@ class Hints:
         return None
 
     @classmethod
-    def empty(cls) -> "Hints":
+    def empty(cls) -> Hints:
         """Create empty hints."""
         return cls()
 
@@ -120,7 +120,8 @@ def load_hints(path: Path | None = None) -> Hints:
     """
     if path is None:
         # Default: ms/data/hints.toml
-        # From ms/services/checkers/common.py -> ms/services/checkers -> ms/services -> ms -> ms/data
+        # From ms/services/checkers/common.py -> ms/services/checkers
+        # -> ms/services -> ms -> ms/data
         path = Path(__file__).parent.parent.parent / "data" / "hints.toml"
 
     if not path.exists():
@@ -135,7 +136,7 @@ def load_hints(path: Path | None = None) -> Hints:
             system=_extract_section(data, "system"),
             runtime=_extract_section(data, "runtime"),
         )
-    except Exception:
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
         return Hints.empty()
 
 
@@ -171,7 +172,7 @@ def _extract_section(data: dict[str, object], section: str) -> dict[str, dict[st
     return result
 
 
-def get_platform_key(platform: "Platform", distro: "LinuxDistro | None" = None) -> str:
+def get_platform_key(platform: Platform, distro: LinuxDistro | None = None) -> str:
     """Get the hint key for a platform/distro combination.
 
     Args:

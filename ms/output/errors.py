@@ -9,27 +9,26 @@ from typing import TYPE_CHECKING
 
 from ms.core.errors import ErrorCode
 from ms.output.console import Style
+from ms.services.build_errors import (
+    AppConfigInvalid,
+    AppNotFound,
+    BuildError,
+    CompileFailed,
+    ConfigureFailed,
+    OutputMissing,
+    PrereqMissing,
+    SdlAppNotFound,
+    ToolMissing,
+)
 
 if TYPE_CHECKING:
     from ms.output.console import ConsoleProtocol
-    from ms.services.build import BuildError
 
 __all__ = ["print_build_error", "build_error_exit_code"]
 
 
-def print_build_error(error: "BuildError", console: "ConsoleProtocol") -> None:
+def print_build_error(error: BuildError, console: ConsoleProtocol) -> None:
     """Print build error to console with appropriate formatting."""
-    from ms.services.build import (
-        AppConfigInvalid,
-        AppNotFound,
-        CompileFailed,
-        ConfigureFailed,
-        OutputMissing,
-        PrereqMissing,
-        SdlAppNotFound,
-        ToolMissing,
-    )
-
     match error:
         case AppNotFound(name=name, available=available):
             console.error(f"Unknown app_name: {name}")
@@ -53,19 +52,8 @@ def print_build_error(error: "BuildError", console: "ConsoleProtocol") -> None:
             console.error(f"output not found: {path}")
 
 
-def build_error_exit_code(error: "BuildError") -> int:
+def build_error_exit_code(error: BuildError) -> int:
     """Get exit code for a build error."""
-    from ms.services.build import (
-        AppConfigInvalid,
-        AppNotFound,
-        CompileFailed,
-        ConfigureFailed,
-        OutputMissing,
-        PrereqMissing,
-        SdlAppNotFound,
-        ToolMissing,
-    )
-
     match error:
         case AppNotFound():
             return int(ErrorCode.USER_ERROR)

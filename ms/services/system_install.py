@@ -11,8 +11,8 @@ Hints that don't match the safe allowlist are returned as manual steps.
 from __future__ import annotations
 
 import shlex
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from ms.output.console import ConsoleProtocol, Style
 from ms.services.checkers.base import CheckResult

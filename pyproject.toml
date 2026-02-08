@@ -13,6 +13,7 @@ dev = [
   "pytest>=8.0.0",
   "pytest-mock>=3.12.0",
   "pyright>=1.1.350",
+  "ruff>=0.8.0",
 ]
 
 [project.scripts]
@@ -55,3 +56,6 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+"ms/cli/**/*.py" = ["B008"]

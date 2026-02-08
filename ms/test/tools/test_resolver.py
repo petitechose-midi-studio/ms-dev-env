@@ -8,7 +8,6 @@ from ms.tools.base import Mode, ToolSpec
 from ms.tools.github import GitHubTool
 from ms.tools.resolver import ResolvedTool, ToolNotFoundError, ToolResolver
 
-
 # =============================================================================
 # Mock tool for testing
 # =============================================================================

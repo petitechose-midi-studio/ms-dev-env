@@ -13,6 +13,8 @@ from ms.platform.paths import home
 from ms.platform.process import run_silent
 from ms.services.base import BaseService
 
+_MAVEN_BUILD_TIMEOUT_SECONDS = 30 * 60.0
+
 # -----------------------------------------------------------------------------
 # Error Types
 # -----------------------------------------------------------------------------
@@ -69,7 +71,7 @@ class BitwigService(BaseService):
             built = host_dir / "target" / "midi_studio.bwextension"
             return Ok(built)
 
-        result = run_silent(cmd, cwd=host_dir, env=env)
+        result = run_silent(cmd, cwd=host_dir, env=env, timeout=_MAVEN_BUILD_TIMEOUT_SECONDS)
         if isinstance(result, Err):
             return Err(BitwigError(kind="build_failed", message="maven build failed"))
 
@@ -134,7 +136,7 @@ class BitwigService(BaseService):
             deployed = install_dir / "midi_studio.bwextension"
             return Ok(deployed)
 
-        result = run_silent(cmd, cwd=host_dir, env=env)
+        result = run_silent(cmd, cwd=host_dir, env=env, timeout=_MAVEN_BUILD_TIMEOUT_SECONDS)
         if isinstance(result, Err):
             return Err(BitwigError(kind="build_failed", message="maven build failed"))
 

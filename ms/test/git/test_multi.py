@@ -19,7 +19,6 @@ from ms.git.multi import (
 )
 from ms.git.repository import GitError, GitStatus, StatusEntry
 
-
 # =============================================================================
 # RepoStatus Tests
 # =============================================================================

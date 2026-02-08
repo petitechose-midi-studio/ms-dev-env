@@ -34,7 +34,7 @@ def _cli(
         project_root = find_project_root()
     except FileNotFoundError as e:
         console.print(f"error: {e}", style="red bold")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from e
 
     kill_monitors(platform)
 
@@ -107,7 +107,7 @@ def _cli(
         proc = subprocess.run(cmd, cwd=str(project_root), env=pio_env, check=False)
         raise typer.Exit(code=proc.returncode)
     except KeyboardInterrupt:
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=0) from None
 
 
 def main() -> None:

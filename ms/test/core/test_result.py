@@ -2,7 +2,7 @@
 
 import pytest
 
-from ms.core.result import Ok, Err, Result, is_ok, is_err
+from ms.core.result import Err, Ok, Result, is_err, is_ok
 
 
 # Helper functions for tests (avoids lambda type inference issues)
