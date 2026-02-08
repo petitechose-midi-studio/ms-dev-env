@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import config
+from ms.release.domain.notes import AppPublishNotes
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.workflows import (
     dispatch_app_candidate_workflow,
@@ -27,13 +27,6 @@ class ExternalNotesSnapshotLike(Protocol):
 
     @property
     def sha256(self) -> str: ...
-
-
-@dataclass(frozen=True, slots=True)
-class AppPublishNotes:
-    markdown: str | None
-    source_path: str | None
-    sha256: str | None
 
 
 def publish_app_release(

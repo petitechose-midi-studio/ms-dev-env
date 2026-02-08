@@ -2,19 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
 
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.diagnostics import RepoReadiness
 from ms.release.domain.models import AppReleasePlan
-
-
-class AppPublishNotesLike(Protocol):
-    @property
-    def source_path(self) -> str | None: ...
-
-    @property
-    def sha256(self) -> str | None: ...
+from ms.release.domain.notes import AppPublishNotes
 
 
 def print_app_auto_blockers(*, console: ConsoleProtocol, blockers: Sequence[RepoReadiness]) -> None:
@@ -58,7 +50,7 @@ def print_app_replay(
     )
 
 
-def print_app_notes_attachment(*, console: ConsoleProtocol, notes: AppPublishNotesLike) -> None:
+def print_app_notes_attachment(*, console: ConsoleProtocol, notes: AppPublishNotes) -> None:
     if notes.source_path is None or notes.sha256 is None:
         return
 
