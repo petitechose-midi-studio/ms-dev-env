@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from ms.core.structured import as_obj_list, as_str_dict
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleasePlan
 from ms.release.errors import ReleaseError
+from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.infra.artifacts.notes_writer import write_release_notes
 from ms.release.infra.artifacts.spec_writer import write_release_spec
 from ms.release.infra.repos.distribution import (
@@ -218,8 +218,6 @@ def prepare_distribution_pr(
 
 def prepare_content_release_distribution(
     *,
-    ensure_ci_green_fn: Callable[..., Result[None, ReleaseError]],
-    prepare_distribution_pr_fn: Callable[..., Result[PrMergeOutcome, ReleaseError]],
     workspace_root: Path,
     console: ConsoleProtocol,
     plan: ReleasePlan,
@@ -229,7 +227,7 @@ def prepare_content_release_distribution(
     allow_non_green: bool,
     dry_run: bool,
 ) -> Result[PreparedContentRelease, ReleaseError]:
-    green = ensure_ci_green_fn(
+    green = ensure_ci_green(
         workspace_root=workspace_root,
         pinned=pinned,
         allow_non_green=allow_non_green,
@@ -237,7 +235,7 @@ def prepare_content_release_distribution(
     if isinstance(green, Err):
         return green
 
-    pr = prepare_distribution_pr_fn(
+    pr = prepare_distribution_pr(
         workspace_root=workspace_root,
         console=console,
         plan=plan,

@@ -19,7 +19,6 @@ from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import PinnedRepo, ReleaseBump, ReleaseChannel, config
-from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.content_plan import plan_release
 from ms.release.flow.content_preflight import (
     collect_release_preflight_issues,
@@ -28,7 +27,6 @@ from ms.release.flow.content_preflight import (
 from ms.release.flow.content_prepare import (
     PreparedContentRelease,
     prepare_content_release_distribution,
-    prepare_distribution_pr,
 )
 from ms.release.flow.content_publish import publish_distribution_release
 from ms.release.flow.content_remove import (
@@ -287,8 +285,6 @@ def _prepare_content_release(
         confirm_release_tag(planned.value.tag, confirm_tag=confirm_tag)
 
     prepared = prepare_content_release_distribution(
-        ensure_ci_green_fn=ensure_ci_green,
-        prepare_distribution_pr_fn=prepare_distribution_pr,
         workspace_root=ctx.workspace.root,
         console=ctx.console,
         plan=planned.value,
