@@ -53,7 +53,6 @@ def test_new_release_modules_keep_small_size_budget() -> None:
         "release/flow/guided/app_steps.py": 560,
         "release/flow/guided/content_steps.py": 700,
         "release/flow/guided/sessions.py": 540,
-        "release/infra/github/client.py": 450,
     }
     overrides = strict_overrides if strict else non_strict_overrides
 
