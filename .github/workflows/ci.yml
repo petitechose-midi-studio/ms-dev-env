@@ -39,7 +39,7 @@ jobs:
         run: uv run pyright
 
       - name: Lint
-        run: uv run ruff check ms --select F
+        run: uv run ruff check ms
 
       - name: Unit tests
         run: uv run pytest ms/test -q
@@ -110,7 +110,7 @@ jobs:
         run: uv run pyright
 
       - name: Lint
-        run: uv run ruff check ms --select F
+        run: uv run ruff check ms
 
       - name: Unit tests
         run: uv run pytest ms/test -q
