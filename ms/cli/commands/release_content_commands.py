@@ -31,10 +31,7 @@ from ms.release.flow.content_prepare import (
 from ms.release.flow.content_publish import publish_distribution_release
 from ms.release.flow.content_remove import (
     delete_github_releases,
-    remove_content_github_releases,
-    remove_content_release_artifacts,
     remove_distribution_artifacts,
-    resolve_remove_tags,
     validate_remove_tags,
 )
 from ms.release.flow.permissions import ensure_release_permissions
@@ -452,11 +449,7 @@ def remove_cmd(
         failure_code=ErrorCode.USER_ERROR,
     )
 
-    valid = resolve_remove_tags(
-        validate_remove_tags_fn=validate_remove_tags,
-        tags=tag,
-        force=force,
-    )
+    valid = validate_remove_tags(tags=tag, force=force)
     if isinstance(valid, Err):
         exit_release(valid.error.message, code=ErrorCode.USER_ERROR)
     tags = valid.value
@@ -469,8 +462,7 @@ def remove_cmd(
         if typed.strip() != "DELETE":
             exit_release("confirmation mismatch", code=ErrorCode.USER_ERROR)
 
-    artifacts = remove_content_release_artifacts(
-        remove_distribution_artifacts_fn=remove_distribution_artifacts,
+    artifacts = remove_distribution_artifacts(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
         tags=tags,
@@ -479,8 +471,7 @@ def remove_cmd(
     if isinstance(artifacts, Err):
         exit_release(artifacts.error.message, code=ErrorCode.IO_ERROR)
 
-    deleted = remove_content_github_releases(
-        delete_github_releases_fn=delete_github_releases,
+    deleted = delete_github_releases(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
         tags=tags,
