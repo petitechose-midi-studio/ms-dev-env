@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_list, get_str
+from ms.release.domain.diagnostics import AutoSuggestion
 from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo
 from ms.release.domain.planner import ReleaseHistory, compute_history
 from ms.release.domain.semver import format_beta_tag
@@ -26,16 +25,6 @@ from .diagnostics import (
     local_issue_reason,
     repo_with_ref,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class AutoSuggestion:
-    repo: ReleaseRepo
-    from_sha: str
-    to_sha: str
-    kind: Literal["bump", "local"]
-    reason: str
-    applyable: bool
 
 
 def _latest_beta_tag(history: ReleaseHistory) -> str | None:

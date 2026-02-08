@@ -2,145 +2,11 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal, Protocol
 
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain.diagnostics import AutoSuggestion, RepoReadiness
 from ms.release.domain.models import ReleasePlan
-
-
-class ReleaseRepoLike(Protocol):
-    @property
-    def id(self) -> str: ...
-
-    @property
-    def slug(self) -> str: ...
-
-    @property
-    def required_ci_workflow_file(self) -> str | None: ...
-
-
-class StatusEntryLike(Protocol):
-    @property
-    def path(self) -> str: ...
-
-    def pretty_xy(self) -> str: ...
-
-
-class GitStatusLike(Protocol):
-    @property
-    def is_clean(self) -> bool: ...
-
-    @property
-    def entries(self) -> Sequence[StatusEntryLike]: ...
-
-    @property
-    def upstream(self) -> str | None: ...
-
-    @property
-    def ahead(self) -> int: ...
-
-    @property
-    def behind(self) -> int: ...
-
-    @property
-    def branch(self) -> str: ...
-
-
-class RepoReadinessLike(Protocol):
-    @property
-    def repo(self) -> ReleaseRepoLike: ...
-
-    @property
-    def ref(self) -> str: ...
-
-    @property
-    def local_path(self) -> Path: ...
-
-    @property
-    def local_exists(self) -> bool: ...
-
-    @property
-    def status(self) -> GitStatusLike | None: ...
-
-    @property
-    def local_head_sha(self) -> str | None: ...
-
-    @property
-    def remote_head_sha(self) -> str | None: ...
-
-    @property
-    def head_green(self) -> bool | None: ...
-
-    @property
-    def error(self) -> str | None: ...
-
-
-class AutoSuggestionLike(Protocol):
-    @property
-    def repo(self) -> ReleaseRepoLike: ...
-
-    @property
-    def from_sha(self) -> str: ...
-
-    @property
-    def to_sha(self) -> str: ...
-
-    @property
-    def kind(self) -> Literal["bump", "local"]: ...
-
-    @property
-    def reason(self) -> str: ...
-
-    @property
-    def applyable(self) -> bool: ...
-
-
-class OcSdkLockLike(Protocol):
-    @property
-    def version(self) -> str: ...
-
-
-class OcSdkLoadLike(Protocol):
-    @property
-    def lock(self) -> OcSdkLockLike | None: ...
-
-    @property
-    def source(self) -> str | None: ...
-
-    @property
-    def error(self) -> str | None: ...
-
-
-class OpenControlRepoStateLike(Protocol):
-    @property
-    def repo(self) -> str: ...
-
-    @property
-    def exists(self) -> bool: ...
-
-
-class OcSdkMismatchLike(Protocol):
-    @property
-    def repo(self) -> str: ...
-
-    @property
-    def pinned_sha(self) -> str: ...
-
-    @property
-    def local_sha(self) -> str: ...
-
-
-class OpenControlReportLike(Protocol):
-    @property
-    def oc_sdk(self) -> OcSdkLoadLike: ...
-
-    @property
-    def repos(self) -> Sequence[OpenControlRepoStateLike]: ...
-
-    @property
-    def mismatches(self) -> Sequence[OcSdkMismatchLike]: ...
-
-    def dirty_repos(self) -> Sequence[OpenControlRepoStateLike]: ...
+from ms.release.domain.open_control_models import OpenControlPreflightReport
 
 
 def _gh_repo_url(slug: str) -> str:
@@ -162,7 +28,7 @@ def _gh_compare_url(slug: str, base: str, head: str) -> str:
 def print_release_preflight_issues(
     *,
     console: ConsoleProtocol,
-    issues: Sequence[RepoReadinessLike],
+    issues: Sequence[RepoReadiness],
 ) -> None:
     if not issues:
         return
@@ -227,7 +93,7 @@ def print_release_preflight_issues(
     console.newline()
 
 
-def print_auto_blockers(*, console: ConsoleProtocol, blockers: Sequence[RepoReadinessLike]) -> None:
+def print_auto_blockers(*, console: ConsoleProtocol, blockers: Sequence[RepoReadiness]) -> None:
     console.header("Auto Release Blocked")
     console.print("--auto is strict by default.", Style.DIM)
     console.print("Fix the issues below, then rerun.", Style.DIM)
@@ -312,7 +178,7 @@ def print_auto_blockers(*, console: ConsoleProtocol, blockers: Sequence[RepoRead
 
 
 def print_auto_suggestions(
-    *, console: ConsoleProtocol, suggestions: Sequence[AutoSuggestionLike]
+    *, console: ConsoleProtocol, suggestions: Sequence[AutoSuggestion]
 ) -> None:
     if not suggestions:
         return
@@ -375,7 +241,7 @@ def print_content_replay(
 
 
 def print_open_control_preflight(
-    *, console: ConsoleProtocol, report: OpenControlReportLike
+    *, console: ConsoleProtocol, report: OpenControlPreflightReport
 ) -> None:
     if not any(repo.exists for repo in report.repos):
         console.header("OpenControl preflight")

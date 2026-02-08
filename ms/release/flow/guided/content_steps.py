@@ -7,6 +7,7 @@ from typing import Literal, Protocol
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleasePlan, ReleaseRepo
+from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
@@ -20,10 +21,6 @@ class MenuOption[T]:
     value: T
     label: str
     detail: str | None = None
-
-
-class OpenControlPreflightLike(Protocol):
-    def dirty_repos(self) -> object: ...
 
 
 class ContentGuidedDependencies(Protocol):
@@ -86,7 +83,7 @@ class ContentGuidedDependencies(Protocol):
         *,
         workspace_root: Path,
         core_sha: str,
-    ) -> OpenControlPreflightLike: ...
+    ) -> OpenControlPreflightReport: ...
 
     def plan_release(
         self,

@@ -3,9 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.release.domain.diagnostics import AutoSuggestion
 from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo
 
-from .carry_mode import AutoSuggestion, load_previous_channel_pins, resolve_carry_mode_pin
+from .carry_mode import load_previous_channel_pins, resolve_carry_mode_pin
 from .diagnostics import (
     RepoReadiness,
     build_dist_blocker,

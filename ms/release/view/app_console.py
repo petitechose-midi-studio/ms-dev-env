@@ -5,34 +5,8 @@ from pathlib import Path
 from typing import Protocol
 
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain.diagnostics import RepoReadiness
 from ms.release.domain.models import AppReleasePlan
-
-
-class ReleaseRepoLike(Protocol):
-    @property
-    def id(self) -> str: ...
-
-    @property
-    def slug(self) -> str: ...
-
-
-class GitStatusLike(Protocol):
-    @property
-    def is_clean(self) -> bool: ...
-
-
-class RepoReadinessLike(Protocol):
-    @property
-    def repo(self) -> ReleaseRepoLike: ...
-
-    @property
-    def status(self) -> GitStatusLike | None: ...
-
-    @property
-    def head_green(self) -> bool | None: ...
-
-    @property
-    def error(self) -> str | None: ...
 
 
 class AppPublishNotesLike(Protocol):
@@ -43,9 +17,7 @@ class AppPublishNotesLike(Protocol):
     def sha256(self) -> str | None: ...
 
 
-def print_app_auto_blockers(
-    *, console: ConsoleProtocol, blockers: Sequence[RepoReadinessLike]
-) -> None:
+def print_app_auto_blockers(*, console: ConsoleProtocol, blockers: Sequence[RepoReadiness]) -> None:
     console.header("Auto Release Blocked")
     for readiness in blockers:
         repo = readiness.repo

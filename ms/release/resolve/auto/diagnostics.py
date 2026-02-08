@@ -1,51 +1,17 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.git.repository import GitError, GitStatus, Repository
+from ms.git.repository import GitError, Repository
 from ms.platform.process import run as run_process
 from ms.release.domain import config
+from ms.release.domain.diagnostics import RepoReadiness
 from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.ci import fetch_green_head_shas
 from ms.release.infra.github.client import get_ref_head_sha
 from ms.release.infra.github.timeouts import GIT_TIMEOUT_SECONDS
-
-
-@dataclass(frozen=True, slots=True)
-class RepoReadiness:
-    repo: ReleaseRepo
-    ref: str
-    local_path: Path
-    local_exists: bool
-    status: GitStatus | None
-    local_head_sha: str | None
-    remote_head_sha: str | None
-    head_green: bool | None
-    error: str | None
-
-    def is_ready(self) -> bool:
-        if self.error is not None:
-            return False
-        if not self.local_exists:
-            return False
-        if self.status is None:
-            return False
-        if not self.status.is_clean:
-            return False
-        if self.status.upstream is None:
-            return False
-        if self.status.ahead != 0 or self.status.behind != 0:
-            return False
-        if self.local_head_sha is None or self.remote_head_sha is None:
-            return False
-        if self.local_head_sha != self.remote_head_sha:
-            return False
-        if self.repo.required_ci_workflow_file is None:
-            return False
-        return self.head_green is True
 
 
 def local_issue_reason(readiness: RepoReadiness) -> str:

@@ -2,11 +2,18 @@ from __future__ import annotations
 
 import configparser
 import re
-from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.platform.process import run as run_process
+from ms.release.domain.open_control_models import (
+    OcSdkLoad,
+    OcSdkLock,
+    OcSdkMismatch,
+    OcSdkPin,
+    OpenControlPreflightReport,
+    OpenControlRepoState,
+)
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.client import run_gh_read
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS, GIT_TIMEOUT_SECONDS
@@ -24,54 +31,6 @@ OC_SDK_LOCK_FILE = "oc-sdk.ini"
 _OC_GIT_URL_RE = re.compile(
     r"^https://github\.com/open-control/(?P<repo>[^/]+)\.git#(?P<sha>[0-9a-fA-F]{40})$"
 )
-
-
-@dataclass(frozen=True, slots=True)
-class OcSdkPin:
-    repo: str
-    sha: str
-
-
-@dataclass(frozen=True, slots=True)
-class OcSdkLock:
-    version: str
-    pins: tuple[OcSdkPin, ...]
-
-    def pins_by_repo(self) -> dict[str, str]:
-        return {p.repo: p.sha for p in self.pins}
-
-
-@dataclass(frozen=True, slots=True)
-class OcSdkLoad:
-    lock: OcSdkLock | None
-    source: str | None  # "git" | "gh"
-    error: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class OpenControlRepoState:
-    repo: str
-    path: Path
-    exists: bool
-    head_sha: str | None
-    dirty: bool
-
-
-@dataclass(frozen=True, slots=True)
-class OcSdkMismatch:
-    repo: str
-    pinned_sha: str
-    local_sha: str
-
-
-@dataclass(frozen=True, slots=True)
-class OpenControlPreflightReport:
-    oc_sdk: OcSdkLoad
-    repos: tuple[OpenControlRepoState, ...]
-    mismatches: tuple[OcSdkMismatch, ...]
-
-    def dirty_repos(self) -> tuple[OpenControlRepoState, ...]:
-        return tuple(r for r in self.repos if r.exists and r.dirty)
 
 
 def parse_oc_sdk_ini(*, text: str) -> Result[OcSdkLock, ReleaseError]:

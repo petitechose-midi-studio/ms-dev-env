@@ -16,6 +16,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
 from ms.release.domain.config import RELEASE_REPOS
 from ms.release.domain.models import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
+from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
 from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.content_plan import plan_release
@@ -26,7 +27,7 @@ from ms.release.flow.guided.selection import Selection
 from ms.release.flow.guided.sessions import ContentReleaseSession, clear_content_session
 from ms.release.flow.permissions import ensure_release_permissions
 from ms.release.flow.pr_outcome import PrMergeOutcome
-from ms.release.infra.open_control import OpenControlPreflightReport, preflight_open_control
+from ms.release.infra.open_control import preflight_open_control
 from ms.release.view.guided_console import print_notes_status
 
 
