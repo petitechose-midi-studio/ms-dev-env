@@ -38,3 +38,23 @@ def test_release_package_does_not_depend_on_legacy_services_release() -> None:
     assert not offenders, "release -> legacy services.release dependency violations:\n" + "\n".join(
         offenders
     )
+
+
+def test_cli_does_not_import_legacy_services_release() -> None:
+    require_arch_checks_enabled()
+
+    root = ms_root()
+    cli_root = root / "cli"
+    if not cli_root.exists():
+        return
+
+    offenders: list[str] = []
+    for file_path in iter_python_files(cli_root):
+        rel = file_path.relative_to(root)
+        for item in parse_imports(file_path):
+            if matches_prefix(item.module, "ms.services.release"):
+                offenders.append(f"{rel}:{item.line}: forbidden import '{item.module}'")
+
+    assert not offenders, "cli -> legacy services.release dependency violations:\n" + "\n".join(
+        offenders
+    )

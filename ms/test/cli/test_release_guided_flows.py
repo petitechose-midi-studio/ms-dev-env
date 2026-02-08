@@ -9,13 +9,13 @@ import pytest
 from ms.cli.selector import SelectorResult
 from ms.core.result import Ok
 from ms.output.console import MockConsole
+from ms.release.flow.app_prepare import AppPrepareResult
 from ms.release.flow.guided.sessions import (
     AppReleaseSession,
     ContentReleaseSession,
     new_app_session,
     new_content_session,
 )
-from ms.services.release.service import AppPrepareResult
 
 
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:

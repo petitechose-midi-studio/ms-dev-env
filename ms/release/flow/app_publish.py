@@ -6,8 +6,14 @@ from pathlib import Path
 from typing import Protocol
 
 from ms.core.result import Err, Ok, Result
-from ms.output.console import ConsoleProtocol
+from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain import config
 from ms.release.errors import ReleaseError
+from ms.release.infra.github.workflows import (
+    dispatch_app_candidate_workflow,
+    dispatch_app_release_workflow,
+    watch_run,
+)
 
 from .app_prepare import PreparedAppRelease
 
@@ -28,6 +34,73 @@ class AppPublishNotes:
     markdown: str | None
     source_path: str | None
     sha256: str | None
+
+
+def publish_app_release(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    tag: str,
+    source_sha: str,
+    notes_markdown: str | None,
+    notes_source_path: str | None,
+    watch: bool,
+    dry_run: bool,
+) -> Result[tuple[str, str], ReleaseError]:
+    if notes_markdown is not None:
+        source_label = notes_source_path or "(unknown source)"
+        console.print(
+            "release notes: external markdown attached from "
+            f"{source_label} (prepended above auto-notes)",
+            Style.DIM,
+        )
+    else:
+        console.print("release notes: automatic notes only", Style.DIM)
+
+    candidate = dispatch_app_candidate_workflow(
+        workspace_root=workspace_root,
+        source_sha=source_sha,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(candidate, Err):
+        return candidate
+
+    if watch:
+        watched = watch_run(
+            workspace_root=workspace_root,
+            run_id=candidate.value.id,
+            repo_slug=config.APP_REPO_SLUG,
+            console=console,
+            dry_run=dry_run,
+        )
+        if isinstance(watched, Err):
+            return watched
+
+    release = dispatch_app_release_workflow(
+        workspace_root=workspace_root,
+        tag=tag,
+        source_sha=source_sha,
+        notes_markdown=notes_markdown,
+        notes_source_path=notes_source_path,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(release, Err):
+        return release
+
+    if watch:
+        watched = watch_run(
+            workspace_root=workspace_root,
+            run_id=release.value.id,
+            repo_slug=config.APP_REPO_SLUG,
+            console=console,
+            dry_run=dry_run,
+        )
+        if isinstance(watched, Err):
+            return watched
+
+    return Ok((candidate.value.url, release.value.url))
 
 
 def resolve_app_publish_notes[SnapshotT: ExternalNotesSnapshotLike](

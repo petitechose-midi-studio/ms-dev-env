@@ -19,12 +19,14 @@ from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel, config
-from ms.release.flow.app_plan import build_app_release_plan
+from ms.release.flow.app_plan import build_app_release_plan, plan_app_release
 from ms.release.flow.app_prepare import (
     PreparedAppRelease,
+    prepare_app_pr,
     prepare_app_release_distribution,
 )
 from ms.release.flow.app_publish import (
+    publish_app_release,
     publish_app_release_workflows,
     resolve_app_publish_notes,
 )
@@ -39,11 +41,6 @@ from ms.release.view.app_console import (
     print_app_notes_attachment,
     print_app_plan,
     print_app_replay,
-)
-from ms.services.release.service import (
-    plan_app_release,
-    prepare_app_pr,
-    publish_app_release,
 )
 
 
