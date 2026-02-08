@@ -574,34 +574,38 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: kickoff Wave C with C1 shim cleanup.
 
-- C1 (suppression des shims release obsoletes): IN PROGRESS (LOCAL)
+- C1 (suppression des shims release obsoletes): IN REVIEW
+  - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/51
   - Branch: `refactor/release-architecture-c1-shim-removal`
   - Base strategy: stacked on B6 (`base branch refactor/release-architecture-b6-status-extraction`)
-  - Scope delivered (local):
+  - Scope delivered:
     - removed obsolete compatibility wrappers under `ms/services/release/*` (19 shim modules deleted)
     - rewired `ms/services/release/service.py` and `ms/services/release/remove.py` imports to canonical `ms/release/*` modules
     - rewired release-oriented tests from legacy shim imports to canonical modules (`domain`, `infra`, `resolve`, `flow.guided`)
     - kept runtime command surface stable (CLI still delegates through `ms.services.release.service` / `remove`)
-  - Validation (completed locally):
+  - Validation (completed):
     - `uv run ruff check ms/services/release/service.py ms/services/release/remove.py ms/services/release/__init__.py ms/test/services/test_release_gh.py ms/test/services/test_release_workflow.py ms/test/services/test_release_planner.py ms/test/services/test_release_spec_notes.py ms/test/services/test_release_notes_file.py ms/test/services/test_release_plan_file.py ms/test/services/test_release_semver.py ms/test/services/test_release_open_control.py ms/test/services/test_release_wizard_session.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py`
     - `uv run pyright ms/services/release/service.py ms/services/release/remove.py ms/services/release/__init__.py ms/test/services/test_release_gh.py ms/test/services/test_release_workflow.py ms/test/services/test_release_planner.py ms/test/services/test_release_spec_notes.py ms/test/services/test_release_notes_file.py ms/test/services/test_release_plan_file.py ms/test/services/test_release_semver.py ms/test/services/test_release_open_control.py ms/test/services/test_release_wizard_session.py ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py`
     - `uv run pytest ms/test/services/test_release_*.py -q`
     - `uv run pytest ms/test/cli/test_release_fsm.py ms/test/cli/test_release_guided_flows.py -q`
     - `uv run pytest ms/test/cli -q`
+    - `uv run ruff check ms`
+    - `uv run pyright`
+    - `uv run pytest ms/test -q`
     - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
     - `uv run python -c "from ms.services.release.service import plan_release; from ms.services.release.remove import remove_distribution_artifacts; print(callable(plan_release) and callable(remove_distribution_artifacts))"`
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
-  - Next: open PR-C1 (`refactor(release): remove obsolete services/release shims`) stacked on B6.
+  - Next: merge after B6 (`#50`), then start C2.
 
-### 6.1) Ecart restant pour atteindre la cible release (post-B5 merged, B6 in review, C1 local)
+### 6.1) Ecart restant pour atteindre la cible release (post-B5 merged, B6 in review, C1 in review)
 
 Etat mesure sur la branche `refactor/release-architecture-c1-shim-removal`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
   - lots merges: `15/19` (A1-A10 + B1 + B2 + B3 + B4 + B5)
-  - lots en review: `1/19` (B6)
-  - lots en cours local: `1/19` (C1)
+  - lots en review: `2/19` (B6 + C1)
+  - lots en cours local: `0/19`
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
@@ -614,7 +618,7 @@ Etat de trajectoire:
 - B4 est mergee avec compat API preservee et sans changement de comportement intentionnel.
 - B5 est mergee (split hardware) avec contrat `no behavior change`.
 - B6 est ouverte en review (split status) avec contrat `no behavior change`.
-- C1 est en cours localement (suppression de shims release obsoletes) en conservant le comportement runtime.
+- C1 est ouverte en review (suppression de shims release obsoletes) en conservant le comportement runtime.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -629,11 +633,11 @@ PR-B4: split `oc_cli/common.py` -> `oc_cli/runtime|execution|output_parser|seria
 
 PR-B5: `services/hardware.py` via adapter `oc_adapter.py` + reduction subprocess directs
 
-PR-B6: extraction `cli/status` en helpers (`status_models|status_collect|status_plain`) avec facade stable
+PR-B6: extraction `cli/status` en helpers (`status_models|status_collect|status_plain`) avec facade stable (PR #50)
 
 ## Wave C - Nettoyage final
 
-PR-C1: suppression des shims devenus inutiles
+PR-C1: suppression des shims devenus inutiles (PR #51)
 
 PR-C2: documentation contributors + ADR architecture + playbook migrations
 
@@ -652,7 +656,7 @@ Baseline (snapshot valide 2026-02-07):
 - subprocess directs hors tests (run/check_output): 14
 - duplication app_repo/dist_repo (similarite): ~0.806
 
-Hotspots taille (lignes):
+Hotspots taille (lignes) - baseline historique (certains fichiers ont depuis ete deplaces/supprimes; voir 7.3):
 
 - `ms/cli/commands/release_content_commands.py`: 748
 - `ms/cli/commands/release_app_commands.py`: 480
@@ -690,7 +694,7 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-B5 merged + B6 in review + C1 local, mesure locale)
+### 7.3 Snapshot courant (post-B5 merged + B6 in review + C1 in review, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
@@ -705,7 +709,7 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
   - `ms/cli/commands/status_models.py`: `66`
   - `ms/cli/commands/status_collect.py`: `46`
   - `ms/cli/commands/status_plain.py`: `43`
-- C1 shim removal (local):
+- C1 shim removal (in review, PR #51):
   - `19` modules de compat `ms/services/release/*` supprimes
 - Build split B1 (decompose):
   - `ms/services/build/targets.py`: `210`
@@ -821,10 +825,8 @@ Le programme est considere termine quand:
 - Branche active actuelle: `refactor/release-architecture-c1-shim-removal`
 - Wave A: PR `#39` -> `#44` merged
 - Derniere PR mergee: `#49` (B5)
-- PR en review: `#50` (B6 status extraction)
-- Travail local en cours: C1 (suppression des shims release obsoletes)
+- PRs en review: `#50` (B6 status extraction), `#51` (C1 shim removal)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. finaliser commit/push C1 (`refactor/release-architecture-c1-shim-removal`)
-  2. ouvrir PR-C1 stackee sur B6 (`refactor(release): remove obsolete services/release shims`)
-  3. merger B6 puis C1 pour stabiliser Wave C
-  4. demarrer C2 (docs contributors + ADR + playbook)
+  1. merger B6 (`#50`)
+  2. merger C1 (`#51`)
+  3. demarrer C2 (docs contributors + ADR + playbook)
