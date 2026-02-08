@@ -82,6 +82,7 @@ jobs:
       - name: Architecture tests
         env:
           MS_ARCH_CHECKS: "1"
+          MS_ARCH_STRICT: "1"
         run: uv run pytest ms/test/architecture -q
 
   test_fedora:
