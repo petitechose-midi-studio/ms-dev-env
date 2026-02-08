@@ -2,107 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
-
 import typer
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from ms.cli.commands.status_collect import collect_repo_statuses, collect_repos
+from ms.cli.commands.status_models import ChangeCounts, RepoStatus
+from ms.cli.commands.status_plain import generate_plain_text
 from ms.cli.context import build_context
-from ms.core.result import Err, Ok
 from ms.git.repository import GitStatus, Repository
 from ms.platform.clipboard import copy_to_clipboard
 
 # Auto-detect TTY so piped output stays plain-text friendly.
 _console = Console(legacy_windows=False)
-
-
-@dataclass(frozen=True, slots=True)
-class ChangeCounts:
-    """Counts of different change types."""
-
-    modified: int = 0
-    added: int = 0
-    deleted: int = 0
-    untracked: int = 0
-
-    @staticmethod
-    def from_status(st: GitStatus) -> ChangeCounts:
-        """Extract counts from GitStatus."""
-        return ChangeCounts(
-            modified=sum(1 for e in st.entries if e.xy[0] == "M" or e.xy[1] == "M"),
-            added=sum(1 for e in st.entries if e.xy[0] == "A"),
-            deleted=sum(1 for e in st.entries if e.xy[0] == "D" or e.xy[1] == "D"),
-            untracked=st.untracked_count,
-        )
-
-    def as_parts(self) -> list[tuple[str, str]]:
-        """Return (label, color) pairs for non-zero counts."""
-        parts: list[tuple[str, str]] = []
-        if self.modified:
-            parts.append((f"{self.modified}M", "yellow"))
-        if self.added:
-            parts.append((f"{self.added}A", "green"))
-        if self.deleted:
-            parts.append((f"{self.deleted}D", "red"))
-        if self.untracked:
-            parts.append((f"{self.untracked}?", "cyan"))
-        return parts
-
-    def as_string(self) -> str:
-        """Return space-separated count labels."""
-        return " ".join(label for label, _ in self.as_parts())
-
-
-@dataclass
-class RepoStatus:
-    """Status of a single repo."""
-
-    name: str
-    path: Path
-    status: GitStatus | None
-    error: str | None = None
-
-    @property
-    def has_changes(self) -> bool:
-        if self.status is None:
-            return False
-        return not self.status.is_clean or self.status.ahead > 0 or self.status.behind > 0
-
-    @property
-    def counts(self) -> ChangeCounts:
-        """Get change counts (returns empty counts if no status)."""
-        if self.status is None:
-            return ChangeCounts()
-        return ChangeCounts.from_status(self.status)
-
-
-def _collect_repos(root: Path, midi_studio: Path, open_control: Path) -> list[tuple[str, Path]]:
-    """Collect all git repos in workspace."""
-    repos: list[tuple[str, Path]] = []
-
-    if (root / ".git").exists():
-        repos.append(("ms", root))
-
-    # Optional root-level repos (maintainer profile)
-    for name in ("distribution", "ms-manager"):
-        p = root / name
-        if p.is_dir() and (p / ".git").exists():
-            repos.append((name, p))
-
-    if midi_studio.exists():
-        for d in sorted(midi_studio.iterdir()):
-            if d.is_dir() and (d / ".git").exists():
-                repos.append((f"midi-studio/{d.name}", d))
-
-    if open_control.exists():
-        for d in sorted(open_control.iterdir()):
-            if d.is_dir() and (d / ".git").exists():
-                repos.append((f"open-control/{d.name}", d))
-
-    return repos
 
 
 def _render_counts(counts: ChangeCounts) -> Text:
@@ -182,46 +95,6 @@ def _render_changed_repo(r: RepoStatus, detailed: bool) -> Text:
     return lines
 
 
-def _generate_plain_text(changed: list[RepoStatus], clean: list[RepoStatus], detailed: bool) -> str:
-    """Generate plain text output for clipboard."""
-    lines: list[str] = []
-
-    if changed:
-        lines.append("PENDING")
-        lines.append("")
-        for r in changed:
-            if r.error:
-                lines.append(f"{r.name}")
-                lines.append(f"  error: {r.error}")
-            else:
-                st = r.status
-                assert st is not None
-
-                lines.append(f"{r.name}")
-                lines.append(f"{r.path}")
-                lines.append(f"{st.branch}  {r.counts.as_string()}")
-
-                if detailed and st.entries:
-                    for entry in st.entries:
-                        char = (
-                            "?"
-                            if entry.xy == "??"
-                            else entry.xy[0]
-                            if entry.xy[0] != " "
-                            else entry.xy[1]
-                        )
-                        lines.append(f"  {char} {entry.path}")
-
-            lines.append("")
-
-    if clean:
-        lines.append(f"OK ({len(clean)})")
-        for r in clean:
-            lines.append(f"  {r.name}")
-
-    return "\n".join(lines)
-
-
 def status(
     detailed: bool = typer.Option(False, "--detailed", "-d", help="Show modified files"),
     fetch: bool = typer.Option(False, "--fetch", "-f", help="Fetch remotes first"),
@@ -230,7 +103,7 @@ def status(
     """Check pending changes in all workspace repos."""
     ctx = build_context()
 
-    repo_list = _collect_repos(
+    repo_list = collect_repos(
         ctx.workspace.root,
         ctx.workspace.midi_studio_dir,
         ctx.workspace.open_control_dir,
@@ -244,15 +117,7 @@ def status(
         _console.print()
 
     # Collect statuses
-    statuses: list[RepoStatus] = []
-    for name, path in repo_list:
-        repo = Repository(path)
-        result = repo.status()
-        match result:
-            case Err(e):
-                statuses.append(RepoStatus(name, path, None, e.message))
-            case Ok(st):
-                statuses.append(RepoStatus(name, path, st))
+    statuses = collect_repo_statuses(repo_list)
 
     changed = [r for r in statuses if r.has_changes or r.error]
     clean = [r for r in statuses if not r.has_changes and not r.error]
@@ -308,6 +173,6 @@ def status(
 
     # Copy to clipboard by default
     if not no_copy:
-        plain = _generate_plain_text(changed, clean, detailed)
+        plain = generate_plain_text(changed, clean, detailed)
         if copy_to_clipboard(plain):
             _console.print("\n[dim]Copied to clipboard[/dim]")

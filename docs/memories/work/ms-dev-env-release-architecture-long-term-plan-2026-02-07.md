@@ -537,7 +537,7 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B5 (`services/hardware.py` split).
 
-- B5 (hardware service split): IN REVIEW
+- B5 (hardware service split): DONE
   - PR: https://github.com/petitechose-midi-studio/ms-dev-env/pull/49
   - Branch: `refactor/release-architecture-b5-hardware-split`
   - Base strategy: stacked on B4 (`base branch refactor/release-architecture-b4-oc-cli-common-split`)
@@ -555,14 +555,33 @@ Snapshot date: 2026-02-07
   - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
   - Next: start B6 (`cli/status` extraction).
 
-### 6.1) Ecart restant pour atteindre la cible release (post-B4 merged, B5 in review)
+- B6 (`cli/status` extraction): IN PROGRESS (LOCAL)
+  - Branch: `refactor/release-architecture-b6-status-extraction`
+  - Base strategy: follows B5 (`base branch refactor/release-architecture-b5-hardware-split`)
+  - Scope delivered (local):
+    - extracted status domain models into `ms/cli/commands/status_models.py`
+    - extracted repo discovery and collection logic into `ms/cli/commands/status_collect.py`
+    - extracted plain text/clipboard formatter into `ms/cli/commands/status_plain.py`
+    - kept command facade + rich rendering in `ms/cli/commands/status.py`
+    - reduced `ms/cli/commands/status.py` from `313` to `178` lines
+  - Validation (completed locally):
+    - `uv run ruff check ms/cli/commands/status.py ms/cli/commands/status_models.py ms/cli/commands/status_collect.py ms/cli/commands/status_plain.py ms/cli/app.py ms/test/architecture/test_rich_usage_policy.py`
+    - `uv run pyright ms/cli/commands/status.py ms/cli/commands/status_models.py ms/cli/commands/status_collect.py ms/cli/commands/status_plain.py ms/cli/app.py ms/test/architecture/test_rich_usage_policy.py`
+    - `uv run pytest ms/test/cli -q`
+    - `MS_ARCH_CHECKS=1 uv run pytest ms/test/architecture -q`
+    - `uv run python -c "from ms.cli.commands.status import status; print(callable(status))"`
+  - Typing bar: no `Any`, no unnecessary `cast`, explicit contracts at layer boundaries.
+  - Next: open PR-B6 (`refactor(cli): extract status command helpers`) with `no behavior change` contract.
 
-Etat mesure sur la branche `refactor/release-architecture-b5-hardware-split`:
+### 6.1) Ecart restant pour atteindre la cible release (post-B5 merged, B6 local)
+
+Etat mesure sur la branche `refactor/release-architecture-b6-status-extraction`:
 
 - Position stack Wave A: PR `#39` -> `#44` merged
 - Progression lots long-terme:
-  - lots merges: `14/19` (A1-A10 + B1 + B2 + B3 + B4)
-  - lots en review: `1/19` (B5)
+  - lots merges: `15/19` (A1-A10 + B1 + B2 + B3 + B4 + B5)
+  - lots en review: `0/19`
+  - lots en cours local: `1/19` (B6)
 - Modules cibles release presents: `41/41`
 - Modules cibles release manquants: `0`
 
@@ -573,7 +592,8 @@ Etat de trajectoire:
 - B2 est mergee avec le meme contrat de non-regression comportementale.
 - B3 est mergee avec compat import preservee et sans changement de comportement intentionnel.
 - B4 est mergee avec compat API preservee et sans changement de comportement intentionnel.
-- B5 est ouverte en review (split hardware) avec contrat `no behavior change`.
+- B5 est mergee (split hardware) avec contrat `no behavior change`.
+- B6 est en cours localement (split status) avec contrat `no behavior change`.
 - Contrat migration conserve: `no behavior change`, typing stricte, shims de compat maintenus jusqu'au nettoyage final.
 
 ## Wave B - Services transverses
@@ -588,7 +608,7 @@ PR-B4: split `oc_cli/common.py` -> `oc_cli/runtime|execution|output_parser|seria
 
 PR-B5: `services/hardware.py` via adapter `oc_adapter.py` + reduction subprocess directs
 
-PR-B6: `cli/status` extraction presenters + alignement `ConsoleProtocol`
+PR-B6: extraction `cli/status` en helpers (`status_models|status_collect|status_plain`) avec facade stable
 
 ## Wave C - Nettoyage final
 
@@ -649,7 +669,7 @@ Mesures architecture (a ajouter et faire tourner en CI):
 uv run pytest ms/test/architecture -q
 ```
 
-### 7.3 Snapshot courant (post-A10/B1/B2/B3/B4 merged + B5 local, mesure locale)
+### 7.3 Snapshot courant (post-B5 merged + B6 local, mesure locale)
 
 Ces mesures completent la baseline historique et servent au pilotage des prochaines PR.
 
@@ -658,8 +678,12 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
 - Legacy release actif (hors shims): `5` fichiers, `1120` lignes
 - Fichiers CLI important encore `ms.services.release.*`: `4` (4 points d'import)
 - Modules legacy release importes par CLI: `2` (`ms.services.release.service`, `ms.services.release.remove`)
-- Surface restante Wave B (hotspots): `313` lignes
-  - `ms/cli/commands/status.py`: `313`
+- Surface restante Wave B (hotspots monolithiques): `0` lignes
+- B6 status split (local):
+  - `ms/cli/commands/status.py`: `178`
+  - `ms/cli/commands/status_models.py`: `62`
+  - `ms/cli/commands/status_collect.py`: `45`
+  - `ms/cli/commands/status_plain.py`: `42`
 - Build split B1 (decompose):
   - `ms/services/build/targets.py`: `210`
   - `ms/services/build/helpers.py`: `141`
@@ -680,7 +704,7 @@ Ces mesures completent la baseline historique et servent au pilotage des prochai
   - `ms/services/hardware/adapter.py`: `81`
   - `ms/services/hardware/service.py`: `58`
   - `ms/services/hardware/exporter.py`: `38`
-- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~1433` lignes
+- Estimation surface legacy restante connue (release actif + Wave B hotspots): `~1298` lignes
 
 Mesure hotspots (script guardrail simple):
 
@@ -771,9 +795,12 @@ Le programme est considere termine quand:
 
 ## 12) Notes operationnelles immediate
 
-- Branche active actuelle: `refactor/release-architecture-b5-hardware-split`
+- Branche active actuelle: `refactor/release-architecture-b6-status-extraction`
 - Wave A: PR `#39` -> `#44` merged
-- Stack ouverte en review: `#49` (B5)
+- Derniere PR mergee: `#49` (B5)
+- Travail local en cours: B6 (`cli/status` extraction)
 - Sequence execution recommandee pour rester sur la trajectoire:
-  1. finaliser review/merge PR-B5 (`#49`)
-  2. demarrer PR-B6 (`cli/status` extraction)
+  1. finaliser polish B6 (imports/naming) + rerun quality gates
+  2. commit/push `refactor/release-architecture-b6-status-extraction`
+  3. ouvrir PR-B6 (`refactor(cli): extract status command helpers`, `no behavior change`)
+  4. apres merge B6, demarrer Wave C (C1: suppression shims legacy)
