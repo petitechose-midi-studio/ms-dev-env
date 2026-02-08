@@ -15,7 +15,7 @@ from ms.release.domain.open_control_models import (
     OpenControlRepoState,
 )
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.client import run_gh_read
+from ms.release.infra.github.gh_base import run_gh_read
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS, GIT_TIMEOUT_SECONDS
 
 OC_SDK_REPOS: tuple[str, ...] = (

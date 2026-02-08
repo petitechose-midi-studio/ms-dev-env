@@ -6,7 +6,8 @@ import pytest
 
 from ms.core.result import Err, Ok
 from ms.platform.process import ProcessError
-from ms.release.infra.github import client as gh_mod
+from ms.release.infra.github import client as gh_client
+from ms.release.infra.github import gh_base as gh_mod
 
 
 def _err(*, stderr: str, returncode: int = 1) -> Err[ProcessError]:
@@ -86,7 +87,7 @@ def test_viewer_permission_retries_transient_error(
     monkeypatch.setattr(gh_mod, "run_process", fake_run)
     monkeypatch.setattr(gh_mod, "sleep", _no_sleep)
 
-    result = gh_mod.viewer_permission(
+    result = gh_client.viewer_permission(
         workspace_root=tmp_path,
         repo="petitechose-midi-studio/distribution",
     )
