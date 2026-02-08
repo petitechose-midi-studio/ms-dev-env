@@ -44,14 +44,8 @@ def test_new_release_modules_keep_small_size_budget() -> None:
     release_limit = 300 if strict else 450
     # A small set of known hotspots are temporarily allowed to exceed the base
     # budget. Even in strict mode, we keep explicit caps to prevent regression.
-    non_strict_overrides: dict[str, int] = {
-        "release/flow/guided/app_steps.py": 560,
-        "release/flow/guided/content_steps.py": 700,
-    }
-    strict_overrides: dict[str, int] = {
-        "release/flow/guided/app_steps.py": 560,
-        "release/flow/guided/content_steps.py": 700,
-    }
+    non_strict_overrides: dict[str, int] = {}
+    strict_overrides: dict[str, int] = {}
     overrides = strict_overrides if strict else non_strict_overrides
 
     offenders: list[str] = []
