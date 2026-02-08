@@ -123,6 +123,11 @@ uv run ruff check .
 uv run pyright
 ```
 
+## Follow-ups
+
+- Dead code + duplication cleanup: `docs/memories/work/ms-dev-env-release-architecture-cleanup-dead-code-and-duplication-2026-02-08.md`
+- Typed PR outcomes (remove fake `pr_url` strings): `docs/memories/work/ms-dev-env-release-architecture-typed-pr-outcomes-2026-02-08.md`
+
 ## Execution Plan (Methodical Order)
 
 This runbook proceeds in a low-risk order:

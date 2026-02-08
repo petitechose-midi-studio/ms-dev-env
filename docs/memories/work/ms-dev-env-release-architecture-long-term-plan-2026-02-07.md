@@ -103,7 +103,6 @@ ms/
       common.py
 
   release/
-    contracts.py
     errors.py
 
     domain/
@@ -115,6 +114,7 @@ ms/
     resolve/
       common.py
       plan_io.py
+      overrides.py
       content_inputs.py
       app_inputs.py
       auto/
@@ -127,6 +127,8 @@ ms/
     flow/
       permissions.py
       ci_gate.py
+      pinned_body.py
+      pr_outcome.py
       content_plan.py
       content_prepare.py
       content_publish.py
@@ -214,6 +216,8 @@ ms/
       test_rich_usage_policy.py
 ```
 
+Note (2026-02-08): `ms/release/contracts.py` was removed because it was unused (dead code). Re-introduce it only when it carries real shared DTOs/contracts.
+
 ---
 
 ## 4) Regles de dependances (non negotiables)
@@ -223,7 +227,7 @@ Direction des imports (release):
 - `cli.commands.release.*` -> `release.resolve|flow|view`
 - `release.resolve.*` -> `release.domain.*` (+ infra read-only explicitement autorisee)
 - `release.flow.*` -> `release.resolve|domain|infra`
-- `release.view.*` -> `release.contracts|output.console` uniquement
+- `release.view.*` -> `release.domain.*` + `output.console` (et shapes local Protocol/DTO)
 - Interdit: `view -> flow`, `view -> infra`, `flow -> typer/rich`
 
 Regles globales:
