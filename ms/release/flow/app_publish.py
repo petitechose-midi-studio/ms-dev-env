@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import config
-from ms.release.domain.notes import AppPublishNotes, ExternalNotesSnapshot
+from ms.release.domain.notes import AppPublishNotes
 from ms.release.errors import ReleaseError
+from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.infra.github.workflows import (
     dispatch_app_candidate_workflow,
     dispatch_app_release_workflow,
@@ -85,12 +85,11 @@ def publish_app_release(
 def resolve_app_publish_notes(
     *,
     notes_file: Path | None,
-    load_external_notes_file_fn: Callable[..., Result[ExternalNotesSnapshot, ReleaseError]],
 ) -> Result[AppPublishNotes, ReleaseError]:
     if notes_file is None:
         return Ok(AppPublishNotes(markdown=None, source_path=None, sha256=None))
 
-    notes = load_external_notes_file_fn(path=notes_file)
+    notes = load_external_notes_file(path=notes_file)
     if isinstance(notes, Err):
         return notes
 
