@@ -55,8 +55,8 @@ Steps:
 Legend: [ ] pending, [x] done, [~] in progress
 
 - [x] Verify PR #51 checks green and mergeable
-- [ ] Pick merge option (A recommended)
-- [ ] Execute selected option
+- [x] Pick merge option (A recommended)
+- [~] Execute selected option
 - [ ] Post-merge cleanup (close/supersede redundant PRs)
 
 ## Commands
@@ -71,3 +71,8 @@ gh pr edit 51 --base main
 # Merge (after approval)
 gh pr merge 51 --squash --delete-branch
 ```
+
+## Execution Notes
+
+- 2026-02-08: PR #51 base was changed to `main` (`gh pr edit 51 --base main`).
+- After base retargeting, the PR diff now includes the full stacked work (expected: large diff). Keep further changes minimal until merge.
