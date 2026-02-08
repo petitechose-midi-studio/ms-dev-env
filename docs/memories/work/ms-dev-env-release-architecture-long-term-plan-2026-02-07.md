@@ -107,7 +107,9 @@ ms/
 
     domain/
       config.py
+      diagnostics.py
       models.py
+      open_control_models.py
       semver.py
       planner.py
 
