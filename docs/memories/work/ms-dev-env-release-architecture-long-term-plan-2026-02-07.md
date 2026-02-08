@@ -109,6 +109,7 @@ ms/
       config.py
       diagnostics.py
       models.py
+      notes.py
       open_control_models.py
       semver.py
       planner.py

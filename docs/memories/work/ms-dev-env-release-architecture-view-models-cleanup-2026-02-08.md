@@ -63,6 +63,11 @@ Legend: [ ] pending, [x] done, [~] in progress
   - `ms/release/flow/guided/content_steps.py` now types open-control preflight as `OpenControlPreflightReport`
   - `ms/cli/release_guided_content.py` imports `OpenControlPreflightReport` from the domain
 
+- Additional view-facing model cleanup:
+  - `ms/release/domain/notes.py` introduced `AppPublishNotes`
+  - `ms/release/flow/app_publish.py` now returns the domain `AppPublishNotes`
+  - `ms/release/view/app_console.py` now consumes `AppPublishNotes` directly (removes the last notes `Protocol` mirror)
+
 ## Verification
 
 ```bash
