@@ -7,7 +7,8 @@ from ms.output.console import ConsoleProtocol
 from ms.release.domain import config
 from ms.release.domain.models import ReleasePlan
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.workflows import dispatch_publish_workflow, watch_run
+from ms.release.infra.github.run_watch import watch_run
+from ms.release.infra.github.workflows import dispatch_publish_workflow
 
 
 def publish_distribution_release(

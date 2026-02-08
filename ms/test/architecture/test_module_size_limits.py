@@ -55,7 +55,6 @@ def test_new_release_modules_keep_small_size_budget() -> None:
         "release/flow/guided/sessions.py": 540,
         "release/infra/github/client.py": 450,
         "release/infra/github/pr_merge.py": 330,
-        "release/infra/github/workflows.py": 330,
         "release/resolve/auto/carry_mode.py": 370,
     }
     overrides = strict_overrides if strict else non_strict_overrides
