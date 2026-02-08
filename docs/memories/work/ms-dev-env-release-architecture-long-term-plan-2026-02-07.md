@@ -1,12 +1,20 @@
 # Plan long terme - refactor architecture release (ms)
 
-Status: ACTIVE MEMORY (LONG TERM)
+Status: ARCHIVED (LANDED ON main)
 
-Date: 2026-02-07
+Date: 2026-02-07 .. 2026-02-08
 
 Owner: ms maintainers
 
-Dedicated branch: `refactor/release-architecture-long-term`
+Historical note: this plan was executed via a stacked branch strategy and later squash-merged to `main`.
+
+Outcome (2026-02-08):
+
+- Release architecture refactor landed on `main` via PR #51 (squash merge) + follow-up cleanup PRs #52-#57.
+- Legacy `ms/services/release/*` was removed.
+- Release models/contracts were consolidated under `ms/release/domain/*`.
+- Multiple wrapper/forwarder functions were removed (KISS cleanups).
+- Stale branches from the stack were deleted (see `docs/memories/work/ms-dev-env-branch-hygiene-2026-02-08.md`).
 
 Scope: `ms` package (priorite release), avec rollout progressif en PRs courtes.
 

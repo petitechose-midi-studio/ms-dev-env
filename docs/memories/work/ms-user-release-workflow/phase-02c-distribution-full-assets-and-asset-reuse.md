@@ -90,8 +90,8 @@ For stable/beta, we use **copy reuse**:
 
 Files:
 
-- `ms/services/release/config.py`
-- `ms/services/release/spec.py`
+- `ms/release/domain/config.py`
+- `ms/release/infra/artifacts/spec_writer.py`
 
 3) Extend distribution workflows to build firmware + bitwig extension
 
