@@ -6,7 +6,7 @@ from typing import Literal, Protocol
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.release.domain.models import PinnedRepo, ReleaseRepo
+from ms.release.domain.models import AppReleasePlan, PinnedRepo, ReleaseRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
@@ -93,7 +93,7 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         bump: Literal["major", "minor", "patch"],
         tag_override: str | None,
         pinned: tuple[PinnedRepo, ...],
-    ) -> Result[tuple[str, str], ReleaseError]: ...
+    ) -> Result[AppReleasePlan, ReleaseError]: ...
 
     def prepare_app_pr(
         self,
@@ -326,7 +326,9 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         )
         if isinstance(planned, Err):
             return planned
-        tag, version = planned.value
+        plan = planned.value
+        tag = plan.tag
+        version = plan.version
 
         choice = deps.select_menu(
             title="Release Tag",

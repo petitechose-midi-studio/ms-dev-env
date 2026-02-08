@@ -9,6 +9,7 @@ import pytest
 from ms.cli.selector import SelectorResult
 from ms.core.result import Ok
 from ms.output.console import MockConsole
+from ms.release.domain.models import AppReleasePlan
 from ms.release.flow.app_prepare import AppPrepareResult
 from ms.release.flow.guided.sessions import (
     AppReleaseSession,
@@ -52,7 +53,15 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         return Ok(_sel("a" * 40))
 
     def fake_plan(*args: object, **kwargs: object):
-        return Ok(("v1.2.3", "1.2.3"))
+        return Ok(
+            AppReleasePlan(
+                channel="stable",
+                tag="v1.2.3",
+                version="1.2.3",
+                pinned=(),
+                title="release(app): v1.2.3",
+            )
+        )
 
     summary_calls = {"count": 0}
 
@@ -156,7 +165,15 @@ def test_guided_app_summary_edit_recomputes_tag(
 
     def fake_plan(*args: object, **kwargs: object):
         tag_calls["count"] += 1
-        return Ok(("v1.2.3", "1.2.3"))
+        return Ok(
+            AppReleasePlan(
+                channel="stable",
+                tag="v1.2.3",
+                version="1.2.3",
+                pinned=(),
+                title="release(app): v1.2.3",
+            )
+        )
 
     summary_seq = [_sel("channel", index=0), _sel("start", index=5), _sel("start", index=5)]
     tag_seq = [_sel("accept"), _sel("accept")]

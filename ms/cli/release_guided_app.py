@@ -15,7 +15,7 @@ from ms.cli.selector import SelectorOption, SelectorResult, confirm_yn, select_o
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
 from ms.release.domain.config import APP_RELEASE_REPO, APP_REPO_SLUG
-from ms.release.domain.models import PinnedRepo, ReleaseBump, ReleaseChannel
+from ms.release.domain.models import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel
 from ms.release.errors import ReleaseError
 from ms.release.flow.app_plan import plan_app_release
 from ms.release.flow.app_prepare import AppPrepareResult, prepare_app_pr
@@ -177,7 +177,7 @@ def run_guided_app_release(
             bump: ReleaseBump,
             tag_override: str | None,
             pinned: tuple[PinnedRepo, ...],
-        ) -> Result[tuple[str, str], ReleaseError]:
+        ) -> Result[AppReleasePlan, ReleaseError]:
             return plan_app_release(
                 workspace_root=workspace_root,
                 channel=channel,

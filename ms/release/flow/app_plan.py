@@ -30,9 +30,7 @@ def plan_app_release(
     bump: ReleaseBump,
     tag_override: str | None,
     pinned: tuple[PinnedRepo, ...],
-) -> Result[tuple[str, str], ReleaseError]:
-    del pinned
-
+) -> Result[AppReleasePlan, ReleaseError]:
     history_result = load_app_history(workspace_root=workspace_root)
     if isinstance(history_result, Err):
         return history_result
@@ -47,35 +45,30 @@ def plan_app_release(
     if isinstance(version, Err):
         return version
 
-    return Ok((tag, version.value))
+    return Ok(
+        AppReleasePlan(
+            channel=channel,
+            tag=tag,
+            version=version.value,
+            pinned=pinned,
+            title=f"release(app): {tag}",
+        )
+    )
 
 
 def build_app_release_plan(
     *,
-    planner: Callable[..., Result[tuple[str, str], ReleaseError]],
+    planner: Callable[..., Result[AppReleasePlan, ReleaseError]],
     workspace_root: Path,
     channel: ReleaseChannel,
     bump: ReleaseBump,
     tag_override: str | None,
     pinned: tuple[PinnedRepo, ...],
 ) -> Result[AppReleasePlan, ReleaseError]:
-    planned = planner(
+    return planner(
         workspace_root=workspace_root,
         channel=channel,
         bump=bump,
         tag_override=tag_override,
         pinned=pinned,
-    )
-    if isinstance(planned, Err):
-        return planned
-
-    tag, version = planned.value
-    return Ok(
-        AppReleasePlan(
-            channel=channel,
-            tag=tag,
-            version=version,
-            pinned=pinned,
-            title=f"release(app): {tag}",
-        )
     )
