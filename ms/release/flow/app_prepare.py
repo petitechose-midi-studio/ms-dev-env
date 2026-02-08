@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
@@ -38,14 +37,6 @@ from ms.release.infra.repos.app import (
 
 from .pinned_body import build_pinned_body
 from .pr_outcome import PrMergeOutcome
-
-
-class AppPrepareResultLike(Protocol):
-    @property
-    def pr(self) -> PrMergeOutcome: ...
-
-    @property
-    def source_sha(self) -> str: ...
 
 
 @dataclass(frozen=True, slots=True)
