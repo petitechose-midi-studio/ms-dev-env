@@ -30,7 +30,7 @@ from ms.release.flow.content_prepare import (
     prepare_content_release_distribution,
     prepare_distribution_pr,
 )
-from ms.release.flow.content_publish import publish_content_release, publish_distribution_release
+from ms.release.flow.content_publish import publish_distribution_release
 from ms.release.flow.content_remove import (
     delete_github_releases,
     remove_content_github_releases,
@@ -421,8 +421,7 @@ def publish_cmd(
 
     ctx.console.success(f"PR merged: {prepared.pr}")
 
-    run = publish_content_release(
-        publish_distribution_release_fn=publish_distribution_release,
+    run = publish_distribution_release(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
         plan=prepared.plan,

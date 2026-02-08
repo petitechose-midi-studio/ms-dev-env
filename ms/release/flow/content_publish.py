@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -42,21 +41,3 @@ def publish_distribution_release(
             return watched
 
     return Ok(run.value.url)
-
-
-def publish_content_release(
-    *,
-    publish_distribution_release_fn: Callable[..., Result[str, ReleaseError]],
-    workspace_root: Path,
-    console: ConsoleProtocol,
-    plan: ReleasePlan,
-    watch: bool,
-    dry_run: bool,
-) -> Result[str, ReleaseError]:
-    return publish_distribution_release_fn(
-        workspace_root=workspace_root,
-        console=console,
-        plan=plan,
-        watch=watch,
-        dry_run=dry_run,
-    )
