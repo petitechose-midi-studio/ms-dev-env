@@ -5,6 +5,7 @@ This document describes the MIDI Studio project as it exists inside the `ms-dev-
 ## Repos / directories
 
 - `midi-studio/core` - controller firmware + native/WASM simulators
+- `midi-studio/ui` - shared LVGL UI components (`ms-ui`)
 - `midi-studio/plugin-bitwig` - Bitwig integration (firmware + simulators + Java extension)
 - `midi-studio/hardware` - hardware design files (not required to build software)
 
@@ -37,4 +38,5 @@ Persistence is currently implemented as follows:
 
 - Hardware IDs: `docs/memories/midi-studio/hw-layout.md`
 - Navigation patterns: `docs/memories/midi-studio/hw-navigation.md`
+- Shared UI architecture: `docs/memories/midi-studio/shared-ui-ms-ui.md`
 - Core architecture docs (authoritative for core app patterns): `midi-studio/core/docs/`

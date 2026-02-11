@@ -45,3 +45,7 @@ _bmad/
 # OS
 .DS_Store
 Thumbs.db
+
+# Memories archives (kept out of repo)
+/docs/memories/_OLD/
+/docs/memories/work/_OLD/

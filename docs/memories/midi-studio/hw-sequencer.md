@@ -4,8 +4,11 @@ This file is the stable place to keep sequencer mappings independent from the fu
 
 Current status:
 
-- The sequencer is planned (no app implementation yet).
-- The canonical design spec is `docs/memories/work/feature-ms-sequencer/tech-spec.md`.
+- Sequencer engine is still planned (no playback/MIDI engine yet).
+- Core has UI scaffolding:
+  - a top-level View Selector overlay on `LEFT_TOP`
+  - a placeholder `SequencerView` (8-step grid)
+- The canonical spec is `docs/memories/work/feature-ms-sequencer/tech-spec.md`.
 
 ## Main view mapping (draft)
 

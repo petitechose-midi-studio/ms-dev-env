@@ -1,6 +1,8 @@
 # Memories
 
-Documentation persistante et mémoires de travail pour MIDI Studio (et OpenControl).
+Documentation persistante et memoires de travail pour MIDI Studio (et OpenControl).
+
+Point d'entree: `docs/memories/global/onboarding.md`
 
 ## Structure
 
@@ -10,9 +12,16 @@ memories/
 ├── open-control/        # Framework & tools
 ├── midi-studio/         # Produit
 ├── setup-architecture/   # Setup + distribution architecture
-├── work/                # Travaux en cours
-└── _OLD/                # Archives
+└── work/                # Travaux en cours
 ```
+
+## Archivage (hors repo)
+
+Pour garder ce repo leger et eviter de versionner des plans historiques, les documents devenus obsoletes / termines sont archives **en dehors du repo**.
+
+Emplacement recommande (local): `~/Desktop/legacy memories/ms-dev-env/`
+
+Note: le contenu qui etait dans `docs/memories/_OLD/` et certains plans termines de `docs/memories/work/` ont ete archives dans ce dossier (2026-02-11).
 
 ## Conventions
 
@@ -60,11 +69,12 @@ work/feature-ms-sequencer/
 └── phase-2-midi.md
 ```
 
-### Archivage (_OLD/)
+### Archivage (hors repo)
 
-Quand terminé, déplacer vers `_OLD/` avec préfixe date:
-```
-_OLD/2026-01-17-refactor-oc-naming.md
+Quand termine, deplacer vers le dossier Desktop, avec prefixe date si besoin.
+Exemple:
+```text
+~/Desktop/legacy memories/ms-dev-env/docs/memories/2026-01-17-refactor-oc-naming.md
 ```
 
 ## Index des fichiers
@@ -72,6 +82,7 @@ _OLD/2026-01-17-refactor-oc-naming.md
 ### global/
 | Fichier | Description |
 |---------|-------------|
+| `onboarding.md` | Point d'entree (start here) |
 | `commands.md` | Commandes utiles du projet |
 | `code-style.md` | Conventions de code |
 
@@ -79,6 +90,7 @@ _OLD/2026-01-17-refactor-oc-naming.md
 | Fichier | Description |
 |---------|-------------|
 | `changelog.md` | Historique des changements framework |
+| `README.md` | Vue d'ensemble (repos + pointers) |
 
 ### midi-studio/
 | Fichier | Description |
@@ -89,12 +101,11 @@ _OLD/2026-01-17-refactor-oc-naming.md
 | `hw-mapping-template.md` | Template pour hardware mappings |
 | `hw-navigation.md` | Navigation patterns |
 | `hw-sequencer.md` | Sequencer overlay mappings |
+| `shared-ui-ms-ui.md` | UI partagee (`ms-ui`) |
 
 ### work/ (travaux en cours)
 | Fichier | Status | Description |
 |---------|--------|-------------|
-| `feature-ms-preset-storage/` | in progress | Système de presets avec persistence (dossier multi-phase) |
-| `feature-ms-sequencer/` | planned | Step Sequencer modulaire (dossier multi-phase) |
-| `refactor-all-dev-cli-dx-max/` | completed | Refactor setup + ms CLI pour DX maximale |
-| `ms-user-release-workflow/` | in progress | Distribution end-user (channels + manifest + ms-manager + bootstrap installer) |
-| `feature-teensy-uploader-cli/` | planned | Flasher CLI Rust (Teensy 4.1), base pour l'installer |
+| `README.md` | active | Index des memoires de travail actives |
+| `feature-ms-sequencer/` | started | Step sequencer (UI-first) |
+| `ideas/` | active | Backlog d'idees |

@@ -80,7 +80,7 @@ Il y a 2 workflows distincts :
   - wasm: Ubuntu uniquement
   - Pages: déploie les artefacts WASM sous `/demo/<app>/latest/`
 
-## Distribution (implémentée)
+## Distribution (current direction)
 
 ### Objectif
 
@@ -106,7 +106,7 @@ Optimisation locked:
 - stable/beta: reuse par copie (tags self-contained)
 - nightly: reuse via `assets[].url` (même canal uniquement)
 
-## Installer end-user (implémenté progressivement)
+## Installer end-user (progressive implementation)
 
 ### Objectif
 
@@ -127,4 +127,4 @@ plutôt que de dépendre uniquement des commandes `oc-bridge install/uninstall`.
 
 - CLI: `uv run ms --help`
 - CI: `.github/workflows/ci.yml`, `.github/workflows/builds.yml`
-- Roadmap exécutable: `docs/memories/work/ms-user-release-workflow/README.md`
+- Release operations (maintainers): `docs/memories/setup-architecture/release-operations.md`

@@ -1,7 +1,7 @@
 # Code Style & Conventions
 
 > **Référence officielle** pour midi-studio (Core & Bitwig Plugin)
-> Dernière mise à jour: 2026-01-06
+> Dernière mise à jour: 2026-02-11
 
 ## Documentation complète
 
@@ -43,6 +43,9 @@ namespace bitwig { }           // Contextes
 namespace bitwig::ui { }       // UI components
 namespace bitwig::state { }    // State management
 namespace bitwig::handler { }  // Input/Host handlers
+
+// Shared UI (ms-ui)
+namespace ms::ui { }           // Shared LVGL UI components (midi-studio/ui)
 
 // Core
 namespace core { }             // Contextes
@@ -173,13 +176,13 @@ private:
 
 ---
 
-## 5. Contextes (IContext)
+## 5. Contextes (IContext / ContextBase)
 
 ### Structure standard
 ```cpp
 namespace bitwig {
 
-class BitwigContext : public oc::context::IContext {
+class BitwigContext : public oc::context::ContextBase {
 public:
     // Déclaration des dépendances (obligatoire si APIs utilisées)
     static constexpr oc::context::Requirements REQUIRES{
@@ -190,9 +193,8 @@ public:
     };
 
     // Lifecycle
-    bool initialize() override;
+    oc::type::Result<void> init() override;
     void update() override;
-    void cleanup() override;
     const char* getName() const override { return "Bitwig"; }
 
     // Connection (pour DAW contexts)
@@ -211,6 +213,8 @@ private:
     state::BitwigState state_;
     std::unique_ptr<BitwigProtocol> protocol_;
     // ...
+protected:
+    void onCleanup() override;
 };
 
 }  // namespace bitwig
@@ -313,4 +317,5 @@ Views → subscribe to State (automatic UI updates)
 ## Voir aussi
 
 - `docs/memories/midi-studio/overview.md` - Structure des projets
+- `docs/memories/midi-studio/shared-ui-ms-ui.md` - Shared UI include conventions
 - `midi-studio/core/docs/` - Guides HOW_TO_* détaillés

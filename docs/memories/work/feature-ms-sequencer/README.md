@@ -1,48 +1,36 @@
-# Feature: Step Sequencer Modulaire
+# Feature: Step Sequencer (UI-first)
 
-**Status:** planned  
-**Project:** midi-studio (core + plugin-bitwig)  
-**Created:** 2026-01-07  
-**Priority:** high  
+**Status:** started
+**Project:** midi-studio/core first (standalone), plugin-bitwig later
+**Created:** 2026-01-07
+**Updated:** 2026-02-11
+**Priority:** high
 
-## Objectif
+## Current state
 
-Séquenceur à pas multi-track (16 pistes) avec:
-- 7 Step Properties: Note, Velocity, Gate, Probability, TimeOffset, Slide, Accent
-- Track FX Chain: Ratchet, Chord, Scale Quantize, Humanize, Swing, etc.
-- Mode exclusif vs Mode Macro (switch via LEFT_TOP)
-- Storage (planned): align with current storage direction
-  - Teensy: SD card (non-blocking SDIO)
-  - Desktop: file-based
-  - WASM: no persistence yet (future via bridge)
+- Core has a top-level View Selector overlay on `LEFT_TOP`.
+- Core has a placeholder `SequencerView` (8-step grid) so the view switch is visible.
 
-## Architecture
+## Immediate goals (v0)
 
-```
-open-control/note/           # Nouvelle lib: moteur séquenceur
-open-control/ui-lvgl-components/  # Widget LVGL séquenceur
-midi-studio/core/            # Intégration standalone
-midi-studio/plugin-bitwig/   # Intégration Bitwig
-```
+- Standalone UI POC first (no engine required initially): step grid + step toggle + basic navigation.
+- Minimal reactive state for sequencing (separate from Macro state).
+- Persistence direction (when added): a single versioned binary blob via `oc::interface::IStorage`.
 
-## Phases
+## Key decisions (locked)
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Architecture & interfaces | planned |
-| 2 | Moteur séquenceur (engine) | planned |
-| 3 | Track FX Chain | planned |
-| 4 | UI LVGL | planned |
-| 5 | Storage & persistence | planned |
-| 6 | Intégration Core standalone | planned |
-| 7 | Intégration Plugin Bitwig | planned |
+- Shared LVGL UI lives in `midi-studio/ui` (`ms-ui`).
+- Sequencer engine first version lives inside `midi-studio/core` (internal module) until stable.
+- Do not start with JSON trees for persistence; keep v0 storage simple and versioned.
 
-## Fichiers
+## Files
 
-- `tech-spec.md` - Spécification technique complète (1500+ lignes)
+- `tech-spec.md` - current scoped spec / plan
+- Legacy long-form spec was archived out of the repo.
 
-## Voir aussi
+## See also
 
-- `docs/memories/midi-studio/hw-layout.md` - Hardware IDs
-- `docs/memories/midi-studio/hw-navigation.md` - Patterns de navigation
-- `docs/memories/midi-studio/hw-sequencer.md` - Mappings séquenceur (overlay)
+- `docs/memories/midi-studio/hw-layout.md`
+- `docs/memories/midi-studio/hw-navigation.md`
+- `docs/memories/midi-studio/hw-sequencer.md`
+- `docs/memories/midi-studio/shared-ui-ms-ui.md`

@@ -13,6 +13,8 @@ Important invariants for input/overlay ownership are documented in:
   - press: back / escape / mode selector entry (depending on current view)
   - long press: breadcrumb / global escape (when implemented)
 
+Implemented (core standalone): `LEFT_TOP` press opens the top-level View Selector overlay.
+
 - `NAV` encoder + button
   - turn: navigate lists / change focused index
   - press: confirm / open primary settings overlay
