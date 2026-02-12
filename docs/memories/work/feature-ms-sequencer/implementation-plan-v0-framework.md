@@ -16,6 +16,9 @@ status: 'active'
   - Tests: `pio test -e native` in `open-control/note`.
   - Phase 2 oc-note v0 engine + clock pushed: `open-control/note` @ `73ab913`.
   - Tests: `pio test -e native` (clock + engine + smoke).
+  - Phase 3 core integration pushed: `petitechose-midi-studio/core` PR #4 (`feat/sequencer-ui-v0`) @ `0c1f767`.
+  - Phase 3 plugin-bitwig integration pushed: `petitechose-midi-studio/plugin-bitwig` PR #3 (`opencode/adopt-ms-ui-993aeb3`) @ `9588d5b`.
+  - Builds: `pio run -e dev` + `pio run -e release` in `midi-studio/core` and `midi-studio/plugin-bitwig`.
 
 ## Contexte
 
