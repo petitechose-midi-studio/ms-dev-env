@@ -8,6 +8,13 @@ status: 'active'
 
 # Plan: v0 Produit + Structure Framework (oc-note)
 
+## Progress log
+
+- 2026-02-12:
+  - Phase 0 docs + repo manifest update: `petitechose-midi-studio/ms-dev-env` PR #74.
+  - Phase 1 oc-note skeleton pushed: `open-control/note` @ `e6b8645`.
+  - Tests: `pio test -e native` in `open-control/note`.
+
 ## Contexte
 
 - Aujourd'hui, `midi-studio/core` a une UI sequencer fonctionnelle (8 steps visibles, pagination, focus, playhead state) et des handlers d'edition UI-first.
