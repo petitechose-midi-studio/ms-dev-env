@@ -25,6 +25,13 @@ branch = "main"
 
 [[repos]]
 org = "open-control"
+name = "note"
+url = "https://github.com/open-control/note"
+path = "open-control/note"
+branch = "main"
+
+[[repos]]
+org = "open-control"
 name = "hal-common"
 url = "https://github.com/open-control/hal-common"
 path = "open-control/hal-common"
@@ -98,6 +105,13 @@ org = "petitechose-midi-studio"
 name = "plugin-bitwig"
 url = "https://github.com/petitechose-midi-studio/plugin-bitwig"
 path = "midi-studio/plugin-bitwig"
+branch = "main"
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "ui"
+url = "https://github.com/petitechose-midi-studio/ui"
+path = "midi-studio/ui"
 branch = "main"
 
 [[repos]]

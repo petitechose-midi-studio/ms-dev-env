@@ -15,6 +15,10 @@ Key product repos:
 - `midi-studio/plugin-bitwig` (Bitwig integration)
 - `midi-studio/ui` (`ms-ui`, shared LVGL UI components)
 
+Key OpenControl repos used by the sequencer direction:
+
+- `open-control/note` (`oc-note`, sequencer/clock primitives)
+
 See: `docs/memories/midi-studio/overview.md`
 
 ## 2) Setup + sanity check
