@@ -14,6 +14,8 @@ status: 'active'
   - Phase 0 docs + repo manifest update: `petitechose-midi-studio/ms-dev-env` PR #74.
   - Phase 1 oc-note skeleton pushed: `open-control/note` @ `e6b8645`.
   - Tests: `pio test -e native` in `open-control/note`.
+  - Phase 2 oc-note v0 engine + clock pushed: `open-control/note` @ `73ab913`.
+  - Tests: `pio test -e native` (clock + engine + smoke).
 
 ## Contexte
 
