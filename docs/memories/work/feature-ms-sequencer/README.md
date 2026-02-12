@@ -25,8 +25,9 @@
 
 ## Files
 
-- `tech-spec.md` - current scoped spec / plan
-- Legacy long-form spec was archived out of the repo.
+- `tech-spec.md` - v0 scoped spec (UI-first / produit minimal)
+- `implementation-plan-v0-framework.md` - execution plan (v0 + structure framework)
+- `tech-spec-modular.md` - long-term modular direction (planned)
 
 ## See also
 

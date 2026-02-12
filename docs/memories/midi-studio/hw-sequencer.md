@@ -4,11 +4,14 @@ This file is the stable place to keep sequencer mappings independent from the fu
 
 Current status:
 
-- Sequencer engine is still planned (no playback/MIDI engine yet).
-- Core has UI scaffolding:
-  - a top-level View Selector overlay on `LEFT_TOP`
-  - a placeholder `SequencerView` (8-step grid)
-- The canonical spec is `docs/memories/work/feature-ms-sequencer/tech-spec.md`.
+- Sequencer engine (modular) is planned; v0 playback is implemented incrementally in core.
+- Core has UI-first sequencer:
+  - 8 steps visible + pagination, focus, playhead state
+  - basic step toggle + navigation
+- Specs:
+  - v0 (UI-first): `docs/memories/work/feature-ms-sequencer/tech-spec.md`
+  - long-term modular direction: `docs/memories/work/feature-ms-sequencer/tech-spec-modular.md`
+  - execution plan: `docs/memories/work/feature-ms-sequencer/implementation-plan-v0-framework.md`
 
 ## Main view mapping (draft)
 
@@ -39,3 +42,4 @@ MODE SEQUENCER (main)
 For details (all overlays, parameters, behavior), see:
 
 - `docs/memories/work/feature-ms-sequencer/tech-spec.md`
+- `docs/memories/work/feature-ms-sequencer/tech-spec-modular.md`
