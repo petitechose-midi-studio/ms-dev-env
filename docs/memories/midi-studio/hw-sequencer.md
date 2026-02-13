@@ -55,19 +55,19 @@ Key/Value overlay (rows):
 
 ## Main view mapping (Sequencer view, no overlay)
 
-| Control | P | LP | T |
-|---------|---|----|---|
-| LEFT_TOP | Open MODE SELECTOR (latch) | (reserved breadcrumb) | - |
-| LEFT_CENTER | Open PATTERN CONFIG | Open TRACK CONFIG | - |
-| LEFT_BOTTOM | Open PROPERTY SELECTOR (latch) | - | - |
-| NAV (enc) | - | - | Move focus (step) |
-| NAV (btn) | Toggle focused step (v0 legacy) | Open SEQUENCER SETTINGS | - |
-| OPT (enc) | - | - | Fine tune last touched (planned) |
-| MACRO btn 1-8 | Toggle step 1-8 | Open STEP EDIT (step i) | - |
-| MACRO enc 1-8 | - | - | Adjust current property (planned) |
-| BOTTOM_LEFT | Page left | Copy step (planned) | - |
-| BOTTOM_CENTER | Play/Pause (global) | Stop (planned) | - |
-| BOTTOM_RIGHT | Page right | Paste step (planned) | - |
+| Control | P | R | LP | T |
+|---------|---|---|----|---|
+| LEFT_TOP | Open MODE SELECTOR (latch) | - | (reserved breadcrumb) | - |
+| LEFT_CENTER | - | Open PATTERN CONFIG | Open TRACK CONFIG | - |
+| LEFT_BOTTOM | Open PROPERTY SELECTOR (latch) | - | - | - |
+| NAV (enc) | - | - | - | Move focus (step) |
+| NAV (btn) | - | Toggle focused step (v0 legacy) | Open SEQUENCER SETTINGS | - |
+| OPT (enc) | - | - | - | Fine tune last touched (planned) |
+| MACRO btn 1-8 | - | Toggle step 1-8 | Open STEP EDIT (step i) | - |
+| MACRO enc 1-8 | - | - | - | Adjust current property (planned) |
+| BOTTOM_LEFT | - | Page left | Copy step (planned) | - |
+| BOTTOM_CENTER | Play/Pause (global) | - | Stop (planned) | - |
+| BOTTOM_RIGHT | - | Page right | Paste step (planned) | - |
 
 Notes:
 
