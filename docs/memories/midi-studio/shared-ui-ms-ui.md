@@ -23,6 +23,7 @@
 
 - Layout primitives:
   - `ms::ui::ViewContainer`
+  - `ms::ui::LayoutView`
   - `ms::ui::LayoutOverlay`
 - Overlay wiring helper:
   - `ms::ui::OverlayBindingContext`

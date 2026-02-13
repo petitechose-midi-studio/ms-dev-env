@@ -2,13 +2,18 @@
 title: 'Step Sequencer v0 -> Framework Extraction Plan'
 slug: 'step-sequencer-v0-framework-plan'
 created: '2026-02-12'
-updated: '2026-02-12'
+updated: '2026-02-13'
 status: 'active'
 ---
 
 # Plan: v0 Produit + Structure Framework (oc-note)
 
 ## Progress log
+
+- 2026-02-13:
+  - Core UI cleanup: debounced/coalesced SequencerView renders (60Hz cap) + scope-based Transport tempo (remove ad-hoc gating).
+  - ms-ui: add `LayoutView` scaffold (header + content) to avoid duplicating view layouts.
+  - Core: Sequencer header revamp (replace Macro `TopBar` with `SequencerHeaderBar`: playhead strip + division + length).
 
 - 2026-02-12:
   - Phase 0 docs + repo manifest update: `petitechose-midi-studio/ms-dev-env` PR #74.

@@ -3,13 +3,13 @@
 **Status:** started
 **Project:** midi-studio/core first (standalone), plugin-bitwig later
 **Created:** 2026-01-07
-**Updated:** 2026-02-11
+**Updated:** 2026-02-13
 **Priority:** high
 
 ## Current state
 
 - Core has a top-level View Selector overlay on `LEFT_TOP`.
-- Core has a placeholder `SequencerView` (8-step grid) so the view switch is visible.
+- Core has a `SequencerView` v0 (8-step grid, pagination, focus, playhead + playback service).
 
 ## Immediate goals (v0)
 
@@ -28,6 +28,7 @@
 - `tech-spec.md` - v0 scoped spec (UI-first / produit minimal)
 - `implementation-plan-v0-framework.md` - execution plan (v0 + structure framework)
 - `tech-spec-modular.md` - long-term modular direction (planned)
+- `ui-header-progress-strip.md` - planned Sequencer header improvements (readability + playhead strip)
 
 ## See also
 
