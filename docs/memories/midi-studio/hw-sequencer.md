@@ -9,6 +9,20 @@ References:
 - Navigation conventions: `docs/memories/midi-studio/hw-navigation.md`
 - Sequencer v0 spec: `docs/memories/work/feature-ms-sequencer/tech-spec.md`
 
+## Implementation status (as of 2026-02-14)
+
+Implemented in `midi-studio/core`:
+
+- Top-level MODE SELECTOR overlay on `LEFT_TOP`.
+- `SequencerView` v0 (8-step grid, pagination, focus, playhead).
+- v0 step toggle via `MACRO` buttons and focus navigation via `NAV`.
+
+Planned (this document describes the target mapping):
+
+- `PATTERN CONFIG`, `PROPERTY SELECTOR`, `SEQUENCER SETTINGS`, `STEP EDIT` overlays.
+- Macro encoder turns to edit the selected property.
+- Copy/Paste, OPT fine-tune, and other secondary gestures.
+
 ## Notation
 
 - Buttons:
