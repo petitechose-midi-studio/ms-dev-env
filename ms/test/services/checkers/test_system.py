@@ -297,7 +297,7 @@ class TestSystemCheckerWindows:
         assert results[0].name == "SDL2"
         assert results[0].status == CheckStatus.OK
         assert "bundled" in results[0].message
-        assert results[1].name == "C compiler"
+        assert results[1].name == "C/C++ toolchain"
 
     def test_sdl2_bundled_with_include(self, tmp_path: Path) -> None:
         tools_dir = tmp_path / "tools"
@@ -325,7 +325,7 @@ class TestSystemCheckerWindows:
         assert results[0].name == "SDL2"
         assert results[0].status == CheckStatus.WARNING
         assert "ms sync --tools" in (results[0].hint or "")
-        assert results[1].name == "C compiler"
+        assert results[1].name == "C/C++ toolchain"
 
     def test_no_tools_dir(self) -> None:
         checker = SystemChecker(platform=Platform.WINDOWS, tools_dir=None)
@@ -336,7 +336,7 @@ class TestSystemCheckerWindows:
         assert results[0].name == "SDL2"
         assert results[0].status == CheckStatus.WARNING
         assert "tools_dir not set" in results[0].message
-        assert results[1].name == "C compiler"
+        assert results[1].name == "C/C++ toolchain"
 
 
 class TestSystemCheckerUnknownPlatform:
