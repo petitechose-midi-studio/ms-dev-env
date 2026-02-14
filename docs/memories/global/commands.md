@@ -22,6 +22,13 @@ uv run ms build core --target teensy --dry-run
 uv run ms upload core --env dev
 uv run ms monitor core --env dev
 
+# PlatformIO direct (no ms CLI)
+cd midi-studio/core
+pio run -e dev
+
+cd ../plugin-bitwig
+pio run -e dev
+
 # Bitwig extension
 uv run ms build bitwig --target extension
 
@@ -55,24 +62,19 @@ uv run protocol-codegen --help
 # Sync all repos (maintainer profile: includes ms-manager + distribution + examples)
 uv run ms sync --repos --profile maintainer
 
-# Voir tous les repos
-WS=~/ms-dev-env
-find "$WS" -maxdepth 3 -name ".git" -type d
-
-# Status de tous les repos
-for d in "$WS"/open-control/*/; do echo "=== $d ===" && git -C "$d" status -s; done
-for d in "$WS"/midi-studio/*/; do echo "=== $d ===" && git -C "$d" status -s; done
+# Multi-repo status (cross-platform)
+uv run ms status
 ```
 
 ## Recherche
 
 ```bash
 # Chercher dans le code
-WS=~/ms-dev-env
-grep -rn "pattern" --include="*.hpp" --include="*.cpp" "$WS"
+rg -n "pattern" --glob "*.hpp" --glob "*.cpp"
 
 # Fichiers modifiés récemment
-find "$WS" -name "*.hpp" -mtime -1 | grep -v .pio | grep -v .git
+# Prefer your shell's equivalent, or rely on git:
+git status -sb
 ```
 
 ---

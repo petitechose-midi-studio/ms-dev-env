@@ -20,4 +20,4 @@ Ce dossier contient les idées, réflexions et propositions à explorer pour le 
 ## Liens
 
 - [Setup & Distribution Architecture](../../setup-architecture/README.md) - Décisions d'architecture / distribution
-- [Feature Preset Storage](../feature-ms-preset-storage/) - Feature en cours
+- [Feature Step Sequencer](../feature-ms-sequencer/README.md) - Feature en cours

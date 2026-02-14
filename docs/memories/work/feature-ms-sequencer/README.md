@@ -1,48 +1,40 @@
-# Feature: Step Sequencer Modulaire
+# Feature: Step Sequencer (UI-first)
 
-**Status:** planned  
-**Project:** midi-studio (core + plugin-bitwig)  
-**Created:** 2026-01-07  
-**Priority:** high  
+**Status:** started
+**Project:** midi-studio/core first (standalone), plugin-bitwig later
+**Created:** 2026-01-07
+**Updated:** 2026-02-14
+**Priority:** high
 
-## Objectif
+## Current state
 
-Séquenceur à pas multi-track (16 pistes) avec:
-- 7 Step Properties: Note, Velocity, Gate, Probability, TimeOffset, Slide, Accent
-- Track FX Chain: Ratchet, Chord, Scale Quantize, Humanize, Swing, etc.
-- Mode exclusif vs Mode Macro (switch via LEFT_TOP)
-- Storage (planned): align with current storage direction
-  - Teensy: SD card (non-blocking SDIO)
-  - Desktop: file-based
-  - WASM: no persistence yet (future via bridge)
+- Core has a top-level View Selector overlay on `LEFT_TOP`.
+- Core has a `SequencerView` v0 (8-step grid, pagination, focus, playhead + playback service).
+- The reusable v0 engine + internal clock live in OpenControl: `open-control/note` (`oc-note`).
+- Shared LVGL UI lives in `midi-studio/ui` (`ms-ui`).
 
-## Architecture
+## Next goals (v0)
 
-```
-open-control/note/           # Nouvelle lib: moteur séquenceur
-open-control/ui-lvgl-components/  # Widget LVGL séquenceur
-midi-studio/core/            # Intégration standalone
-midi-studio/plugin-bitwig/   # Intégration Bitwig
-```
+- Implement the planned Sequencer overlays/mappings (`PATTERN CONFIG`, `STEP EDIT`, etc.).
+- Remove/replace v0 legacy gestures once overlays are in place (see `hw-sequencer.md`).
+- Persistence direction (when added): a single versioned binary blob via `oc::interface::IStorage`.
 
-## Phases
+## Key decisions (locked)
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Architecture & interfaces | planned |
-| 2 | Moteur séquenceur (engine) | planned |
-| 3 | Track FX Chain | planned |
-| 4 | UI LVGL | planned |
-| 5 | Storage & persistence | planned |
-| 6 | Intégration Core standalone | planned |
-| 7 | Intégration Plugin Bitwig | planned |
+- Shared LVGL UI lives in `midi-studio/ui` (`ms-ui`).
+- Sequencer engine lives in `open-control/note` (`oc-note`) from v0; `midi-studio/core` integrates it via thin adapters.
+- Do not start with JSON trees for persistence; keep v0 storage simple and versioned.
 
-## Fichiers
+## Files
 
-- `tech-spec.md` - Spécification technique complète (1500+ lignes)
+- `tech-spec.md` - v0 scoped spec (UI-first / produit minimal)
+- `implementation-plan-v0-framework.md` - execution plan (v0 + structure framework)
+- `tech-spec-modular.md` - long-term modular direction (planned)
+- `ui-header-progress-strip.md` - Sequencer header improvements (implemented: progress strip + division + length)
 
-## Voir aussi
+## See also
 
-- `docs/memories/midi-studio/hw-layout.md` - Hardware IDs
-- `docs/memories/midi-studio/hw-navigation.md` - Patterns de navigation
-- `docs/memories/midi-studio/hw-sequencer.md` - Mappings séquenceur (overlay)
+- `docs/memories/midi-studio/hw-layout.md`
+- `docs/memories/midi-studio/hw-navigation.md`
+- `docs/memories/midi-studio/hw-sequencer.md`
+- `docs/memories/midi-studio/shared-ui-ms-ui.md`
