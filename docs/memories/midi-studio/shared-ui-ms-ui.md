@@ -60,7 +60,11 @@ selector->render({
 
 ## Build integration
 
-- PlatformIO: `lib_deps` uses `ms-ui=symlink://../ui` in:
+- PlatformIO (dev): `lib_deps` uses `ms-ui=symlink://../ui` in:
   - `midi-studio/core/platformio.ini`
   - `midi-studio/plugin-bitwig/platformio.ini`
+
+- PlatformIO (release):
+  - Core pins `ms-ui` as a GitHub dependency (so `pio run -e release` does not require a local `../ui` checkout).
+  - Bitwig plugin keeps `ms-ui=symlink://../ui` and relies on CI (or your workspace) checking out `midi-studio/ui`.
 - SDL (core desktop): `midi-studio/core/sdl/CMakeLists.txt` includes `midi-studio/ui/src`.

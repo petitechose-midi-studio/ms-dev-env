@@ -2,13 +2,18 @@
 title: 'Step Sequencer v0 -> Framework Extraction Plan'
 slug: 'step-sequencer-v0-framework-plan'
 created: '2026-02-12'
-updated: '2026-02-13'
+updated: '2026-02-14'
 status: 'active'
 ---
 
 # Plan: v0 Produit + Structure Framework (oc-note)
 
 ## Progress log
+
+- 2026-02-14:
+  - Merged `feat/sequencer-ui-v0` into `petitechose-midi-studio/core` `main`.
+  - Fixed core firmware release CI by pinning `ms-ui` (PlatformIO release env).
+  - Brought `petitechose-midi-studio/plugin-bitwig` `main` up to date (oc-note dev dep + ms-ui core fonts linkage).
 
 - 2026-02-13:
   - Core UI cleanup: debounced/coalesced SequencerView renders (60Hz cap) + scope-based Transport tempo (remove ad-hoc gating).

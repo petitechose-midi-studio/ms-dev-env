@@ -3,7 +3,8 @@ title: 'Sequencer Header UI: Progress Strip + Division + Length'
 slug: 'sequencer-header-progress-strip'
 created: '2026-02-13'
 updated: '2026-02-13'
-status: 'review'
+updated: '2026-02-14'
+status: 'done'
 ---
 
 # Sequencer Header UI: Progress Strip + Division + Length

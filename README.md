@@ -129,4 +129,4 @@ Notes:
 ## Roadmap
 
 - Internal work notes live in `docs/memories/`.
-- Distribution (stable/beta/nightly) + end-user installer plan: `docs/memories/work/ms-user-release-workflow/README.md`
+- Distribution (stable/beta/nightly) + end-user installer plan: `docs/memories/setup-architecture/README.md`
