@@ -229,6 +229,26 @@ class TestCmdGeneration:
         assert 'set "FOO=bar"' in content
 
 
+class TestForcedBashOnWindows:
+    """Tests for generating bash wrappers on Windows.
+
+    Git Bash resolves commands like `g++` by searching PATH for executable files
+    without requiring `.cmd`. We support generating bash wrappers on Windows so
+    the dev environment can provide POSIX-style shims.
+    """
+
+    def test_generates_bash_on_windows_when_forced(self, generator: WrapperGenerator) -> None:
+        spec = WrapperSpec(name="test", target=Path("C:/tools/test.exe"))
+
+        path = generator.generate(spec, Platform.WINDOWS, shell="bash")
+
+        assert path.exists()
+        assert path.name == "test"
+        content = path.read_text()
+        assert content.startswith("#!/usr/bin/env bash")
+        assert "exec" in content
+
+
 class TestGenerateAll:
     """Tests for generate_all method."""
 

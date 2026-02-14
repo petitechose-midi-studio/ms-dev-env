@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import os
 import sys
 from pathlib import Path
 
@@ -92,6 +93,16 @@ class BuildTargetsMixin(BuildHelpersMixin):
             configure_args = [arg for arg in configure_args if arg]
 
         build_args = [str(ninja.value), "-C", str(build_dir)]
+
+        # Zig (LLVM) can be memory-hungry on Windows when compiling in parallel.
+        # Use a safe default and allow power-users to override.
+        if self._platform.platform.is_windows:
+            jobs_raw = os.environ.get("MS_WINDOWS_NATIVE_JOBS", "1")
+            try:
+                jobs = max(1, int(jobs_raw))
+            except ValueError:
+                jobs = 1
+            build_args += ["-j", str(jobs)]
 
         self._console.print(" ".join(configure_args), Style.DIM)
         if not dry_run:

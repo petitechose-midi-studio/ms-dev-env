@@ -139,6 +139,12 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
         if not dry_run:
             env_vars = self._registry.get_env_vars()
             env_vars.update(self._workspace.platformio_env_vars())
+
+            # Ensure PlatformIO's SCons uses a safe default on Windows when
+            # native builds rely on Zig-backed gcc/g++ wrappers.
+            if self._platform.platform.is_windows:
+                env_vars.setdefault("SCONSFLAGS", "-j1")
+
             path_additions = [self._paths.bin_dir, *self._registry.get_path_additions()]
             generate_activation_scripts(
                 self._paths.tools_dir,

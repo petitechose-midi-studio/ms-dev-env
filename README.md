@@ -117,7 +117,10 @@ SDL2 is optional on macOS (the build can fetch it as a fallback).
 
 Windows:
 
-- Install a C/C++ toolchain (either MSVC Build Tools or MinGW-w64)
+- Native builds (core/bitwig simulators) use bundled Zig + Ninja (no system GCC required).
+- For PlatformIO `native` tests, use the ms tool environment so `gcc/g++` resolve to Zig wrappers:
+  - `source tools/activate.sh`
+  - then `pio test -e native`
 
 Notes:
 

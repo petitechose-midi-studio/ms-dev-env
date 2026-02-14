@@ -16,6 +16,7 @@ from ms.tools.wrapper import (
     WrapperGenerator,
     WrapperSpec,
     create_emscripten_wrappers,
+    create_zig_gnu_toolchain_wrappers,
     create_zig_wrappers,
 )
 
@@ -52,6 +53,11 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             zig_dir = self._paths.tools_dir / "zig"
             if zig_dir.exists():
                 create_zig_wrappers(zig_dir, self._paths.bin_dir, self._platform.platform)
+                create_zig_gnu_toolchain_wrappers(
+                    zig_dir,
+                    self._paths.bin_dir,
+                    self._platform.platform,
+                )
 
     def _install_git_tool(self, tool: object, *, dry_run: bool) -> bool:
         commands = git_install_commands(
@@ -85,6 +91,12 @@ class ToolchainHelpersMixin(ToolchainContextBase):
         pio = self._platformio_bin(venv_dir)
 
         env = self._workspace.platformio_env_vars()
+
+        # When using Zig as the native GCC/G++ provider on Windows, parallel SCons
+        # jobs can cause LLVM to run out of memory. Limit concurrency by default.
+        # Users can override this in their shell by setting SCONSFLAGS.
+        if self._platform.platform.is_windows:
+            env.setdefault("SCONSFLAGS", "-j1")
 
         if not dry_run:
             wrapper = WrapperSpec(name="pio", target=pio, env=env)

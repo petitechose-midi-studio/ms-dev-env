@@ -20,7 +20,13 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from ms.platform.detection import Platform
 
-__all__ = ["WrapperGenerator", "WrapperSpec", "create_emscripten_wrappers", "create_zig_wrappers"]
+__all__ = [
+    "WrapperGenerator",
+    "WrapperSpec",
+    "create_emscripten_wrappers",
+    "create_zig_wrappers",
+    "create_zig_gnu_toolchain_wrappers",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,7 +66,7 @@ class WrapperGenerator:
         """Get the bin directory."""
         return self._bin_dir
 
-    def generate(self, spec: WrapperSpec, platform: Platform) -> Path:
+    def generate(self, spec: WrapperSpec, platform: Platform, *, shell: str = "auto") -> Path:
         """Generate a wrapper script.
 
         Args:
@@ -72,15 +78,26 @@ class WrapperGenerator:
         """
         self._bin_dir.mkdir(parents=True, exist_ok=True)
 
+        if shell not in ("auto", "bash", "cmd"):
+            raise ValueError(f"Unsupported shell type: {shell}")
+
+        if shell == "bash":
+            return self._generate_bash(spec)
+
+        if shell == "cmd":
+            return self._generate_cmd(spec)
+
+        # shell == auto
         if platform.is_windows:
             return self._generate_cmd(spec)
-        else:
-            return self._generate_bash(spec)
+        return self._generate_bash(spec)
 
     def generate_all(
         self,
         specs: list[WrapperSpec],
         platform: Platform,
+        *,
+        shell: str = "auto",
     ) -> list[Path]:
         """Generate multiple wrapper scripts.
 
@@ -91,7 +108,7 @@ class WrapperGenerator:
         Returns:
             List of paths to generated scripts
         """
-        return [self.generate(spec, platform) for spec in specs]
+        return [self.generate(spec, platform, shell=shell) for spec in specs]
 
     def _generate_bash(self, spec: WrapperSpec) -> Path:
         """Generate a bash wrapper script.
@@ -233,3 +250,57 @@ def create_zig_wrappers(
     ]
 
     return generator.generate_all(specs, platform)
+
+
+def create_zig_gnu_toolchain_wrappers(
+    zig_dir: Path,
+    bin_dir: Path,
+    platform: Platform,
+) -> list[Path]:
+    """Create gcc/g++/ar/ranlib wrappers backed by Zig.
+
+    PlatformIO's `native` platform depends on `gcc`/`g++` being discoverable via PATH.
+    On Windows, the system toolchain can be unreliable due to PATH/DLL conflicts.
+
+    These wrappers make `gcc`/`g++` resolve to `zig cc` / `zig c++` with the
+    GNU target used by our SDL2 + native builds.
+
+    Notes:
+    - On Windows, we generate both a bash wrapper (no extension) for Git Bash
+      and a `.cmd` wrapper for cmd/PowerShell.
+    - On non-Windows, this is typically unnecessary (system toolchains are
+      expected to be installed), but the function is safe.
+    """
+    if not platform.is_windows:
+        return []
+
+    generator = WrapperGenerator(bin_dir)
+    zig_exe = zig_dir / ("zig.exe" if platform.is_windows else "zig")
+
+    specs = [
+        WrapperSpec(
+            name="gcc",
+            target=zig_exe,
+            args=("cc", "-target", "x86_64-windows-gnu"),
+        ),
+        WrapperSpec(
+            name="g++",
+            target=zig_exe,
+            args=("c++", "-target", "x86_64-windows-gnu"),
+        ),
+        WrapperSpec(
+            name="ar",
+            target=zig_exe,
+            args=("ar",),
+        ),
+        WrapperSpec(
+            name="ranlib",
+            target=zig_exe,
+            args=("ranlib",),
+        ),
+    ]
+
+    paths: list[Path] = []
+    paths.extend(generator.generate_all(specs, platform, shell="bash"))
+    paths.extend(generator.generate_all(specs, platform, shell="cmd"))
+    return paths

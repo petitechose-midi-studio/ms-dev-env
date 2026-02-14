@@ -10,6 +10,7 @@ Validates system-level dependencies:
 from __future__ import annotations
 
 import shutil
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -118,8 +119,74 @@ class SystemChecker:
         """Check Windows system dependencies."""
         results: list[CheckResult] = []
         results.append(self._check_sdl2_bundled())
-        results.append(self._check_c_compiler(_C_COMPILERS_WINDOWS))
+        results.append(self._check_windows_native_toolchain())
         return results
+
+    def _check_windows_native_toolchain(self) -> CheckResult:
+        """Check that the bundled Zig toolchain can compile C++ on Windows.
+
+        PlatformIO's `native` platform depends on `gcc`/`g++` being discoverable
+        via PATH. In this workspace we provide those via Zig-backed wrappers in
+        `tools/bin`.
+        """
+        if not self.tools_dir:
+            return CheckResult.warning("C/C++ toolchain", "cannot check (tools_dir not set)")
+
+        zig = self.tools_dir / "zig" / "zig.exe"
+        if not zig.exists():
+            return CheckResult.error(
+                "C/C++ toolchain",
+                "missing (zig not installed)",
+                hint="Run: uv run ms sync --tools",
+            )
+
+        bin_dir = self.tools_dir / "bin"
+        wrappers = {
+            "gcc": bin_dir / "gcc.cmd",
+            "g++": bin_dir / "g++.cmd",
+            "ar": bin_dir / "ar.cmd",
+            "ranlib": bin_dir / "ranlib.cmd",
+        }
+        missing = [name for name, path in wrappers.items() if not path.exists()]
+        if missing:
+            return CheckResult.error(
+                "C/C++ toolchain",
+                f"missing wrappers ({', '.join(missing)})",
+                hint="Run: uv run ms setup --yes (or: uv run ms sync --tools)",
+            )
+
+        # Compile a trivial C++ TU to ensure the toolchain works.
+        with tempfile.TemporaryDirectory() as td:
+            tdir = Path(td)
+            src = tdir / "toolchain_check.cpp"
+            obj = tdir / "toolchain_check.o"
+            src.write_text("int x=0;\n", encoding="utf-8", newline="\n")
+
+            # Run through cmd.exe to execute the .cmd wrapper without shell=True.
+            result = self.runner.run(
+                [
+                    "cmd.exe",
+                    "/c",
+                    str(wrappers["g++"]),
+                    "-c",
+                    str(src),
+                    "-o",
+                    str(obj),
+                ]
+            )
+
+            if result.returncode != 0:
+                msg = "failed to compile (zig toolchain broken)"
+                details = first_line((result.stderr or "") + "\n" + (result.stdout or ""))
+                if details:
+                    msg = f"{msg}: {details}"
+                return CheckResult.error(
+                    "C/C++ toolchain",
+                    msg,
+                    hint="Ensure you are using the ms tool environment: source tools/activate.sh",
+                )
+
+        return CheckResult.success("C/C++ toolchain", "ok (zig)")
 
     # -------------------------------------------------------------------------
     # Reusable check methods
