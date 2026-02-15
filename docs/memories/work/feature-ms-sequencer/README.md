@@ -3,7 +3,7 @@
 **Status:** started
 **Project:** midi-studio/core first (standalone), plugin-bitwig later
 **Created:** 2026-01-07
-**Updated:** 2026-02-14
+**Updated:** 2026-02-15
 **Priority:** high
 
 ## Current state
@@ -31,6 +31,7 @@
 - `implementation-plan-v0-framework.md` - execution plan (v0 + structure framework)
 - `tech-spec-modular.md` - long-term modular direction (planned)
 - `ui-header-progress-strip.md` - Sequencer header improvements (implemented: progress strip + division + length)
+- `cleanup-alignment-plan-2026-02-15.md` - code quality cleanup plan (core sequencer handlers/UI + parity patterns)
 
 ## See also
 

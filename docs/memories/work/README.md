@@ -7,4 +7,5 @@ When a topic is finished or no longer relevant, archive it out of the repo (see 
 ## Index
 
 - `docs/memories/work/feature-ms-sequencer/README.md`
+- `docs/memories/work/feature-ms-sequencer/cleanup-alignment-plan-2026-02-15.md`
 - `docs/memories/work/ideas/backlog.md`
