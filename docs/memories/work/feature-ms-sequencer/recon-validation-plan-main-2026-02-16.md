@@ -490,3 +490,42 @@ Gates executes pour cette etape:
 Prochaine etape:
 
 - B1: rendre la regle d'autorite input explicitement lisible dans le code (overlay > vue active > global).
+
+### 2026-02-16 - Etape B1 complete (autorite input explicite)
+
+Statut: DONE
+
+Commits code:
+
+- `open-control/framework`: `fd807b8` (`feat(input): expose active-view provider on overlay manager`)
+- `midi-studio/core`: `1b97657` (`feat(input): wire active-view authority in standalone`)
+- `midi-studio/plugin-bitwig`: `4611cf0` (`feat(input): wire active-view authority in bitwig context`)
+
+Fichiers modifies:
+
+- `open-control/framework/src/oc/context/OverlayManager.hpp`
+- `midi-studio/core/src/context/StandaloneContext.cpp`
+- `midi-studio/plugin-bitwig/src/context/BitwigContext.cpp`
+
+Ce qui a ete fait:
+
+- `OverlayManager` expose maintenant `setActiveViewProvider(...)` pour brancher explicitement la couche "vue active" dans `AuthorityResolver`.
+- `StandaloneContext` fournit la vue active courante (`MacroView` ou `SequencerView`) comme scope d'autorite.
+- `BitwigContext` fournit la vue active via `state_.views.currentViewPtr()` comme scope d'autorite.
+
+Notes handover (important pour les devs suivants):
+
+- Priorite d'autorite rendue explicite dans le code runtime: **overlay > active view > global**.
+- Les lambdas provider retournent `0` si la vue n'est pas disponible; le fallback global reste donc possible et explicite.
+- L'ordre de cleanup actuel evite l'UAF: les contexts reset `overlay_controller_` avant de detruire les vues.
+- Attention cross-repo: `core` et `plugin-bitwig` supposent la presence de `OverlayManager::setActiveViewProvider(...)` cote `open-control/framework`.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> ECHEC connu (non bloquant avant C1)
+
+Prochaine etape:
+
+- B2: finaliser ou fermer proprement `SEQ_SETTINGS` / `SEQ_TRACK_CONFIG` pour supprimer l'ambiguite produit.
