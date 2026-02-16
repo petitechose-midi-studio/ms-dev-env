@@ -728,6 +728,7 @@ Statut: DONE
 Commit code:
 
 - `midi-studio/core`: `d658270` (`fix(input): scope top-level controls to active views`)
+- `midi-studio/core`: `9eba17e` (`chore(input): null unused view-switcher context scope`)
 
 Fichiers modifies:
 
@@ -750,6 +751,7 @@ Solution retenue (durable, explicite, sans bypass global):
   - `LEFT_TOP` open: bind sur scope Macro + scope Sequencer.
   - `BOTTOM_CENTER` play toggle: bind sur scope Macro + scope Sequencer.
 - Les interactions overlay restent scope overlay (inchangees).
+- Le champ `scopeElement` de `OverlayBindingContext` est explicitement passe a `nullptr` pour `ViewSwitcherHandler` (non utilise dans ce handler).
 
 Contrat clarifie:
 
