@@ -449,3 +449,44 @@ Gates executes pour cette etape:
 Prochaine etape:
 
 - A3: normaliser le contrat de mapping encodeur sequencer (suppression des constantes magiques `255/191`).
+
+### 2026-02-16 - Etape A3 complete (contrat mapping encodeur normalise)
+
+Statut: DONE
+
+Commit code:
+
+- `midi-studio/core`: `8f1d13f` (`fix(sequencer): normalize encoder mapping contract`)
+
+Fichiers modifies:
+
+- `midi-studio/core/src/context/StandaloneContext.cpp`
+- `midi-studio/core/src/handler/sequencer/SequencerInputUtils.hpp`
+- `midi-studio/core/src/handler/sequencer/SequencerStepEditHandler.cpp`
+
+Ce qui a ete fait:
+
+- Suppression des constantes magiques OPT (`255`/`191`) dans le sync sequencer.
+- Introduction de helpers partages dans `SequencerInputUtils`:
+  - `discreteStepsForProperty(...)`
+  - `stepPropertyToNormalized(...)`
+- Reutilisation de ces helpers dans le contexte standalone et dans `SequencerStepEditHandler`.
+
+Notes handover (important pour les devs suivants):
+
+- Le contrat de discretisation est maintenant explicite et unique:
+  - NOTE = 128 pas
+  - VELOCITY = 128 pas
+  - GATE = `MAX_GATE_PERCENT + 1`
+- Si une future feature change ce contrat, modifier uniquement `SequencerInputUtils` puis verifier les callsites.
+- Le helper `stepPropertyToNormalized(...)` centralise aussi le comportement de clamp indirect via `indexToNormalized(...)`.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> ECHEC connu (non bloquant avant C1)
+
+Prochaine etape:
+
+- B1: rendre la regle d'autorite input explicitement lisible dans le code (overlay > vue active > global).
