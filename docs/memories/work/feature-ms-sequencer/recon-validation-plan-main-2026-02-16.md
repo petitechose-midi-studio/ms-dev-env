@@ -405,3 +405,47 @@ Gates executes pour cette etape:
 Prochaine etape:
 
 - A2: extraire un utilitaire partage de pagination/index et remplacer les formules dupliquees.
+
+### 2026-02-16 - Etape A2 complete (pagination/index unifies)
+
+Statut: DONE
+
+Commit code:
+
+- `midi-studio/core`: `17ca15e` (`refactor(sequencer): unify page/index resolution helpers`)
+
+Fichiers modifies:
+
+- `midi-studio/core/src/state/sequencer/SequencerState.hpp`
+- `midi-studio/core/src/handler/sequencer/SequencerStepHandler.cpp`
+- `midi-studio/core/src/handler/sequencer/SequencerMacroPropertyHandler.cpp`
+- `midi-studio/core/src/handler/sequencer/SequencerStepEditHandler.cpp`
+- `midi-studio/core/src/handler/sequencer/SequencerPatternConfigHandler.cpp`
+- `midi-studio/core/src/context/StandaloneContext.cpp`
+- `midi-studio/core/src/ui/view/SequencerView.cpp`
+
+Ce qui a ete fait:
+
+- Ajout des helpers centralises de pagination/index dans `SequencerState`:
+  - `normalizePage(...)`
+  - `pageStartStep(...)`
+  - `pageForStep(...)`
+  - `resolveStepInPage(...)`
+- Remplacement des calculs dupliques handlers/view/context par ces helpers.
+- Suppression de la formule repetitive `(len + stepsPerPage - 1) / stepsPerPage` hors `SequencerState`.
+
+Notes handover (important pour les devs suivants):
+
+- `normalizePage(...)` retourne `0` quand `activePageCount()==0`; c'est intentionnel pour eviter tout modulo par zero.
+- `resolveStepInPage(...)` valide aussi les bornes pattern (`length`) et `MAX_STEPS`; les callsites n'ont plus besoin de dupliquer ces checks.
+- `pageForStep(...)` n'applique pas de clamp; il suppose un `step` deja valide.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> ECHEC connu (non bloquant avant C1)
+
+Prochaine etape:
+
+- A3: normaliser le contrat de mapping encodeur sequencer (suppression des constantes magiques `255/191`).
