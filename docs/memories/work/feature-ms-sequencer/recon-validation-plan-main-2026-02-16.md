@@ -709,7 +709,7 @@ Ce qui a ete fait:
 Notes handover (important pour les devs suivants):
 
 - Le job CI tourne sur `ubuntu-latest` (toolchain native systeme du runner), ce qui reste independant des wrappers Windows locaux.
-- Les protections runtime Windows restent couvertes par les pre-scripts `pio_pre_windows_toolchain.py` ajoutés en C1.
+- Les protections runtime Windows restent couvertes par les pre-scripts `pio_pre_windows_toolchain.py` ajoutes en C1.
 
 Gates executes pour cette etape:
 
