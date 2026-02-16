@@ -688,3 +688,35 @@ Gates executes pour cette etape:
 Prochaine etape:
 
 - C3 (optionnel): ajouter un gate CI natif sequencer pour figer cette protection dans les workflows.
+
+### 2026-02-16 - Etape C3 complete (gate CI natif ajoute)
+
+Statut: DONE (optionnel)
+
+Commit code:
+
+- `open-control/note`: `555d772` (`ci: add native test workflow`)
+
+Fichier modifie:
+
+- `open-control/note/.github/workflows/ci.yml`
+
+Ce qui a ete fait:
+
+- Ajout d'un workflow GitHub Actions qui execute `python -m platformio test -e native` sur `push`, `pull_request`, `workflow_dispatch`.
+- Cache PlatformIO ajoute pour stabiliser les temps CI.
+
+Notes handover (important pour les devs suivants):
+
+- Le job CI tourne sur `ubuntu-latest` (toolchain native systeme du runner), ce qui reste independant des wrappers Windows locaux.
+- Les protections runtime Windows restent couvertes par les pre-scripts `pio_pre_windows_toolchain.py` ajoutés en C1.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> SUCCESS (bloquant)
+
+Prochaine etape:
+
+- Fin de la Phase C. Pret pour review finale avant implementation feature suivante.
