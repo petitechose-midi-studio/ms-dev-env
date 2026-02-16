@@ -32,6 +32,7 @@
 - `tech-spec-modular.md` - long-term modular direction (planned)
 - `ui-header-progress-strip.md` - Sequencer header improvements (implemented: progress strip + division + length)
 - `cleanup-alignment-plan-2026-02-15.md` - code quality cleanup plan (core sequencer handlers/UI + parity patterns)
+- `recon-validation-plan-main-2026-02-16.md` - validated findings + phased implementation plan on main
 
 ## See also
 
