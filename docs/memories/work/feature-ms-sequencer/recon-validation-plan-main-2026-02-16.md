@@ -360,3 +360,48 @@ Avant de coder la Phase A, faire une review finale sur 4 points:
    - Confirmer que `open-control/note` reste non bloquant jusqu'a C1, puis devient bloquant.
 
 Si ces 4 points sont valides, implementation immediate possible sans autre pre-requis.
+
+## Journal d'avancement
+
+### 2026-02-16 - Etape A1 complete (centralisation mutations step)
+
+Statut: DONE
+
+Commit code:
+
+- `midi-studio/core`: `4afae82` (`refactor(sequencer): centralize step mutation revision flow`)
+
+Fichiers modifies:
+
+- `midi-studio/core/src/state/sequencer/SequencerState.hpp`
+- `midi-studio/core/src/handler/sequencer/SequencerMacroPropertyHandler.hpp`
+- `midi-studio/core/src/handler/sequencer/SequencerMacroPropertyHandler.cpp`
+- `midi-studio/core/src/handler/sequencer/SequencerStepEditHandler.hpp`
+- `midi-studio/core/src/handler/sequencer/SequencerStepEditHandler.cpp`
+
+Ce qui a ete fait:
+
+- Ajout d'une API de mutation centralisee dans `SequencerState`:
+  - `setStepNoteAt(...)`
+  - `setStepVelocityAt(...)`
+  - `setStepGateAt(...)`
+  - `setStepDataAt(...)`
+  - `bumpStepDataRevision()`
+- Suppression des increments de revision disperses dans les handlers Macro/StepEdit.
+- Le reset sequencer passe maintenant aussi par `bumpStepDataRevision()`.
+
+Notes handover (important pour les devs suivants):
+
+- Les nouvelles APIs valident uniquement `step < MAX_STEPS` (pas `step < length`) pour ne pas changer le comportement historique implicitement.
+- Les handlers continuent de verifier `length` avant mutation quand necessaire; ne pas retirer ces gardes sans redefinir explicitement le contrat.
+- `closeCancel()` de `SequencerStepEditHandler` restaure maintenant via `setStepDataAt(...)` et ne bump qu'une seule fois.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> ECHEC connu (non bloquant avant C1)
+
+Prochaine etape:
+
+- A2: extraire un utilitaire partage de pagination/index et remplacer les formules dupliquees.
