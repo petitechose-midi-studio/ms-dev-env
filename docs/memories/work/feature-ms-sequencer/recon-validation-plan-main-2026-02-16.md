@@ -720,3 +720,50 @@ Gates executes pour cette etape:
 Prochaine etape:
 
 - Fin de la Phase C. Pret pour review finale avant implementation feature suivante.
+
+### 2026-02-16 - Correctif post-phase: top-level controls bloques par autorite
+
+Statut: DONE
+
+Commit code:
+
+- `midi-studio/core`: `d658270` (`fix(input): scope top-level controls to active views`)
+
+Fichiers modifies:
+
+- `midi-studio/core/src/handler/view/ViewSwitcherHandler.hpp`
+- `midi-studio/core/src/handler/view/ViewSwitcherHandler.cpp`
+- `midi-studio/core/src/handler/transport/TransportHandler.hpp`
+- `midi-studio/core/src/handler/transport/TransportHandler.cpp`
+- `midi-studio/core/src/context/StandaloneContext.cpp`
+
+Probleme racine:
+
+- L'autorite input est maintenant explicite (`overlay > active view > global`).
+- `ViewSwitcher` open (`LEFT_TOP` press) et `Transport` play toggle (`BOTTOM_CENTER` release) etaient scopes sur `mainZone`.
+- `mainZone` n'etant pas l'autorite quand une vue est active (`macro_view` ou `sequencer_view`), les callbacks ne partaient plus.
+
+Solution retenue (durable, explicite, sans bypass global):
+
+- Ne pas revenir aux bindings globaux.
+- Mirrorer les controls top-level sur les scopes des vues top-level actives:
+  - `LEFT_TOP` open: bind sur scope Macro + scope Sequencer.
+  - `BOTTOM_CENTER` play toggle: bind sur scope Macro + scope Sequencer.
+- Les interactions overlay restent scope overlay (inchangees).
+
+Contrat clarifie:
+
+- Autorite stricte conservee: overlay > vue active > global.
+- Controls top-level de navigation/transport accessibles depuis chaque vue top-level, sans court-circuiter l'autorite.
+- Aucun hack implicite sur les bindings globaux.
+
+Notes handover (important pour les devs suivants):
+
+- Si une nouvelle vue top-level est ajoutee, l'ajouter explicitement dans les `ViewScopes` passes aux handlers `ViewSwitcherHandler` et `TransportHandler`.
+- Cette approche evite l'ambiguite "global vs scoped" et garde un comportement previsible en presence d'overlays.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> SUCCESS (bloquant)
