@@ -3,7 +3,7 @@
 **Status:** started
 **Project:** midi-studio/core first (standalone), plugin-bitwig later
 **Created:** 2026-01-07
-**Updated:** 2026-02-15
+**Updated:** 2026-02-16
 **Priority:** high
 
 ## Current state
@@ -12,6 +12,15 @@
 - Core has a `SequencerView` v0 (8-step grid, pagination, focus, playhead + playback service).
 - The reusable v0 engine + internal clock live in OpenControl: `open-control/note` (`oc-note`).
 - Shared LVGL UI lives in `midi-studio/ui` (`ms-ui`).
+
+## Runtime defaults (source of truth)
+
+- Defined in `open-control/note/src/oc/note/sequencer/StepSequencerState.hpp`.
+- `DEFAULT_LENGTH = 8`
+- `DEFAULT_STEPS_PER_BEAT = 2` (=> `1/8`)
+- `DEFAULT_MIDI_CHANNEL_0BASED = 0` (channel 1)
+- `DEFAULT_NOTE = 48`, `DEFAULT_VELOCITY = 64`, `DEFAULT_GATE_PERCENT = 100`
+- `MAX_GATE_PERCENT = 200`
 
 ## Next goals (v0)
 

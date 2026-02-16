@@ -2,8 +2,7 @@
 title: 'Sequencer Header UI: Progress Strip + Division + Length'
 slug: 'sequencer-header-progress-strip'
 created: '2026-02-13'
-updated: '2026-02-13'
-updated: '2026-02-14'
+updated: '2026-02-16'
 status: 'done'
 ---
 
@@ -26,8 +25,8 @@ In Sequencer mode, showing "Page 1" in the top bar is misleading and reduces rea
 Make the Sequencer view header self-explanatory and playback-friendly:
 
 - Replace the Macro page title with a Sequencer title (ex: `SEQ`).
-- Show rhythmic division (value of a step) on the right (ex: `1/16`).
-- Show pattern length on the right (ex: `LEN 18`).
+- Show rhythmic division (value of a step) on the right (ex: `1/8`).
+- Show pattern length on the right (ex: `LEN 8`).
 - Add a thin progress strip directly under the top bar:
   - 8 mini-bars (2-3 px tall), each representing a page of 8 steps.
   - A playhead marker that moves with playback.
@@ -37,7 +36,7 @@ Make the Sequencer view header self-explanatory and playback-friendly:
 
 ## UI Wireframe (ASCII)
 
-Example: `length=18`, `stepsPerBeat=4` => `1/16`.
+Example (runtime defaults): `length=8`, `stepsPerBeat=2` => `1/8`.
 
 Legend:
 
@@ -48,8 +47,8 @@ Legend:
 - `{ ... }` currently viewed page
 
 ```text
-SEQ                                              1/16   LEN 18
-{########}[##|=====][==------][--------][--------][--------][--------][--------]
+SEQ                                               1/8   LEN 8
+{####|===}[--------][--------][--------][--------][--------][--------][--------]
 ```
 
 ## Implementation Strategy (clean + consistent)

@@ -650,3 +650,41 @@ Impact politique gates:
 Prochaine etape:
 
 - C2: aligner les docs memoires sequencer avec les defaults/runtime reels.
+
+### 2026-02-16 - Etape C2 complete (docs defaults/runtime alignes)
+
+Statut: DONE
+
+Fichiers modifies:
+
+- `docs/memories/work/feature-ms-sequencer/tech-spec.md`
+- `docs/memories/work/feature-ms-sequencer/implementation-plan-v0-framework.md`
+- `docs/memories/work/feature-ms-sequencer/README.md`
+- `docs/memories/work/feature-ms-sequencer/ui-header-progress-strip.md`
+
+Ce qui a ete fait:
+
+- Alignement explicite des defaults docs avec le runtime `oc-note`:
+  - longueur par defaut = `8`
+  - resolution par defaut = `1/8` (`stepsPerBeat = 2`)
+  - canal MIDI par defaut = `1`
+- Mise a jour des constantes documentees dans le plan framework (`DEFAULT_LENGTH`, `DEFAULT_STEPS_PER_BEAT`).
+- Mise a jour de la plage gate documentee vers `0..200` (conforme runtime).
+- Ajout dans `README` d'une section "Runtime defaults (source of truth)" pointant vers `StepSequencerState.hpp`.
+- Mise a jour des exemples header UI (`1/8`, `LEN 8`) pour supprimer la confusion historique.
+
+Notes handover (important pour les devs suivants):
+
+- Source de verite des defaults: `open-control/note/src/oc/note/sequencer/StepSequencerState.hpp`.
+- Si les defaults runtime changent, mettre a jour en priorite `README.md` + `tech-spec.md` + `implementation-plan-v0-framework.md` dans le meme lot.
+- Les references restantes a `1/16`/`len=18` sont uniquement dans ce journal (contexte historique), pas dans les specs actives.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> SUCCESS (bloquant)
+
+Prochaine etape:
+
+- C3 (optionnel): ajouter un gate CI natif sequencer pour figer cette protection dans les workflows.

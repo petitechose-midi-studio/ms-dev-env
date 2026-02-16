@@ -2,7 +2,7 @@
 title: 'Step Sequencer (UI-first)'
 slug: 'step-sequencer'
 created: '2026-01-07'
-updated: '2026-02-12'
+updated: '2026-02-16'
 status: 'started'
 ---
 
@@ -31,10 +31,12 @@ Goal: a UI-first POC that is easy to iterate on.
 In scope:
 
 - Tiny playback stub (internal clock + USB MIDI out):
-  - fixed default resolution: 1/16
+  - fixed default resolution: 1/8 (`stepsPerBeat = 2`)
+  - fixed default pattern length: 8 steps
   - fixed default channel: 1
   - gate% schedules note-off (gate=0 mutes)
   - engine runs regardless of active view (Macro/Sequencer/overlays)
+  - defaults are aligned with `open-control/note/src/oc/note/sequencer/StepSequencerState.hpp`
 - Keep v0 state minimal and settings-ready (no magic numbers).
 
 Out of scope (v0):

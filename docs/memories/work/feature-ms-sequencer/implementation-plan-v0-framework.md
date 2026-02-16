@@ -2,7 +2,7 @@
 title: 'Step Sequencer v0 -> Framework Extraction Plan'
 slug: 'step-sequencer-v0-framework-plan'
 created: '2026-02-12'
-updated: '2026-02-14'
+updated: '2026-02-16'
 status: 'active'
 ---
 
@@ -38,8 +38,8 @@ status: 'active'
 
 ## Objectifs v0 (produit)
 
-- Playback mono-track (v0): 1 pattern, max 64 steps, longueur fixe initiale = 18 steps.
-- Resolution: 1/16 par defaut (settings plus tard).
+- Playback mono-track (v0): 1 pattern, max 64 steps, longueur par defaut = 8 steps.
+- Resolution: 1/8 par defaut (settings plus tard).
 - Routage MIDI: canal 1 par defaut.
 - Gate:
   - gate == 0 => pas de note (mute)
@@ -112,9 +112,9 @@ Creer `oc::note::sequencer::StepSequencerState`:
 
 - Constants explicites (pas de magic numbers):
   - `DEFAULT_PPQN = 24`
-  - `DEFAULT_STEPS_PER_BEAT = 4` (=> 1/16)
+  - `DEFAULT_STEPS_PER_BEAT = 2` (=> 1/8)
   - `DEFAULT_MIDI_CHANNEL_0BASED = 0` (channel 1)
-  - `DEFAULT_LENGTH = 18`
+  - `DEFAULT_LENGTH = 8`
 - Signals:
   - `length`
   - `playheadStep` (-1 = none)
@@ -122,7 +122,7 @@ Creer `oc::note::sequencer::StepSequencerState`:
   - `midiChannel` (0..15)
 - Donnees steps (non-signals, v0):
   - `enabledMask` (uint64)
-  - `note[64]`, `velocity[64]`, `gate[64]` (0..100), `nudge[64]` (-50..50)
+  - `note[64]`, `velocity[64]`, `gate[64]` (0..200), `nudge[64]` (-50..50)
 
 ### Clock interne (PPQN)
 
@@ -147,7 +147,7 @@ Creer une clock interne qui convertit temps -> ticks:
   - `playheadStep = 0`
   - trigger step 0 immediatement
 - Avancement:
-  - `ticksPerStep = PPQN / stepsPerBeat` (pour 1/16: 24/4=6)
+  - `ticksPerStep = PPQN / stepsPerBeat` (pour 1/8: 24/2=12)
   - `stepIndex = (tick / ticksPerStep) % length`
   - update `playheadStep`
 - Emission MIDI:
@@ -194,7 +194,7 @@ Creer une clock interne qui convertit temps -> ticks:
 
 ### Definition "Done" (Phase 3)
 
-- En lecture: notes sortent en 1/16 sur canal 1, gate% respecte, velocity 0 OK.
+- En lecture: notes sortent en 1/8 sur canal 1, gate% respecte, velocity 0 OK.
 - Le playback fonctionne meme si on est en vue Macro ou qu'un overlay est visible.
 - Builds:
   - `pio run -e dev` dans `midi-studio/core`
