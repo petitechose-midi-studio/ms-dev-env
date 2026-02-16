@@ -631,6 +631,7 @@ Contexte racine confirme:
 Notes handover (important pour les devs suivants):
 
 - Les wrappers `.cmd` sont choisis volontairement (fiables en contexte Windows/Python/SCons).
+- Le build ne depend plus d'un `source tools/activate.sh` prealable (important car les shells bash Windows peuvent interpreter differemment les paths Windows absolus).
 - Le script recherche `tools/bin` en remontant depuis `PROJECT_DIR`, donc fonctionne tant que la structure `ms-dev-env/...` est conservee.
 - Si les wrappers ne sont pas trouves, le script logge un warning et retombe sur le toolchain systeme.
 - Les scripts sont dupliques dans `framework` et `note` pour decoupler les repos et eviter une dependance de chemin croisee fragile.
