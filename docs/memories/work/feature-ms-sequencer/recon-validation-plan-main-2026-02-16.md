@@ -729,6 +729,7 @@ Commit code:
 
 - `midi-studio/core`: `d658270` (`fix(input): scope top-level controls to active views`)
 - `midi-studio/core`: `9eba17e` (`chore(input): null unused view-switcher context scope`)
+- `midi-studio/ui`: `ec99695` (`docs(ui): clarify OverlayBindingContext scope semantics`)
 
 Fichiers modifies:
 
@@ -763,6 +764,7 @@ Notes handover (important pour les devs suivants):
 
 - Si une nouvelle vue top-level est ajoutee, l'ajouter explicitement dans les `ViewScopes` passes aux handlers `ViewSwitcherHandler` et `TransportHandler`.
 - Cette approche evite l'ambiguite "global vs scoped" et garde un comportement previsible en presence d'overlays.
+- Le contrat `OverlayBindingContext::scopeElement` est desormais documente sans ambiguite (scope LVGL optionnel, pas "global implicite").
 
 Gates executes pour cette etape:
 
