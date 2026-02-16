@@ -529,3 +529,74 @@ Gates executes pour cette etape:
 Prochaine etape:
 
 - B2: finaliser ou fermer proprement `SEQ_SETTINGS` / `SEQ_TRACK_CONFIG` pour supprimer l'ambiguite produit.
+
+### 2026-02-16 - Etape B2 complete (placeholders overlays fermes proprement)
+
+Statut: DONE
+
+Commit code:
+
+- `midi-studio/core`: `cb05586` (`chore(sequencer): remove unused overlay placeholders`)
+
+Fichiers modifies:
+
+- `midi-studio/core/src/ui/OverlayTypes.hpp`
+- `midi-studio/core/src/state/sequencer/SequencerState.hpp`
+- `midi-studio/core/src/state/CoreState.hpp`
+- `midi-studio/core/src/context/StandaloneContext.cpp`
+
+Ce qui a ete fait:
+
+- Suppression de `SEQ_SETTINGS` et `SEQ_TRACK_CONFIG` de l'enum `OverlayType`.
+- Suppression des structs/fields state associes non utilises dans `SequencerState`.
+- Suppression des enregistrements overlays correspondants dans `CoreState`.
+- Nettoyage du reset context pour retirer les appels devenus morts.
+
+Notes handover (important pour les devs suivants):
+
+- Cette etape choisit explicitement l'option "fermer proprement" (pas d'implementation partielle) pour eviter l'ambiguite produit.
+- Si on reintroduit ces overlays plus tard, il faudra refaire le flux complet: enum + state + registerItem + rendu + handlers + lifecycle.
+- Aucun impact sur les overlays sequencer actifs (`PATTERN_CONFIG`, `STEP_EDIT`, `PROPERTY_SELECTOR`).
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> ECHEC connu (non bloquant avant C1)
+
+Prochaine etape:
+
+- B3: aligner le binding transport avec le scope transport declare.
+
+### 2026-02-16 - Etape B3 complete (transport scope aligne)
+
+Statut: DONE
+
+Commit code:
+
+- `midi-studio/core`: `bf72429` (`fix(transport): scope play toggle to transport layer`)
+
+Fichiers modifies:
+
+- `midi-studio/core/src/handler/transport/TransportHandler.hpp`
+- `midi-studio/core/src/handler/transport/TransportHandler.cpp`
+
+Ce qui a ete fait:
+
+- Le binding PLAY/STOP (`BOTTOM_CENTER`) est maintenant scope sur `transport_scope_element_` au lieu d'etre global.
+- Le commentaire d'interface a ete aligne avec le comportement reel.
+
+Notes handover (important pour les devs suivants):
+
+- Intention et implementation sont maintenant coherentes: controls transport confines au scope transport (main zone), pas bind global brut.
+- En cas de changement d'architecture UI transport, verifier que `transport_scope_element_` reste non-null.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> ECHEC connu (non bloquant avant C1)
+
+Prochaine etape:
+
+- Phase C1: restaurer la baseline `open-control/note` native pour rendre les tests bloquants ensuite.
