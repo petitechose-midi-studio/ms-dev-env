@@ -600,3 +600,52 @@ Gates executes pour cette etape:
 Prochaine etape:
 
 - Phase C1: restaurer la baseline `open-control/note` native pour rendre les tests bloquants ensuite.
+
+### 2026-02-16 - Etape C1 complete (tests natifs windows relies aux wrappers locaux)
+
+Statut: DONE
+
+Commits code:
+
+- `open-control/framework`: `7ca84f3` (`fix(test): use local wrappers for windows native toolchain`)
+- `open-control/note`: `3c99cc9` (`fix(test): use local wrappers for windows native toolchain`)
+
+Fichiers modifies:
+
+- `open-control/framework/platformio.ini`
+- `open-control/framework/script/dev/pio_pre_windows_toolchain.py`
+- `open-control/note/platformio.ini`
+- `open-control/note/script/dev/pio_pre_windows_toolchain.py`
+
+Ce qui a ete fait:
+
+- Ajout d'un pre-script PlatformIO sur Windows pour forcer le toolchain natif vers `ms-dev-env/tools/bin`.
+- Injection explicite de `CC/CXX/AR/RANLIB` vers les wrappers `.cmd` zig-backed locaux.
+- Prepend de `tools/bin` dans `PATH` du build + default `SCONSFLAGS=-j1` cote SCons env.
+
+Contexte racine confirme:
+
+- Sans ce wiring, le `gcc/g++` systeme (`C:\mingw64`) etait resolve dans cette session et ne compilait pas (erreurs de build sans diagnostics utiles).
+- Avec les wrappers locaux, build natif et execution Unity redeviennent deterministes.
+
+Notes handover (important pour les devs suivants):
+
+- Les wrappers `.cmd` sont choisis volontairement (fiables en contexte Windows/Python/SCons).
+- Le script recherche `tools/bin` en remontant depuis `PROJECT_DIR`, donc fonctionne tant que la structure `ms-dev-env/...` est conservee.
+- Si les wrappers ne sont pas trouves, le script logge un warning et retombe sur le toolchain systeme.
+- Les scripts sont dupliques dans `framework` et `note` pour decoupler les repos et eviter une dependance de chemin croisee fragile.
+
+Gates executes pour cette etape:
+
+- `pio run -e dev` dans `midi-studio/core` -> SUCCESS
+- `pio run -e dev` dans `midi-studio/plugin-bitwig` -> SUCCESS
+- `pio test -e native` dans `open-control/note` -> SUCCESS (8 tests / 8)
+- `pio test -e native` dans `open-control/framework` -> SUCCESS (284 tests / 284)
+
+Impact politique gates:
+
+- A partir de maintenant, `pio test -e native` est considere **bloquant** dans le flux (conformement a la decision 4).
+
+Prochaine etape:
+
+- C2: aligner les docs memoires sequencer avec les defaults/runtime reels.
