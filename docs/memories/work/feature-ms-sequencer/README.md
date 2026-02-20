@@ -3,7 +3,7 @@
 **Status:** started
 **Project:** midi-studio/core first (standalone), plugin-bitwig later
 **Created:** 2026-01-07
-**Updated:** 2026-02-16
+**Updated:** 2026-02-19
 **Priority:** high
 
 ## Current state
@@ -42,6 +42,8 @@
 - `ui-header-progress-strip.md` - Sequencer header improvements (implemented: progress strip + division + length)
 - `cleanup-alignment-plan-2026-02-15.md` - code quality cleanup plan (core sequencer handlers/UI + parity patterns)
 - `recon-validation-plan-main-2026-02-16.md` - validated findings + phased implementation plan on main
+- `macro-edit-virtual-list-plan-main-2026-02-19.md` - detailed plan for MacroEdit migration to VirtualList + long-press/latch behavior
+- `framework-input-release-routing-plan-main-2026-02-19.md` - framework-level release routing plan to stabilize macro/overlay interactions
 
 ## See also
 
