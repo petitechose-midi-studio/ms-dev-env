@@ -8,6 +8,7 @@ from pathlib import Path
 from ms.core.app import resolve
 from ms.core.result import Err, Ok, Result
 from ms.output.console import Style
+from ms.platform.resources import recommended_parallel_jobs
 from ms.platform.process import run_silent
 from ms.services.build_errors import (
     AppNotFound,
@@ -95,13 +96,15 @@ class BuildTargetsMixin(BuildHelpersMixin):
         build_args = [str(ninja.value), "-C", str(build_dir)]
 
         # Zig (LLVM) can be memory-hungry on Windows when compiling in parallel.
-        # Use a safe default and allow power-users to override.
+        # Scale with both CPU and currently available RAM, with a conservative
+        # safety cap. Power-users can still override this from the environment.
         if self._platform.platform.is_windows:
-            jobs_raw = os.environ.get("MS_WINDOWS_NATIVE_JOBS", "1")
+            default_jobs = recommended_parallel_jobs()
+            jobs_raw = os.environ.get("MS_WINDOWS_NATIVE_JOBS", str(default_jobs))
             try:
                 jobs = max(1, int(jobs_raw))
             except ValueError:
-                jobs = 1
+                jobs = default_jobs
             build_args += ["-j", str(jobs)]
 
         self._console.print(" ".join(configure_args), Style.DIM)

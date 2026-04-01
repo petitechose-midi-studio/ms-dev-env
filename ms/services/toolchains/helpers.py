@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok
 from ms.output.console import Style
+from ms.platform.resources import recommended_parallel_jobs
 from ms.platform.process import run as run_process
 from ms.platform.process import run_silent
 from ms.tools.download import Downloader
@@ -93,10 +94,11 @@ class ToolchainHelpersMixin(ToolchainContextBase):
         env = self._workspace.platformio_env_vars()
 
         # When using Zig as the native GCC/G++ provider on Windows, parallel SCons
-        # jobs can cause LLVM to run out of memory. Limit concurrency by default.
-        # Users can override this in their shell by setting SCONSFLAGS.
+        # jobs can cause LLVM to run out of memory. Scale with CPU and available
+        # RAM, while keeping a conservative safety cap. Users can still override
+        # this in their shell by setting SCONSFLAGS.
         if self._platform.platform.is_windows:
-            env.setdefault("SCONSFLAGS", "-j1")
+            env.setdefault("SCONSFLAGS", f"-j{recommended_parallel_jobs()}")
 
         if not dry_run:
             wrapper = WrapperSpec(name="pio", target=pio, env=env)

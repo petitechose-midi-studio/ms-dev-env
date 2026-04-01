@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import Style
+from ms.platform.resources import recommended_parallel_jobs
 from ms.platform.shell import generate_activation_scripts
 from ms.tools.download import Downloader
 from ms.tools.http import RealHttpClient
@@ -143,7 +144,7 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
             # Ensure PlatformIO's SCons uses a safe default on Windows when
             # native builds rely on Zig-backed gcc/g++ wrappers.
             if self._platform.platform.is_windows:
-                env_vars.setdefault("SCONSFLAGS", "-j1")
+                env_vars.setdefault("SCONSFLAGS", f"-j{recommended_parallel_jobs()}")
 
             path_additions = [self._paths.bin_dir, *self._registry.get_path_additions()]
             generate_activation_scripts(
