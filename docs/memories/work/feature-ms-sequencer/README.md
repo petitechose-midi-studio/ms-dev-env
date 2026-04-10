@@ -3,7 +3,7 @@
 **Status:** started
 **Project:** midi-studio/core first (standalone), plugin-bitwig later
 **Created:** 2026-01-07
-**Updated:** 2026-02-19
+**Updated:** 2026-03-26
 **Priority:** high
 
 ## Current state
@@ -12,6 +12,7 @@
 - Core has a `SequencerView` v0 (8-step grid, pagination, focus, playhead + playback service).
 - The reusable v0 engine + internal clock live in OpenControl: `open-control/note` (`oc-note`).
 - Shared LVGL UI lives in `midi-studio/ui` (`ms-ui`).
+- Future direction is locked: local `core` features may later be exposed from `plugin-bitwig`, but they must remain controller-local, SD-persistent, and independent from Bitwig project state.
 
 ## Runtime defaults (source of truth)
 
@@ -44,6 +45,7 @@
 - `recon-validation-plan-main-2026-02-16.md` - validated findings + phased implementation plan on main
 - `macro-edit-virtual-list-plan-main-2026-02-19.md` - detailed plan for MacroEdit migration to VirtualList + long-press/latch behavior
 - `framework-input-release-routing-plan-main-2026-02-19.md` - framework-level release routing plan to stabilize macro/overlay interactions
+- `bitwig-local-core-features-note-2026-03-26.md` - locked note about future access to local sequencer/macros from `plugin-bitwig` without changing their standalone nature
 
 ## See also
 

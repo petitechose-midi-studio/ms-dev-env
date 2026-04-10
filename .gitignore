@@ -17,6 +17,14 @@ node_modules/
 
 # Local binary artifacts
 macros.bin
+macro-library.bin
+macro-workspace.bin
+sequencer-pattern-library.bin
+sequencer-set-library.bin
+sequencer-workspace.bin
+
+# Local comparison snapshots
+baseline-compare/
 
 # Downloaded tools (platform-specific binaries)
 /tools/
