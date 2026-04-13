@@ -2,62 +2,118 @@ from __future__ import annotations
 
 import ctypes
 import os
+from collections.abc import Mapping
+from ctypes import wintypes
+from dataclasses import dataclass
 
-_GIB = 1024**3
+SAFE_PARALLEL_JOBS = 1
+_RELATION_PROCESSOR_CORE = 0
+_RELATION_ALL = 0xFFFF
+_ERROR_INSUFFICIENT_BUFFER = 122
+
+
+@dataclass(frozen=True, slots=True)
+class ParallelJobSelection:
+    jobs: int
+    source: str
 
 
 def logical_cpu_count() -> int:
     return max(1, os.cpu_count() or 1)
 
 
-def available_physical_memory_bytes() -> int | None:
-    if os.name == "nt":
-        class MEMORYSTATUSEX(ctypes.Structure):
-            _fields_ = [
-                ("dwLength", ctypes.c_ulong),
-                ("dwMemoryLoad", ctypes.c_ulong),
-                ("ullTotalPhys", ctypes.c_ulonglong),
-                ("ullAvailPhys", ctypes.c_ulonglong),
-                ("ullTotalPageFile", ctypes.c_ulonglong),
-                ("ullAvailPageFile", ctypes.c_ulonglong),
-                ("ullTotalVirtual", ctypes.c_ulonglong),
-                ("ullAvailVirtual", ctypes.c_ulonglong),
-                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
-            ]
-
-        status = MEMORYSTATUSEX()
-        status.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
-        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
-            return int(status.ullAvailPhys)
+def physical_cpu_count() -> int | None:
+    if os.name != "nt":
         return None
 
-    try:
-        page_size = os.sysconf("SC_PAGE_SIZE")
-        avail_pages = os.sysconf("SC_AVPHYS_PAGES")
-        if isinstance(page_size, int) and isinstance(avail_pages, int):
-            return page_size * avail_pages
-    except (AttributeError, ValueError, OSError):
+    class SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX(ctypes.Structure):
+        _fields_ = [
+            ("Relationship", wintypes.DWORD),
+            ("Size", wintypes.DWORD),
+        ]
+
+    kernel32 = ctypes.windll.kernel32
+    get_info = kernel32.GetLogicalProcessorInformationEx
+    get_info.argtypes = [
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    get_info.restype = wintypes.BOOL
+
+    needed = wintypes.DWORD(0)
+    get_info(_RELATION_ALL, None, ctypes.byref(needed))
+    if ctypes.GetLastError() != _ERROR_INSUFFICIENT_BUFFER or needed.value <= 0:
         return None
 
-    return None
+    buffer = ctypes.create_string_buffer(needed.value)
+    if not get_info(_RELATION_ALL, ctypes.byref(buffer), ctypes.byref(needed)):
+        return None
+
+    count = 0
+    offset = 0
+    while offset < needed.value:
+        info = SYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX.from_buffer(buffer, offset)
+        if info.Relationship == _RELATION_PROCESSOR_CORE:
+            count += 1
+        if info.Size <= 0:
+            return None
+        offset += info.Size
+
+    return max(1, count) if count > 0 else None
 
 
 def recommended_parallel_jobs(
     *,
     cpu_divisor: int = 2,
-    safe_cap: int = 32,
-    reserved_memory_gib: int = 6,
-    gib_per_job: int = 4,
-    fallback_jobs: int = 4,
+    fallback_jobs: int = SAFE_PARALLEL_JOBS,
 ) -> int:
-    logical_cores = logical_cpu_count()
-    cpu_budget = max(1, logical_cores // max(1, cpu_divisor))
-    jobs = min(safe_cap, cpu_budget)
+    physical_cores = physical_cpu_count()
+    if physical_cores is None:
+        return max(1, fallback_jobs)
+    return max(1, physical_cores // max(1, cpu_divisor))
 
-    available_memory = available_physical_memory_bytes()
-    if available_memory is None:
-        return max(1, fallback_jobs if logical_cores <= 0 else jobs)
 
-    usable_memory = max(0, available_memory - (reserved_memory_gib * _GIB))
-    memory_budget = max(1, usable_memory // max(1, gib_per_job * _GIB))
-    return max(1, min(jobs, int(memory_budget), safe_cap))
+def resolve_parallel_jobs(
+    *,
+    env: Mapping[str, str] | None = None,
+    jobs_env_var: str,
+    cpu_divisor: int = 2,
+    fallback_jobs: int = SAFE_PARALLEL_JOBS,
+) -> ParallelJobSelection:
+    env_map = os.environ if env is None else env
+    jobs_raw = env_map.get(jobs_env_var)
+    if jobs_raw is not None:
+        try:
+            return ParallelJobSelection(max(1, int(jobs_raw)), "override")
+        except ValueError:
+            pass
+
+    physical_cores = physical_cpu_count()
+    if physical_cores is None:
+        return ParallelJobSelection(max(1, fallback_jobs), "safe_fallback")
+
+    return ParallelJobSelection(
+        max(1, physical_cores // max(1, cpu_divisor)),
+        "physical_auto",
+    )
+
+
+def parallel_jobs_warning(*, selection: ParallelJobSelection, jobs_env_var: str) -> str | None:
+    if selection.source == "override":
+        return None
+
+    override_hint = (
+        f"If RAM pressure hurts build throughput, fine-tune with "
+        f"`$env:{jobs_env_var}='<jobs>'` before rerunning."
+    )
+    if selection.source == "safe_fallback":
+        return (
+            f"Could not detect physical CPU cores on Windows, falling back to safe "
+            f"`-j{selection.jobs}`. {override_hint}"
+        )
+
+    return (
+        f"Using fastest Windows build concurrency `-j{selection.jobs}` "
+        f"(physical cores / 2). {override_hint}"
+    )
