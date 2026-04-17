@@ -6,6 +6,10 @@ DIST_REPO_SLUG = "petitechose-midi-studio/distribution"
 DIST_LOCAL_DIR = "distribution"
 DIST_DEFAULT_BRANCH = "main"
 
+CORE_REPO_SLUG = "petitechose-midi-studio/core"
+CORE_LOCAL_DIR = "midi-studio/core"
+CORE_DEFAULT_BRANCH = "main"
+
 DIST_SPEC_DIR = "release-specs"
 DIST_NOTES_DIR = "release-notes"
 
@@ -41,8 +45,8 @@ RELEASE_REPOS: tuple[ReleaseRepo, ...] = (
     ),
     ReleaseRepo(
         id="core",
-        slug="petitechose-midi-studio/core",
-        ref="main",
+        slug=CORE_REPO_SLUG,
+        ref=CORE_DEFAULT_BRANCH,
         required_ci_workflow_file=".github/workflows/ci.yml",
     ),
     ReleaseRepo(

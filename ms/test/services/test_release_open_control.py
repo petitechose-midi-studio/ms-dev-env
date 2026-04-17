@@ -12,6 +12,7 @@ version = 0.1.0
 [oc_sdk_deps]
 lib_deps =
   oc-framework=https://github.com/open-control/framework.git#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  oc-note=https://github.com/open-control/note.git#9999999999999999999999999999999999999999
   oc-hal-common=https://github.com/open-control/hal-common.git#bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   oc-hal-teensy=https://github.com/open-control/hal-teensy.git#cccccccccccccccccccccccccccccccccccccccc
   oc-ui-lvgl=https://github.com/open-control/ui-lvgl.git#dddddddddddddddddddddddddddddddddddddddd
@@ -22,6 +23,7 @@ lib_deps =
     assert parsed.value.version == "0.1.0"
     pins = parsed.value.pins_by_repo()
     assert pins["framework"] == "a" * 40
+    assert pins["note"] == "9" * 40
     assert pins["hal-common"] == "b" * 40
     assert pins["ui-lvgl-components"] == "e" * 40
 

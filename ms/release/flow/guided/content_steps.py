@@ -8,6 +8,7 @@ from ms.output.console import ConsoleProtocol
 from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 
+from .content_bom_step import assess_content_bom, run_content_bom_step
 from .content_contracts import ContentGuidedDependencies
 from .content_notes_step import run_content_notes_step
 from .content_release_dispatch import (
@@ -182,7 +183,47 @@ def run_guided_content_release_flow(
     def _step_summary(
         session: ContentReleaseSession,
     ) -> Result[StepOutcome[ContentReleaseSession], ReleaseError]:
-        return step_content_summary(deps=deps, session=session, release_repos=release_repos)
+        return step_content_summary(
+            deps=deps,
+            workspace_root=workspace_root,
+            session=session,
+            release_repos=release_repos,
+        )
+
+    def _step_bom(
+        session: ContentReleaseSession,
+    ) -> Result[StepOutcome[ContentReleaseSession], ReleaseError]:
+        choice = run_content_bom_step(
+            deps=deps,
+            workspace_root=workspace_root,
+            console=console,
+            dry_run=dry_run,
+            session=session,
+            release_repos=release_repos,
+        )
+        if isinstance(choice, Err):
+            return choice
+        if choice.value.action == "repo":
+            core_index = next((idx for idx, repo in enumerate(release_repos) if repo.id == "core"), 0)
+            return Ok(
+                advance(
+                    replace(
+                        choice.value.session,
+                        step="repo",
+                        repo_cursor=core_index,
+                        return_to_summary=True,
+                    )
+                )
+            )
+        return Ok(
+            advance(
+                replace(
+                    choice.value.session,
+                    step="summary",
+                    return_to_summary=False,
+                )
+            )
+        )
 
     def _step_notes(
         session: ContentReleaseSession,
@@ -195,6 +236,16 @@ def run_guided_content_release_flow(
     def _step_confirm(
         session: ContentReleaseSession,
     ) -> Result[StepOutcome[ContentReleaseSession], ReleaseError]:
+        bom = assess_content_bom(
+            deps=deps,
+            workspace_root=workspace_root,
+            session=session,
+            release_repos=release_repos,
+        )
+        if bom.status != "aligned":
+            console.warning(f"OpenControl BOM not ready: {bom.detail}")
+            return Ok(advance(replace(session, step="bom", return_to_summary=True)))
+
         approved = deps.confirm(prompt=f"Publish content {session.tag or 'unset'}")
         if not approved:
             return Ok(advance(replace(session, step="summary")))
@@ -254,6 +305,7 @@ def run_guided_content_release_flow(
             "channel": _step_channel,
             "bump": _step_bump,
             "repo": _step_repo,
+            "bom": _step_bom,
             "tag": _step_tag,
             "summary": _step_summary,
             "notes": _step_notes,

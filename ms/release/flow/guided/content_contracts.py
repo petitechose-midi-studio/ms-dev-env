@@ -8,6 +8,7 @@ from ms.output.console import ConsoleProtocol
 from ms.release.domain.models import PinnedRepo, ReleasePlan
 from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
+from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
 from .menu_option import MenuOption
@@ -76,6 +77,14 @@ class ContentGuidedDependencies(Protocol):
         workspace_root: Path,
         core_sha: str,
     ) -> OpenControlPreflightReport: ...
+
+    def promote_open_control_bom(
+        self,
+        *,
+        workspace_root: Path,
+        console: ConsoleProtocol,
+        dry_run: bool,
+    ) -> Result[BomPromotionResult, ReleaseError]: ...
 
     def plan_release(
         self,

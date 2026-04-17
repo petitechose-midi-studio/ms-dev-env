@@ -5,6 +5,7 @@ import re
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 
 from ms.core.structured import as_obj_list, as_str_dict, get_str
 
@@ -35,8 +36,8 @@ def kill_monitors(platform: OCPlatform) -> None:
     time.sleep(0.3)
 
 
-def list_serial_ports(pio: str, *, env: dict[str, str]) -> list[str]:
-    cmd = [pio, "device", "list", "--json-output"]
+def list_serial_ports(pio_cmd: Sequence[str], *, env: dict[str, str]) -> list[str]:
+    cmd = [*pio_cmd, "device", "list", "--json-output"]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
     except OSError:
@@ -75,14 +76,14 @@ def list_serial_ports(pio: str, *, env: dict[str, str]) -> list[str]:
 
 
 def wait_for_serial_port(
-    pio: str,
+    pio_cmd: Sequence[str],
     *,
     env: dict[str, str],
     timeout_s: int = 5,
 ) -> str | None:
     start = time.time()
     while int(time.time() - start) < timeout_s:
-        ports = list_serial_ports(pio, env=env)
+        ports = list_serial_ports(pio_cmd, env=env)
         if ports:
             sys.stderr.write("\r" + (" " * 48) + "\r")
             sys.stderr.flush()

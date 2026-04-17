@@ -52,6 +52,8 @@ def parse_content_step(value: str | None) -> ContentSessionStep | None:
         return "bump"
     if value == "repo":
         return "repo"
+    if value == "bom":
+        return "bom"
     if value == "tag":
         return "tag"
     if value == "notes":

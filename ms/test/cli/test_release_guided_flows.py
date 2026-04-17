@@ -10,14 +10,20 @@ from ms.cli.selector import SelectorResult
 from ms.core.result import Ok
 from ms.output.console import MockConsole
 from ms.release.domain.models import AppReleasePlan
+from ms.release.domain.open_control_models import (
+    BomStateComparison,
+    OcSdkLoad,
+    OpenControlPreflightReport,
+)
+from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.app_prepare import AppPrepareResult
+from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.flow.guided.sessions import (
     AppReleaseSession,
     ContentReleaseSession,
     new_app_session,
     new_content_session,
 )
-from ms.release.flow.pr_outcome import PrMergeOutcome
 
 
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:
@@ -280,7 +286,7 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         if title == "Content Release Tag":
             return _sel("accept")
         if title == "Content Release Summary":
-            return _sel("start", index=8)
+            return _sel("start", index=9)
         raise AssertionError(f"unexpected selector title: {title}")
 
     def fake_confirm(*args: object, **kwargs: object) -> bool:
@@ -290,10 +296,13 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         return Ok(None)
 
     def fake_open_control(*args: object, **kwargs: object):
-        def _dirty_repos() -> list[str]:
-            return []
-
-        return SimpleNamespace(dirty_repos=_dirty_repos)
+        return OpenControlPreflightReport(
+            oc_sdk=OcSdkLoad(lock=SimpleNamespace(version="0.1.3"), source="git", error=None),
+            repos=(),
+            mismatches=(),
+            derived_lock=None,
+            comparison=None,
+        )
 
     def fake_prepare(*args: object, **kwargs: object):
         return Ok(
@@ -344,6 +353,156 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     plan_obj = published["plan"]
     assert isinstance(plan_obj, SimpleNamespace)
     assert plan_obj.tag == "v9.9.9"
+
+
+def test_guided_content_bom_promotion_updates_core_sha(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import ms.cli.release_guided_content as content
+
+    session = new_content_session(created_by="alice", notes_path=None)
+
+    def fake_preflight(*args: object, **kwargs: object):
+        return Ok("alice")
+
+    def fake_bootstrap(*args: object, **kwargs: object):
+        return Ok(session)
+
+    def fake_save_state(*args: object, **kwargs: object):
+        s = kwargs.get("session")
+        assert isinstance(s, ContentReleaseSession)
+        return Ok(s)
+
+    def fake_channel(*args: object, **kwargs: object):
+        return _sel("stable")
+
+    def fake_bump(*args: object, **kwargs: object):
+        return _sel("patch")
+
+    sha_map = {
+        "petitechose-midi-studio/loader": "1" * 40,
+        "open-control/bridge": "2" * 40,
+        "petitechose-midi-studio/core": "3" * 40,
+        "petitechose-midi-studio/plugin-bitwig": "4" * 40,
+    }
+
+    def fake_green(*args: object, **kwargs: object):
+        return Ok(_sel(sha_map[str(kwargs["repo_slug"])]))
+
+    planned_inputs: list[tuple[tuple[str, str], ...]] = []
+
+    def fake_plan(*args: object, **kwargs: object):
+        pinned = tuple((pin.repo.id, pin.sha) for pin in kwargs["pinned"])
+        planned_inputs.append(pinned)
+        return Ok(
+            SimpleNamespace(
+                tag="v9.9.9",
+                spec_path="release-specs/v9.9.9.json",
+                pinned=kwargs["pinned"],
+            )
+        )
+
+    selections = {
+        "Content Release Tag": [_sel("accept")],
+        "Content Release Summary": [_sel("bom", index=6), _sel("start", index=9)],
+        "OpenControl BOM": [_sel("promote")],
+    }
+
+    def fake_select_one(*args: object, **kwargs: object) -> SelectorResult[str]:
+        title = str(kwargs.get("title", ""))
+        choices = selections.get(title)
+        if not choices:
+            raise AssertionError(f"unexpected selector title: {title}")
+        return choices.pop(0)
+
+    def fake_confirm(*args: object, **kwargs: object) -> bool:
+        return True
+
+    def fake_ci_green(*args: object, **kwargs: object):
+        return Ok(None)
+
+    def fake_open_control(*args: object, **kwargs: object):
+        core_sha = str(kwargs["core_sha"])
+        if core_sha == "9" * 40:
+            comparison = BomStateComparison(repos=(), status="aligned", blockers=())
+            mismatches = ()
+        else:
+            comparison = BomStateComparison(
+                repos=(),
+                status="promotion_required",
+                blockers=(),
+            )
+            mismatches = (SimpleNamespace(repo="framework", pinned_sha="a", local_sha="b"),)
+        return OpenControlPreflightReport(
+            oc_sdk=OcSdkLoad(lock=SimpleNamespace(version="0.1.4"), source="git", error=None),
+            repos=(),
+            mismatches=mismatches,
+            derived_lock=None,
+            comparison=comparison,
+        )
+
+    def fake_promote(*args: object, **kwargs: object):
+        return Ok(
+            BomPromotionResult(
+                pr=PrMergeOutcome(
+                    kind="merged_pr",
+                    url="https://example/pr/99",
+                    label="https://example/pr/99",
+                ),
+                merged_core_sha="9" * 40,
+                plan=SimpleNamespace(),
+            )
+        )
+
+    def fake_prepare(*args: object, **kwargs: object):
+        return Ok(
+            PrMergeOutcome(
+                kind="merged_pr",
+                url="https://example/pr/3",
+                label="https://example/pr/3",
+            )
+        )
+
+    published: dict[str, object] = {}
+
+    def fake_publish(*args: object, **kwargs: object):
+        published.update(kwargs)
+        return Ok("https://example/workflow/1")
+
+    def fake_clear(*args: object, **kwargs: object):
+        return Ok(None)
+
+    monkeypatch.setattr(content, "preflight_with_permission", fake_preflight)
+    monkeypatch.setattr(content, "bootstrap_content_session", fake_bootstrap)
+    monkeypatch.setattr(content, "save_content_state", fake_save_state)
+    monkeypatch.setattr(content, "select_channel", fake_channel)
+    monkeypatch.setattr(content, "select_bump", fake_bump)
+    monkeypatch.setattr(content, "select_green_commit", fake_green)
+    monkeypatch.setattr(content, "plan_release", fake_plan)
+    monkeypatch.setattr(content, "select_one", fake_select_one)
+    monkeypatch.setattr(content, "confirm_yn", fake_confirm)
+    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
+    monkeypatch.setattr(content, "ensure_core_release_permissions", lambda **_: Ok(None))
+    monkeypatch.setattr(content, "promote_open_control_bom_flow", fake_promote)
+    monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
+    monkeypatch.setattr(content, "publish_distribution_release", fake_publish)
+    monkeypatch.setattr(content, "clear_content_session", fake_clear)
+
+    result = content.run_guided_content_release(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        notes_file=None,
+        watch=False,
+        dry_run=False,
+    )
+
+    assert isinstance(result, Ok)
+    assert planned_inputs[0][2] == ("core", "3" * 40)
+    assert planned_inputs[-1][2] == ("core", "9" * 40)
+    plan_obj = published["plan"]
+    assert plan_obj.pinned[2].repo.id == "core"
+    assert plan_obj.pinned[2].sha == "9" * 40
 
 
 def test_release_guided_routes_by_product(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

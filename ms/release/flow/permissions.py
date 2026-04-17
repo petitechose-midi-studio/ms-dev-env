@@ -65,6 +65,22 @@ def ensure_release_permissions(
     )
 
 
+def ensure_core_release_permissions(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    require_write: bool,
+) -> Result[None, ReleaseError]:
+    return _ensure_repo_permissions(
+        workspace_root=workspace_root,
+        console=console,
+        require_write=require_write,
+        repo_slug=config.CORE_REPO_SLUG,
+        denied_message="insufficient permission for core repo",
+        denied_hint=f"You need WRITE/MAINTAIN/ADMIN on {config.CORE_REPO_SLUG}.",
+    )
+
+
 def ensure_app_release_permissions(
     *,
     workspace_root: Path,

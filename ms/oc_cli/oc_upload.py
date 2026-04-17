@@ -10,12 +10,14 @@ import time
 
 import typer
 
+from ms.core.result import Err
 from ms.oc_cli.common import (
     OCPlatform,
     build_pio_env,
     detect_env,
     find_project_root,
     get_console,
+    resolve_pio_runtime,
     run_with_spinner,
     show_results,
 )
@@ -31,8 +33,14 @@ def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) 
         console.print(f"error: {e}", style="red bold")
         raise typer.Exit(code=1) from e
 
+    pio_runtime = resolve_pio_runtime(project_root)
+    if isinstance(pio_runtime, Err):
+        console.print(f"error: {pio_runtime.error.message}", style="red bold")
+        if pio_runtime.error.hint:
+            console.print(f"hint: {pio_runtime.error.hint}", style="dim")
+        raise typer.Exit(code=1)
     pio_env = build_pio_env(project_root, platform)
-    pio = pio_env.get("PIO", "pio")
+    pio = pio_runtime.value.command()
     env_name = detect_env(project_root, env)
 
     console.clear()
@@ -44,7 +52,7 @@ def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) 
 
     build_code, build_out, _ = run_with_spinner(
         "Building",
-        [pio, "run", "-e", env_name, "-d", str(project_root)],
+        [*pio, "run", "-e", env_name, "-d", str(project_root)],
         cwd=project_root,
         env=pio_env,
     )
@@ -53,7 +61,7 @@ def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) 
     if build_code == 0:
         # Generate compile_commands.json for clangd (best-effort)
         subprocess.Popen(
-            [pio, "run", "-e", env_name, "-d", str(project_root), "-t", "compiledb"],
+            [*pio, "run", "-e", env_name, "-d", str(project_root), "-t", "compiledb"],
             cwd=str(project_root),
             env=pio_env,
             stdout=subprocess.DEVNULL,
@@ -63,7 +71,7 @@ def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) 
         up_code, up_out, _ = run_with_spinner(
             "Uploading",
             [
-                pio,
+                *pio,
                 "run",
                 "-e",
                 env_name,

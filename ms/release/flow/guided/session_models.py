@@ -24,6 +24,7 @@ ContentSessionStep = Literal[
     "channel",
     "bump",
     "repo",
+    "bom",
     "tag",
     "notes",
     "summary",

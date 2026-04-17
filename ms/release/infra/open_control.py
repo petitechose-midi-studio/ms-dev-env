@@ -7,6 +7,7 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.platform.process import run as run_process
 from ms.release.domain.open_control_models import (
+    OPEN_CONTROL_BOM_REPOS,
     OcSdkLoad,
     OcSdkLock,
     OcSdkMismatch,
@@ -18,19 +19,28 @@ from ms.release.errors import ReleaseError
 from ms.release.infra.github.gh_base import run_gh_read
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS, GIT_TIMEOUT_SECONDS
 
-OC_SDK_REPOS: tuple[str, ...] = (
-    "framework",
-    "hal-common",
-    "hal-teensy",
-    "ui-lvgl",
-    "ui-lvgl-components",
-)
-
 OC_SDK_LOCK_FILE = "oc-sdk.ini"
 
 _OC_GIT_URL_RE = re.compile(
     r"^https://github\.com/open-control/(?P<repo>[^/]+)\.git#(?P<sha>[0-9a-fA-F]{40})$"
 )
+
+
+def parse_open_control_git_pins(*, lib_deps_raw: str) -> dict[str, str]:
+    pins: dict[str, str] = {}
+    lines = [ln.strip() for ln in lib_deps_raw.splitlines() if ln.strip()]
+    for ln in lines:
+        if "=" not in ln:
+            continue
+        _, url = ln.split("=", 1)
+        url = url.strip()
+        m = _OC_GIT_URL_RE.match(url)
+        if not m:
+            continue
+        repo = m.group("repo")
+        sha = m.group("sha").lower()
+        pins[repo] = sha
+    return pins
 
 
 def parse_oc_sdk_ini(*, text: str) -> Result[OcSdkLock, ReleaseError]:
@@ -74,20 +84,9 @@ def parse_oc_sdk_ini(*, text: str) -> Result[OcSdkLock, ReleaseError]:
             )
         )
 
-    pins: dict[str, str] = {}
-    for ln in lines:
-        if "=" not in ln:
-            continue
-        _, url = ln.split("=", 1)
-        url = url.strip()
-        m = _OC_GIT_URL_RE.match(url)
-        if not m:
-            continue
-        repo = m.group("repo")
-        sha = m.group("sha").lower()
-        pins[repo] = sha
+    pins = parse_open_control_git_pins(lib_deps_raw=lib_deps_raw)
 
-    missing = [r for r in OC_SDK_REPOS if r not in pins]
+    missing = [r for r in OPEN_CONTROL_BOM_REPOS if r not in pins]
     if missing:
         return Err(
             ReleaseError(
@@ -97,7 +96,7 @@ def parse_oc_sdk_ini(*, text: str) -> Result[OcSdkLock, ReleaseError]:
             )
         )
 
-    ordered = tuple(OcSdkPin(repo=r, sha=pins[r]) for r in OC_SDK_REPOS)
+    ordered = tuple(OcSdkPin(repo=r, sha=pins[r]) for r in OPEN_CONTROL_BOM_REPOS)
     return Ok(OcSdkLock(version=version, pins=ordered))
 
 
@@ -180,7 +179,7 @@ def _git_is_dirty(*, repo_root: Path) -> bool:
 def collect_open_control_repos(*, workspace_root: Path) -> tuple[OpenControlRepoState, ...]:
     base = workspace_root / "open-control"
     states: list[OpenControlRepoState] = []
-    for repo in OC_SDK_REPOS:
+    for repo in OPEN_CONTROL_BOM_REPOS:
         path = base / repo
         exists = path.is_dir() and _is_git_repo(path)
         if not exists:
@@ -199,9 +198,26 @@ def collect_open_control_repos(*, workspace_root: Path) -> tuple[OpenControlRepo
 def preflight_open_control(*, workspace_root: Path, core_sha: str) -> OpenControlPreflightReport:
     repos = collect_open_control_repos(workspace_root=workspace_root)
     oc_sdk = load_oc_sdk_lock(workspace_root=workspace_root, core_sha=core_sha)
+    derived_lock = None
+    comparison = None
+
+    local_core = workspace_root / "midi-studio" / "core"
+    if local_core.is_dir():
+        from ms.release.flow.bom import compare_bom_state, load_native_ci_bom
+
+        derived = load_native_ci_bom(core_root=local_core)
+        if isinstance(derived, Ok):
+            derived_lock = derived.value
 
     mismatches: list[OcSdkMismatch] = []
     if oc_sdk.lock is not None:
+        if derived_lock is not None:
+            comparison = compare_bom_state(
+                bom_lock=oc_sdk.lock,
+                workspace_repos=repos,
+                derived_lock=derived_lock,
+                allow_dirty_workspace=True,
+            )
         pins = oc_sdk.lock.pins_by_repo()
         for r in repos:
             if not r.exists or r.head_sha is None:
@@ -218,4 +234,6 @@ def preflight_open_control(*, workspace_root: Path, core_sha: str) -> OpenContro
         oc_sdk=oc_sdk,
         repos=repos,
         mismatches=tuple(mismatches),
+        derived_lock=derived_lock,
+        comparison=comparison,
     )
