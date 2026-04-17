@@ -15,6 +15,7 @@ from ms.release.errors import ReleaseError
 class AppVersionFiles:
     package_json: Path
     cargo_toml: Path
+    cargo_lock: Path
     tauri_conf: Path
 
 
@@ -34,6 +35,7 @@ def app_version_files(*, app_repo_root: Path) -> AppVersionFiles:
     return AppVersionFiles(
         package_json=app_repo_root / "package.json",
         cargo_toml=app_repo_root / "src-tauri" / "Cargo.toml",
+        cargo_lock=app_repo_root / "src-tauri" / "Cargo.lock",
         tauri_conf=app_repo_root / "src-tauri" / "tauri.conf.json",
     )
 
@@ -46,11 +48,14 @@ def current_version(*, app_repo_root: Path) -> Result[str, ReleaseError]:
     cargo_v = _read_cargo_package_version(path=files.cargo_toml)
     if isinstance(cargo_v, Err):
         return cargo_v
+    cargo_lock_v = _read_cargo_lock_package_version(path=files.cargo_lock)
+    if isinstance(cargo_lock_v, Err):
+        return cargo_lock_v
     tauri_v = _read_json_version(path=files.tauri_conf)
     if isinstance(tauri_v, Err):
         return tauri_v
 
-    values = {pkg_v.value, cargo_v.value, tauri_v.value}
+    values = {pkg_v.value, cargo_v.value, cargo_lock_v.value, tauri_v.value}
     if len(values) != 1:
         return Err(
             ReleaseError(
@@ -58,7 +63,7 @@ def current_version(*, app_repo_root: Path) -> Result[str, ReleaseError]:
                 message="ms-manager version files are out of sync",
                 hint=(
                     f"package.json={pkg_v.value}, Cargo.toml={cargo_v.value}, "
-                    f"tauri.conf.json={tauri_v.value}"
+                    f"Cargo.lock={cargo_lock_v.value}, tauri.conf.json={tauri_v.value}"
                 ),
             )
         )
@@ -80,6 +85,12 @@ def apply_version(*, app_repo_root: Path, version: str) -> Result[list[Path], Re
         return cargo
     if cargo.value:
         changed.append(files.cargo_toml)
+
+    cargo_lock = _write_cargo_lock_package_version(path=files.cargo_lock, version=version)
+    if isinstance(cargo_lock, Err):
+        return cargo_lock
+    if cargo_lock.value:
+        changed.append(files.cargo_lock)
 
     tauri = _write_json_version(path=files.tauri_conf, version=version)
     if isinstance(tauri, Err):
@@ -274,6 +285,73 @@ def _write_cargo_package_version(*, path: Path, version: str) -> Result[bool, Re
             ReleaseError(
                 kind="repo_failed",
                 message=f"failed to write Cargo.toml: {e}",
+                hint=str(path),
+            )
+        )
+
+    return Ok(True)
+
+
+def _read_cargo_lock_package_version(*, path: Path) -> Result[str, ReleaseError]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return Err(
+            ReleaseError(
+                kind="repo_failed",
+                message=f"failed to read Cargo.lock: {e}",
+                hint=str(path),
+            )
+        )
+
+    m = re.search(r'\[\[package\]\]\r?\nname = "ms-manager"\r?\nversion = "([^"]+)"', text)
+    if m is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message='missing root "ms-manager" package version in Cargo.lock',
+                hint=str(path),
+            )
+        )
+
+    return Ok(m.group(1))
+
+
+def _write_cargo_lock_package_version(*, path: Path, version: str) -> Result[bool, ReleaseError]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return Err(
+            ReleaseError(
+                kind="repo_failed",
+                message=f"failed to read Cargo.lock: {e}",
+                hint=str(path),
+            )
+        )
+
+    m = re.search(r'\[\[package\]\]\r?\nname = "ms-manager"\r?\nversion = "([^"]+)"', text)
+    if m is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message='missing root "ms-manager" package version in Cargo.lock',
+                hint=str(path),
+            )
+        )
+
+    prev = m.group(1)
+    if prev == version:
+        return Ok(False)
+
+    updated = text[: m.start(1)] + version + text[m.end(1) :]
+
+    try:
+        atomic_write_text(path, updated, encoding="utf-8")
+    except OSError as e:
+        return Err(
+            ReleaseError(
+                kind="repo_failed",
+                message=f"failed to write Cargo.lock: {e}",
                 hint=str(path),
             )
         )
