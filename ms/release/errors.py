@@ -15,12 +15,14 @@ class ReleaseError:
         "gh_auth_required",
         "permission_denied",
         "invalid_input",
+        "artifact_missing",
         "invalid_tag",
         "tag_exists",
         "ci_not_green",
         "repo_dirty",
         "repo_failed",
         "workflow_failed",
+        "verification_failed",
     ]
     message: str
     hint: str | None = None

@@ -18,6 +18,12 @@ from ms.release.domain.config import (
     DIST_SPEC_DIR,
     RELEASE_REPOS,
 )
+from ms.release.domain.candidate_models import (
+    CANDIDATE_SCHEMA,
+    CandidateArtifact,
+    CandidateInputRepo,
+    CandidateManifest,
+)
 from ms.release.domain.models import (
     AppReleasePlan,
     DistributionRelease,
@@ -39,6 +45,10 @@ __all__ = [
     "APP_RELEASE_REPO",
     "APP_RELEASE_WORKFLOW",
     "APP_REPO_SLUG",
+    "CANDIDATE_SCHEMA",
+    "CandidateArtifact",
+    "CandidateInputRepo",
+    "CandidateManifest",
     "DIST_DEFAULT_BRANCH",
     "DIST_LOCAL_DIR",
     "DIST_NOTES_DIR",
