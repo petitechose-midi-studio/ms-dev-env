@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_obj_list, as_str_dict, get_str
 from ms.release.domain import (
     CANDIDATE_SCHEMA,
     CandidateArtifact,
@@ -17,6 +14,7 @@ from ms.release.errors import ReleaseError
 from ms.release.infra.candidate_contract import (
     compute_build_input_fingerprint,
     compute_recipe_fingerprint,
+    describe_candidate_artifact,
     load_candidate_manifest,
     validate_candidate_payload,
     write_candidate_checksums,
@@ -29,160 +27,12 @@ from ms.release.infra.candidate_signatures import (
     verify_candidate_manifest_with_public_key,
 )
 
+from . import candidate_inputs as _candidate_inputs
+from .candidate_types import CandidateArtifactSpec, CandidateVerifyRequest, CandidateWriteRequest
 
-@dataclass(frozen=True, slots=True)
-class CandidateArtifactSpec:
-    id: str
-    filename: str
-    kind: str
-    os: str | None
-    arch: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class CandidateWriteRequest:
-    artifacts_dir: Path
-    manifest_path: Path
-    checksums_path: Path
-    sig_path: Path
-    producer_repo: str
-    producer_kind: str
-    workflow_file: str
-    run_id: int
-    run_attempt: int
-    input_repos: tuple[CandidateInputRepo, ...]
-    artifact_specs: tuple[CandidateArtifactSpec, ...]
-    recipe_base_dir: Path
-    recipe_paths: tuple[str, ...]
-    toolchain: tuple[tuple[str, str], ...]
-    config: tuple[tuple[str, str], ...]
-    generated_at: str | None = None
-    signing_key_env: str = "MS_CANDIDATE_ED25519_SK"
-
-
-@dataclass(frozen=True, slots=True)
-class CandidateVerifyRequest:
-    artifacts_dir: Path
-    manifest_path: Path
-    checksums_path: Path
-    sig_path: Path
-    expected_producer_repo: str | None = None
-    expected_producer_kind: str | None = None
-    expected_workflow_file: str | None = None
-    expected_input_repos: tuple[CandidateInputRepo, ...] | None = None
-    public_key_env: str = "MS_CANDIDATE_ED25519_PK"
-
-
-def load_candidate_input_repos(path: Path) -> Result[tuple[CandidateInputRepo, ...], ReleaseError]:
-    obj = _load_json(path)
-    if isinstance(obj, Err):
-        return obj
-    rows = as_obj_list(obj.value)
-    if rows is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"candidate input repos must be a JSON array: {path}",
-            )
-        )
-
-    repos: list[CandidateInputRepo] = []
-    for idx, row in enumerate(rows):
-        table = as_str_dict(row)
-        if table is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"invalid candidate input repo entry at index {idx}: {path}",
-                )
-            )
-        repo_id = get_str(table, "id")
-        repo_slug = get_str(table, "repo")
-        sha = get_str(table, "sha")
-        if repo_id is None or repo_slug is None or sha is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"candidate input repos missing fields at index {idx}: {path}",
-                )
-            )
-        repos.append(CandidateInputRepo(id=repo_id, repo=repo_slug, sha=sha))
-    return Ok(tuple(repos))
-
-
-def load_candidate_artifact_specs(
-    path: Path,
-) -> Result[tuple[CandidateArtifactSpec, ...], ReleaseError]:
-    obj = _load_json(path)
-    if isinstance(obj, Err):
-        return obj
-    rows = as_obj_list(obj.value)
-    if rows is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"candidate artifacts must be a JSON array: {path}",
-            )
-        )
-
-    specs: list[CandidateArtifactSpec] = []
-    for idx, row in enumerate(rows):
-        table = as_str_dict(row)
-        if table is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"invalid candidate artifact entry at index {idx}: {path}",
-                )
-            )
-        artifact_id = get_str(table, "id")
-        filename = get_str(table, "filename")
-        kind = get_str(table, "kind")
-        os_name = get_str(table, "os")
-        arch = get_str(table, "arch")
-        if artifact_id is None or filename is None or kind is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"candidate artifact missing fields at index {idx}: {path}",
-                )
-            )
-        specs.append(
-            CandidateArtifactSpec(
-                id=artifact_id,
-                filename=filename,
-                kind=kind,
-                os=os_name,
-                arch=arch,
-            )
-        )
-    return Ok(tuple(specs))
-
-
-def load_string_pairs_json(path: Path) -> Result[tuple[tuple[str, str], ...], ReleaseError]:
-    obj = _load_json(path)
-    if isinstance(obj, Err):
-        return obj
-    table = as_str_dict(obj.value)
-    if table is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"candidate metadata must be a JSON object: {path}",
-            )
-        )
-    out: list[tuple[str, str]] = []
-    for key in sorted(table):
-        value = get_str(table, key)
-        if value is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"candidate metadata field must be a string: {path}#{key}",
-                )
-            )
-        out.append((key, value))
-    return Ok(tuple(out))
+load_candidate_artifact_specs = _candidate_inputs.load_candidate_artifact_specs
+load_candidate_input_repos = _candidate_inputs.load_candidate_input_repos
+load_string_pairs_json = _candidate_inputs.load_string_pairs_json
 
 
 def write_candidate_bundle(
@@ -197,9 +47,7 @@ def write_candidate_bundle(
     if isinstance(recipe_fingerprint, Err):
         return recipe_fingerprint
 
-    generated_at = request.generated_at or (
-        datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    )
+    generated_at = request.generated_at or _default_generated_at()
     build_input_fingerprint = compute_build_input_fingerprint(
         producer_kind=request.producer_kind,
         input_repos=request.input_repos,
@@ -231,6 +79,48 @@ def write_candidate_bundle(
         artifacts=artifacts.value,
     )
 
+    return _persist_and_verify_candidate(
+        workspace_root=workspace_root,
+        request=request,
+        manifest=manifest,
+    )
+
+
+def verify_candidate_bundle(
+    *,
+    workspace_root: Path,
+    request: CandidateVerifyRequest,
+) -> Result[CandidateManifest, ReleaseError]:
+    manifest = load_candidate_manifest(request.manifest_path)
+    if isinstance(manifest, Err):
+        return manifest
+    verified = verify_candidate_manifest(
+        workspace_root=workspace_root,
+        manifest_path=request.manifest_path,
+        sig_path=request.sig_path,
+        pk_env=request.public_key_env,
+    )
+    if isinstance(verified, Err):
+        return verified
+    payload = validate_candidate_payload(
+        artifacts_dir=request.artifacts_dir,
+        manifest=manifest.value,
+        checksums_path=request.checksums_path,
+    )
+    if isinstance(payload, Err):
+        return payload
+    expectations = _validate_candidate_expectations(request=request, manifest=manifest.value)
+    if isinstance(expectations, Err):
+        return expectations
+    return manifest
+
+
+def _persist_and_verify_candidate(
+    *,
+    workspace_root: Path,
+    request: CandidateWriteRequest,
+    manifest: CandidateManifest,
+) -> Result[CandidateManifest, ReleaseError]:
     written = write_candidate_manifest(path=request.manifest_path, manifest=manifest)
     if isinstance(written, Err):
         return written
@@ -261,48 +151,14 @@ def write_candidate_bundle(
     if isinstance(post_sign_verify, Err):
         return post_sign_verify
 
-    verified_payload = validate_candidate_payload(
+    payload = validate_candidate_payload(
         artifacts_dir=request.artifacts_dir,
         manifest=manifest,
         checksums_path=request.checksums_path,
     )
-    if isinstance(verified_payload, Err):
-        return verified_payload
-
-    return Ok(manifest)
-
-
-def verify_candidate_bundle(
-    *,
-    workspace_root: Path,
-    request: CandidateVerifyRequest,
-) -> Result[CandidateManifest, ReleaseError]:
-    manifest = load_candidate_manifest(request.manifest_path)
-    if isinstance(manifest, Err):
-        return manifest
-
-    verified = verify_candidate_manifest(
-        workspace_root=workspace_root,
-        manifest_path=request.manifest_path,
-        sig_path=request.sig_path,
-        pk_env=request.public_key_env,
-    )
-    if isinstance(verified, Err):
-        return verified
-
-    payload = validate_candidate_payload(
-        artifacts_dir=request.artifacts_dir,
-        manifest=manifest.value,
-        checksums_path=request.checksums_path,
-    )
     if isinstance(payload, Err):
         return payload
-
-    expected = _validate_candidate_expectations(request=request, manifest=manifest.value)
-    if isinstance(expected, Err):
-        return expected
-
-    return manifest
+    return Ok(manifest)
 
 
 def _realize_artifacts(
@@ -310,8 +166,6 @@ def _realize_artifacts(
     artifacts_dir: Path,
     artifact_specs: tuple[CandidateArtifactSpec, ...],
 ) -> Result[tuple[CandidateArtifact, ...], ReleaseError]:
-    from ms.release.infra.candidate_contract import describe_candidate_artifact
-
     artifacts: list[CandidateArtifact] = []
     for spec in artifact_specs:
         described = describe_candidate_artifact(
@@ -332,10 +186,7 @@ def _validate_candidate_expectations(
     request: CandidateVerifyRequest,
     manifest: CandidateManifest,
 ) -> Result[None, ReleaseError]:
-    if (
-        request.expected_producer_repo is not None
-        and manifest.producer_repo != request.expected_producer_repo
-    ):
+    if request.expected_producer_repo and manifest.producer_repo != request.expected_producer_repo:
         return Err(
             ReleaseError(
                 kind="verification_failed",
@@ -343,10 +194,7 @@ def _validate_candidate_expectations(
                 hint=f"expected {request.expected_producer_repo}, got {manifest.producer_repo}",
             )
         )
-    if (
-        request.expected_producer_kind is not None
-        and manifest.producer_kind != request.expected_producer_kind
-    ):
+    if request.expected_producer_kind and manifest.producer_kind != request.expected_producer_kind:
         return Err(
             ReleaseError(
                 kind="verification_failed",
@@ -354,10 +202,7 @@ def _validate_candidate_expectations(
                 hint=f"expected {request.expected_producer_kind}, got {manifest.producer_kind}",
             )
         )
-    if (
-        request.expected_workflow_file is not None
-        and manifest.workflow_file != request.expected_workflow_file
-    ):
+    if request.expected_workflow_file and manifest.workflow_file != request.expected_workflow_file:
         return Err(
             ReleaseError(
                 kind="verification_failed",
@@ -365,41 +210,44 @@ def _validate_candidate_expectations(
                 hint=f"expected {request.expected_workflow_file}, got {manifest.workflow_file}",
             )
         )
-    if request.expected_input_repos is not None:
-        expected = {repo.id: repo for repo in request.expected_input_repos}
-        actual = manifest.repos_by_id()
-        if set(expected) != set(actual):
+    if request.expected_input_repos is None:
+        return Ok(None)
+    return _validate_expected_input_repos(
+        expected_input_repos=request.expected_input_repos,
+        manifest=manifest,
+    )
+
+
+def _validate_expected_input_repos(
+    *,
+    expected_input_repos: tuple[CandidateInputRepo, ...],
+    manifest: CandidateManifest,
+) -> Result[None, ReleaseError]:
+    expected = {repo.id: repo for repo in expected_input_repos}
+    actual = manifest.repos_by_id()
+    if set(expected) != set(actual):
+        return Err(
+            ReleaseError(
+                kind="verification_failed",
+                message="candidate input repo set mismatch",
+                hint=f"expected {sorted(expected)}, got {sorted(actual)}",
+            )
+        )
+    for repo_id, expected_repo in expected.items():
+        actual_repo = actual[repo_id]
+        if actual_repo.repo != expected_repo.repo or actual_repo.sha != expected_repo.sha:
             return Err(
                 ReleaseError(
                     kind="verification_failed",
-                    message="candidate input repo set mismatch",
-                    hint=f"expected {sorted(expected)}, got {sorted(actual)}",
+                    message=f"candidate input repo mismatch: {repo_id}",
+                    hint=(
+                        f"expected {expected_repo.repo}@{expected_repo.sha}, "
+                        f"got {actual_repo.repo}@{actual_repo.sha}"
+                    ),
                 )
             )
-        for repo_id, expected_repo in expected.items():
-            actual_repo = actual[repo_id]
-            if actual_repo.repo != expected_repo.repo or actual_repo.sha != expected_repo.sha:
-                return Err(
-                    ReleaseError(
-                        kind="verification_failed",
-                        message=f"candidate input repo mismatch: {repo_id}",
-                        hint=(
-                            f"expected {expected_repo.repo}@{expected_repo.sha}, "
-                            f"got {actual_repo.repo}@{actual_repo.sha}"
-                        ),
-                    )
-                )
     return Ok(None)
 
 
-def _load_json(path: Path) -> Result[object, ReleaseError]:
-    try:
-        return Ok(json.loads(path.read_text(encoding="utf-8")))
-    except (OSError, json.JSONDecodeError) as e:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"failed to load JSON file: {path}",
-                hint=str(e),
-            )
-        )
+def _default_generated_at() -> str:
+    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")

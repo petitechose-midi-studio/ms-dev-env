@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from ms.release.domain.candidate_models import (
+    CANDIDATE_SCHEMA,
+    CandidateArtifact,
+    CandidateInputRepo,
+    CandidateManifest,
+)
 from ms.release.domain.config import (
     APP_CANDIDATE_WORKFLOW,
     APP_DEFAULT_BRANCH,
@@ -17,12 +23,6 @@ from ms.release.domain.config import (
     DIST_REPO_SLUG,
     DIST_SPEC_DIR,
     RELEASE_REPOS,
-)
-from ms.release.domain.candidate_models import (
-    CANDIDATE_SCHEMA,
-    CandidateArtifact,
-    CandidateInputRepo,
-    CandidateManifest,
 )
 from ms.release.domain.models import (
     AppReleasePlan,
