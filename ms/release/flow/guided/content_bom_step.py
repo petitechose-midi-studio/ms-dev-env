@@ -63,7 +63,8 @@ def assess_content_bom(
 
     report = deps.preflight_open_control(workspace_root=workspace_root, core_sha=core_sha)
     if report.comparison is not None and report.comparison.status == "blocked":
-        detail = report.comparison.blockers[0] if report.comparison.blockers else "BOM validation is blocked"
+        blockers = report.comparison.blockers
+        detail = blockers[0] if blockers else "BOM validation is blocked"
         return ContentBomAssessment(
             status="blocked",
             label="BOM: blocked",
@@ -93,7 +94,9 @@ def assess_content_bom(
         )
 
     if report.comparison is not None and report.comparison.status == "promotion_required":
-        count = len([repo for repo in report.comparison.repos if repo.bom_sha != repo.workspace_sha])
+        count = len(
+            [repo for repo in report.comparison.repos if repo.bom_sha != repo.workspace_sha]
+        )
         label = f"BOM: review required ({count})" if count else "BOM: review required"
         return ContentBomAssessment(
             status="review_required",
@@ -198,7 +201,9 @@ def run_content_bom_step(
         if promoted.value.pr.kind == "merged_pr":
             console.success(f"Core BOM PR merged: {promoted.value.pr.display()}")
         else:
-            console.success(f"Core BOM already aligned on main: {promoted.value.merged_core_sha[:12]}")
+            console.success(
+                f"Core BOM already aligned on main: {promoted.value.merged_core_sha[:12]}"
+            )
         updated = set_sha(
             session,
             release_repos=release_repos,

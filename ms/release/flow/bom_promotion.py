@@ -6,7 +6,7 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.config import CORE_DEFAULT_BRANCH, CORE_REPO_SLUG
-from ms.release.domain.open_control_models import BomPromotionPlan, BomPromotionItem
+from ms.release.domain.open_control_models import BomPromotionItem, BomPromotionPlan
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_workflow import plan_workspace_bom_sync, sync_workspace_bom
 from ms.release.flow.pr_outcome import PrMergeOutcome
@@ -62,7 +62,8 @@ def promote_open_control_bom(
         return preview
 
     if preview.value.state.comparison.status == "blocked":
-        blocker = preview.value.state.comparison.blockers[0] if preview.value.state.comparison.blockers else None
+        blockers = preview.value.state.comparison.blockers
+        blocker = blockers[0] if blockers else None
         return Err(
             ReleaseError(
                 kind="invalid_input",

@@ -152,7 +152,13 @@ def validate_workspace_bom_targets(
             )
         )
 
-    targets = list(_validation_targets(workspace_root=workspace_root, command=tuple(runtime.value.command())))
+    runtime_command = tuple(runtime.value.command())
+    targets = list(
+        _validation_targets(
+            workspace_root=workspace_root,
+            command=runtime_command,
+        )
+    )
     if not include_plugin_release:
         targets = [target for target in targets if target.key != "plugin-bitwig-release"]
 

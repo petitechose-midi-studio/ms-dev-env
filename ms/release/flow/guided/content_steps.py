@@ -200,7 +200,10 @@ def run_guided_content_release_flow(
         if isinstance(choice, Err):
             return choice
         if choice.value.action == "repo":
-            core_index = next((idx for idx, repo in enumerate(release_repos) if repo.id == "core"), 0)
+            core_index = next(
+                (idx for idx, repo in enumerate(release_repos) if repo.id == "core"),
+                0,
+            )
             return Ok(
                 advance(
                     replace(

@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from rich.console import Console
+
 from ms.core.platformio_runtime import (
     PlatformioRuntime,
     PlatformioRuntimeError,
     resolve_platformio_runtime,
 )
 from ms.core.result import Err, Result
-from rich.console import Console
 
 from .models import OCPlatform
 

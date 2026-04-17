@@ -190,6 +190,9 @@ def _format_repo_state(*, repo_state: BomRepoState) -> str:
     parts = [f"{repo_state.repo}:"]
     if repo_state.workspace_sha != repo_state.bom_sha:
         parts.append(f"workspace {repo_state.workspace_sha} != bom {repo_state.bom_sha}")
-    if repo_state.repo in OPEN_CONTROL_NATIVE_CI_REPOS and repo_state.derived_sha != repo_state.bom_sha:
+    if (
+        repo_state.repo in OPEN_CONTROL_NATIVE_CI_REPOS
+        and repo_state.derived_sha != repo_state.bom_sha
+    ):
         parts.append(f"native_ci {repo_state.derived_sha} != bom {repo_state.bom_sha}")
     return " ".join(parts)

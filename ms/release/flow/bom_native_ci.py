@@ -88,7 +88,9 @@ def _load_native_ci_bom_from_platformio(*, path: Path) -> Result[DerivedBomLock,
     return _build_derived_lock(source=path.name, pins=pins)
 
 
-def _build_derived_lock(*, source: str, pins: dict[str, str]) -> Result[DerivedBomLock, ReleaseError]:
+def _build_derived_lock(
+    *, source: str, pins: dict[str, str]
+) -> Result[DerivedBomLock, ReleaseError]:
     ordered = tuple(
         OcSdkPin(repo=repo, sha=pins[repo])
         for repo in OPEN_CONTROL_NATIVE_CI_REPOS

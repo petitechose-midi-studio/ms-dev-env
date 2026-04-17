@@ -30,7 +30,9 @@ def _lock(version: str, sha_prefix: str) -> OcSdkLock:
     return OcSdkLock(version=version, pins=pins)
 
 
-def _workspace_repos(lock: OcSdkLock, *, dirty_repo: str | None = None) -> tuple[OpenControlRepoState, ...]:
+def _workspace_repos(
+    lock: OcSdkLock, *, dirty_repo: str | None = None
+) -> tuple[OpenControlRepoState, ...]:
     pins = lock.pins_by_repo()
     return tuple(
         OpenControlRepoState(
@@ -131,7 +133,7 @@ def test_compare_bom_state_reports_blocked_when_derived_is_incomplete() -> None:
     )
 
     assert comparison.status == "blocked"
-    assert any("derived native_ci pin missing: note" == blocker for blocker in comparison.blockers)
+    assert any(blocker == "derived native_ci pin missing: note" for blocker in comparison.blockers)
 
 
 def test_compare_bom_state_reports_promotion_required_on_workspace_drift() -> None:

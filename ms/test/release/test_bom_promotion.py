@@ -8,17 +8,21 @@ from pytest import MonkeyPatch
 from ms.core.result import Ok
 from ms.output.console import MockConsole
 from ms.release.domain.open_control_models import (
+    BomComparisonStatus,
     BomPromotionItem,
     BomPromotionPlan,
     BomRepoState,
     BomStateComparison,
-    BomComparisonStatus,
     DerivedBomLock,
     OcSdkLock,
     OcSdkPin,
 )
 from ms.release.flow.bom_promotion import promote_open_control_bom
-from ms.release.flow.bom_workflow import BomSyncPreview, BomSyncResult, BomWorkspaceState
+from ms.release.flow.bom_workflow import (
+    BomSyncPreview,
+    BomSyncResult,
+    BomWorkspaceState,
+)
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
 

@@ -51,9 +51,10 @@ def test_validate_workspace_bom_targets_runs_expected_steps(
     assert isinstance(validated, Ok)
     python_cmd = str(Path("/tmp/python"))
     assert [target.key for target in validated.value] == ["core-release", "core-native-ci"]
+    core_root = tmp_path / "midi-studio" / "core"
     assert calls == [
-        ((python_cmd, "-m", "platformio", "run", "-e", "release"), tmp_path / "midi-studio" / "core"),
-        ((python_cmd, "-m", "platformio", "test", "-e", "native_ci"), tmp_path / "midi-studio" / "core"),
+        ((python_cmd, "-m", "platformio", "run", "-e", "release"), core_root),
+        ((python_cmd, "-m", "platformio", "test", "-e", "native_ci"), core_root),
     ]
 
 

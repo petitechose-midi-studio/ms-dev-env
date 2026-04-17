@@ -1,8 +1,6 @@
-from __future__ import annotations
-
+import configparser
 import os
 import tempfile
-import configparser
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -128,7 +126,9 @@ def write_native_ci_sdk_ini(
     return Ok(path)
 
 
-def parse_native_ci_sdk_ini(*, text: str, source: str = OC_NATIVE_SDK_FILE) -> Result[dict[str, str], ReleaseError]:
+def parse_native_ci_sdk_ini(
+    *, text: str, source: str = OC_NATIVE_SDK_FILE
+) -> Result[dict[str, str], ReleaseError]:
     cfg = configparser.ConfigParser(interpolation=None)
     try:
         cfg.read_string(text)
@@ -184,7 +184,8 @@ def _ordered_pins(
 
 def _render_lib_dep_lines(pins: tuple[OcSdkPin, ...]) -> list[str]:
     return [
-        f"    oc-{pin.repo}=https://github.com/open-control/{pin.repo}.git#{pin.sha}" for pin in pins
+        f"    oc-{pin.repo}=https://github.com/open-control/{pin.repo}.git#{pin.sha}"
+        for pin in pins
     ]
 
 

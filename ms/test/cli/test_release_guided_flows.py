@@ -8,18 +8,24 @@ import pytest
 from ms.cli.selector import SelectorResult
 from ms.core.result import Ok
 from ms.output.console import MockConsole
-from ms.release.domain.models import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
+from ms.release.domain.models import (
+    AppReleasePlan,
+    PinnedRepo,
+    ReleaseBump,
+    ReleaseChannel,
+    ReleasePlan,
+)
 from ms.release.domain.open_control_models import (
     BomPromotionPlan,
     BomStateComparison,
-    OcSdkLock,
     OcSdkLoad,
+    OcSdkLock,
     OcSdkMismatch,
     OcSdkPin,
     OpenControlPreflightReport,
 )
-from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.app_prepare import AppPrepareResult
+from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.flow.guided.sessions import (
     AppReleaseSession,

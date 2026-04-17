@@ -71,7 +71,10 @@ def test_write_native_ci_sdk_ini_round_trips(tmp_path: Path) -> None:
     content = (core_root / "oc-native-sdk.ini").read_text(encoding="utf-8")
     assert "oc-framework=https://github.com/open-control/framework.git#" in content
     assert "oc-note=https://github.com/open-control/note.git#" in content
-    assert "oc-ui-lvgl-components=https://github.com/open-control/ui-lvgl-components.git#" not in content
+    assert (
+        "oc-ui-lvgl-components=https://github.com/open-control/ui-lvgl-components.git#"
+        not in content
+    )
 
 
 def test_parse_native_ci_sdk_ini_requires_complete_pin_set() -> None:

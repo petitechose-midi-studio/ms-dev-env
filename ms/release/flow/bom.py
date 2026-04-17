@@ -132,7 +132,11 @@ def plan_bom_promotion(
     items: list[BomPromotionItem] = []
     for repo in OPEN_CONTROL_BOM_REPOS:
         workspace_state = workspace_by_repo.get(repo)
-        if workspace_state is None or not workspace_state.exists or workspace_state.head_sha is None:
+        if (
+            workspace_state is None
+            or not workspace_state.exists
+            or workspace_state.head_sha is None
+        ):
             return Err(
                 ReleaseError(
                     kind="invalid_input",
