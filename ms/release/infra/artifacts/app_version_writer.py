@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -10,11 +9,19 @@ from ms.core.structured import as_str_dict, get_str
 from ms.platform.files import atomic_write_text
 from ms.release.errors import ReleaseError
 
+from .app_cargo_versions import (
+    read_cargo_lock_package_version,
+    read_cargo_package_version,
+    write_cargo_lock_package_version,
+    write_cargo_package_version,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class AppVersionFiles:
     package_json: Path
     cargo_toml: Path
+    cargo_lock: Path
     tauri_conf: Path
 
 
@@ -34,6 +41,7 @@ def app_version_files(*, app_repo_root: Path) -> AppVersionFiles:
     return AppVersionFiles(
         package_json=app_repo_root / "package.json",
         cargo_toml=app_repo_root / "src-tauri" / "Cargo.toml",
+        cargo_lock=app_repo_root / "src-tauri" / "Cargo.lock",
         tauri_conf=app_repo_root / "src-tauri" / "tauri.conf.json",
     )
 
@@ -43,14 +51,17 @@ def current_version(*, app_repo_root: Path) -> Result[str, ReleaseError]:
     pkg_v = _read_json_version(path=files.package_json)
     if isinstance(pkg_v, Err):
         return pkg_v
-    cargo_v = _read_cargo_package_version(path=files.cargo_toml)
+    cargo_v = read_cargo_package_version(path=files.cargo_toml)
     if isinstance(cargo_v, Err):
         return cargo_v
+    cargo_lock_v = read_cargo_lock_package_version(path=files.cargo_lock)
+    if isinstance(cargo_lock_v, Err):
+        return cargo_lock_v
     tauri_v = _read_json_version(path=files.tauri_conf)
     if isinstance(tauri_v, Err):
         return tauri_v
 
-    values = {pkg_v.value, cargo_v.value, tauri_v.value}
+    values = {pkg_v.value, cargo_v.value, cargo_lock_v.value, tauri_v.value}
     if len(values) != 1:
         return Err(
             ReleaseError(
@@ -58,7 +69,7 @@ def current_version(*, app_repo_root: Path) -> Result[str, ReleaseError]:
                 message="ms-manager version files are out of sync",
                 hint=(
                     f"package.json={pkg_v.value}, Cargo.toml={cargo_v.value}, "
-                    f"tauri.conf.json={tauri_v.value}"
+                    f"Cargo.lock={cargo_lock_v.value}, tauri.conf.json={tauri_v.value}"
                 ),
             )
         )
@@ -75,11 +86,17 @@ def apply_version(*, app_repo_root: Path, version: str) -> Result[list[Path], Re
     if pkg.value:
         changed.append(files.package_json)
 
-    cargo = _write_cargo_package_version(path=files.cargo_toml, version=version)
+    cargo = write_cargo_package_version(path=files.cargo_toml, version=version)
     if isinstance(cargo, Err):
         return cargo
     if cargo.value:
         changed.append(files.cargo_toml)
+
+    cargo_lock = write_cargo_lock_package_version(path=files.cargo_lock, version=version)
+    if isinstance(cargo_lock, Err):
+        return cargo_lock
+    if cargo_lock.value:
+        changed.append(files.cargo_lock)
 
     tauri = _write_json_version(path=files.tauri_conf, version=version)
     if isinstance(tauri, Err):
@@ -181,99 +198,6 @@ def _write_json_version(*, path: Path, version: str) -> Result[bool, ReleaseErro
             ReleaseError(
                 kind="repo_failed",
                 message=f"failed to write {path.name}: {e}",
-                hint=str(path),
-            )
-        )
-
-    return Ok(True)
-
-
-def _read_cargo_package_version(*, path: Path) -> Result[str, ReleaseError]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as e:
-        return Err(
-            ReleaseError(
-                kind="repo_failed",
-                message=f"failed to read Cargo.toml: {e}",
-                hint=str(path),
-            )
-        )
-
-    pkg_idx = text.find("[package]")
-    if pkg_idx < 0:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="missing [package] section in Cargo.toml",
-                hint=str(path),
-            )
-        )
-
-    sub = text[pkg_idx:]
-    m = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', sub)
-    if m is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="missing package version in Cargo.toml",
-                hint=str(path),
-            )
-        )
-
-    return Ok(m.group(1))
-
-
-def _write_cargo_package_version(*, path: Path, version: str) -> Result[bool, ReleaseError]:
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError as e:
-        return Err(
-            ReleaseError(
-                kind="repo_failed",
-                message=f"failed to read Cargo.toml: {e}",
-                hint=str(path),
-            )
-        )
-
-    pkg_idx = text.find("[package]")
-    if pkg_idx < 0:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="missing [package] section in Cargo.toml",
-                hint=str(path),
-            )
-        )
-
-    prefix = text[:pkg_idx]
-    sub = text[pkg_idx:]
-    m = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', sub)
-    if m is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="missing package version in Cargo.toml",
-                hint=str(path),
-            )
-        )
-
-    prev = m.group(1)
-    if prev == version:
-        return Ok(False)
-
-    start = m.start()
-    end = m.end()
-    replaced = sub[:start] + f'version = "{version}"' + sub[end:]
-    out = prefix + replaced
-
-    try:
-        atomic_write_text(path, out, encoding="utf-8")
-    except OSError as e:
-        return Err(
-            ReleaseError(
-                kind="repo_failed",
-                message=f"failed to write Cargo.toml: {e}",
                 hint=str(path),
             )
         )
