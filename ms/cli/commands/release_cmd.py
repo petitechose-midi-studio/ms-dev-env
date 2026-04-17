@@ -6,6 +6,7 @@ import typer
 
 from ms.cli.commands.release_app_commands import register_app_commands
 from ms.cli.commands.release_bom_commands import register_bom_commands
+from ms.cli.commands.release_candidate_commands import register_candidate_commands
 from ms.cli.commands.release_common import exit_release, release_error_code
 from ms.cli.commands.release_content_commands import register_content_commands
 from ms.cli.context import build_context
@@ -33,6 +34,12 @@ release_product_app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     help="Application release commands (ms-manager).",
+)
+
+release_candidate_app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help="Candidate manifest commands for producer workflows.",
 )
 
 
@@ -79,6 +86,8 @@ def guided_release_cmd(
 register_content_commands(top_level=release_app, namespace=release_content_app)
 register_app_commands(namespace=release_product_app)
 register_bom_commands(namespace=release_app)
+register_candidate_commands(namespace=release_candidate_app)
 
 release_app.add_typer(release_content_app, name="content")
 release_app.add_typer(release_product_app, name="app")
+release_app.add_typer(release_candidate_app, name="candidate")
