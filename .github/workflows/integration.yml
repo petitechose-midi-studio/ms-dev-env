@@ -22,6 +22,7 @@ jobs:
   release_alignment:
     name: release alignment
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -37,7 +38,8 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Setup Rust
+      - name: Setup Rust (main/manual only)
+        if: ${{ github.event_name != 'pull_request' }}
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux system deps
@@ -56,10 +58,12 @@ jobs:
       - name: Verify release BOM
         run: uv run ms release verify-bom
 
-      - name: Validate release BOM targets
+      - name: Validate release BOM targets (main/manual only)
+        if: ${{ github.event_name != 'pull_request' }}
         run: uv run ms release validate-bom-targets
 
-      - name: Build midi-studio-loader (rust)
+      - name: Build midi-studio-loader (rust, main/manual only)
+        if: ${{ github.event_name != 'pull_request' }}
         shell: bash
         working-directory: midi-studio/loader
         run: |
