@@ -78,6 +78,13 @@ class ContentGuidedDependencies(Protocol):
         core_sha: str,
     ) -> OpenControlPreflightReport: ...
 
+    def print_open_control_preflight(
+        self,
+        *,
+        console: ConsoleProtocol,
+        report: OpenControlPreflightReport,
+    ) -> None: ...
+
     def promote_open_control_bom(
         self,
         *,

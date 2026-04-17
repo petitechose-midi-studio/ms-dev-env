@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from ms.cli.selector import SelectorResult
 from ms.core.result import Ok
 from ms.output.console import MockConsole
-from ms.release.domain.models import AppReleasePlan
+from ms.release.domain.models import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
 from ms.release.domain.open_control_models import (
+    BomPromotionPlan,
     BomStateComparison,
+    OcSdkLock,
     OcSdkLoad,
+    OcSdkMismatch,
+    OcSdkPin,
     OpenControlPreflightReport,
 )
 from ms.release.flow.bom_promotion import BomPromotionResult
@@ -28,6 +31,20 @@ from ms.release.flow.guided.sessions import (
 
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:
     return SelectorResult(action="select", value=value, index=index)
+
+
+def _oc_sdk_lock(*, version: str) -> OcSdkLock:
+    return OcSdkLock(
+        version=version,
+        pins=(
+            OcSdkPin(repo="framework", sha="1" * 40),
+            OcSdkPin(repo="note", sha="2" * 40),
+            OcSdkPin(repo="hal-common", sha="3" * 40),
+            OcSdkPin(repo="hal-teensy", sha="4" * 40),
+            OcSdkPin(repo="ui-lvgl", sha="5" * 40),
+            OcSdkPin(repo="ui-lvgl-components", sha="6" * 40),
+        ),
+    )
 
 
 def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -278,8 +295,25 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         select_calls.append(repo)
         return Ok(_sel(sha_map[repo]))
 
-    def fake_plan(*args: object, **kwargs: object):
-        return Ok(SimpleNamespace(tag="v9.9.9", spec_path="release-specs/v9.9.9.json"))
+    def fake_plan(
+        *,
+        workspace_root: Path,
+        channel: ReleaseChannel,
+        bump: ReleaseBump,
+        tag_override: str | None,
+        pinned: tuple[PinnedRepo, ...],
+    ) -> Ok[ReleasePlan]:
+        del workspace_root, channel, bump, tag_override, pinned
+        return Ok(
+            ReleasePlan(
+                channel="stable",
+                tag="v9.9.9",
+                pinned=(),
+                spec_path="release-specs/v9.9.9.json",
+                notes_path=None,
+                title="release(content): v9.9.9",
+            )
+        )
 
     def fake_select_one(*args: object, **kwargs: object) -> SelectorResult[str]:
         title = str(kwargs.get("title", ""))
@@ -295,9 +329,9 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     def fake_ci_green(*args: object, **kwargs: object):
         return Ok(None)
 
-    def fake_open_control(*args: object, **kwargs: object):
+    def fake_open_control(*args: object, **kwargs: object) -> OpenControlPreflightReport:
         return OpenControlPreflightReport(
-            oc_sdk=OcSdkLoad(lock=SimpleNamespace(version="0.1.3"), source="git", error=None),
+            oc_sdk=OcSdkLoad(lock=_oc_sdk_lock(version="0.1.3"), source="git", error=None),
             repos=(),
             mismatches=(),
             derived_lock=None,
@@ -350,8 +384,9 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         "petitechose-midi-studio/core",
         "petitechose-midi-studio/plugin-bitwig",
     ]
+    assert "plan" in published
     plan_obj = published["plan"]
-    assert isinstance(plan_obj, SimpleNamespace)
+    assert isinstance(plan_obj, ReleasePlan)
     assert plan_obj.tag == "v9.9.9"
 
 
@@ -391,14 +426,25 @@ def test_guided_content_bom_promotion_updates_core_sha(
 
     planned_inputs: list[tuple[tuple[str, str], ...]] = []
 
-    def fake_plan(*args: object, **kwargs: object):
-        pinned = tuple((pin.repo.id, pin.sha) for pin in kwargs["pinned"])
-        planned_inputs.append(pinned)
+    def fake_plan(
+        *,
+        workspace_root: Path,
+        channel: ReleaseChannel,
+        bump: ReleaseBump,
+        tag_override: str | None,
+        pinned: tuple[PinnedRepo, ...],
+    ) -> Ok[ReleasePlan]:
+        del workspace_root, channel, bump, tag_override
+        pinned_snapshot = tuple((pin.repo.id, pin.sha) for pin in pinned)
+        planned_inputs.append(pinned_snapshot)
         return Ok(
-            SimpleNamespace(
+            ReleasePlan(
+                channel="stable",
                 tag="v9.9.9",
+                pinned=pinned,
                 spec_path="release-specs/v9.9.9.json",
-                pinned=kwargs["pinned"],
+                notes_path=None,
+                title="release(content): v9.9.9",
             )
         )
 
@@ -421,27 +467,27 @@ def test_guided_content_bom_promotion_updates_core_sha(
     def fake_ci_green(*args: object, **kwargs: object):
         return Ok(None)
 
-    def fake_open_control(*args: object, **kwargs: object):
+    def fake_open_control(*args: object, **kwargs: object) -> OpenControlPreflightReport:
         core_sha = str(kwargs["core_sha"])
         if core_sha == "9" * 40:
             comparison = BomStateComparison(repos=(), status="aligned", blockers=())
-            mismatches = ()
+            mismatches: tuple[OcSdkMismatch, ...] = ()
         else:
             comparison = BomStateComparison(
                 repos=(),
                 status="promotion_required",
                 blockers=(),
             )
-            mismatches = (SimpleNamespace(repo="framework", pinned_sha="a", local_sha="b"),)
+            mismatches = (OcSdkMismatch(repo="framework", pinned_sha="a", local_sha="b"),)
         return OpenControlPreflightReport(
-            oc_sdk=OcSdkLoad(lock=SimpleNamespace(version="0.1.4"), source="git", error=None),
+            oc_sdk=OcSdkLoad(lock=_oc_sdk_lock(version="0.1.4"), source="git", error=None),
             repos=(),
             mismatches=mismatches,
             derived_lock=None,
             comparison=comparison,
         )
 
-    def fake_promote(*args: object, **kwargs: object):
+    def fake_promote(*args: object, **kwargs: object) -> Ok[BomPromotionResult]:
         return Ok(
             BomPromotionResult(
                 pr=PrMergeOutcome(
@@ -450,7 +496,13 @@ def test_guided_content_bom_promotion_updates_core_sha(
                     label="https://example/pr/99",
                 ),
                 merged_core_sha="9" * 40,
-                plan=SimpleNamespace(),
+                plan=BomPromotionPlan(
+                    source="workspace",
+                    current_version="0.1.3",
+                    next_version="0.1.4",
+                    items=(),
+                    requires_write=True,
+                ),
             )
         )
 
@@ -483,7 +535,14 @@ def test_guided_content_bom_promotion_updates_core_sha(
     monkeypatch.setattr(content, "confirm_yn", fake_confirm)
     monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
-    monkeypatch.setattr(content, "ensure_core_release_permissions", lambda **_: Ok(None))
+    def fake_ensure_core_release_permissions(**_: object) -> Ok[None]:
+        return Ok(None)
+
+    monkeypatch.setattr(
+        content,
+        "ensure_core_release_permissions",
+        fake_ensure_core_release_permissions,
+    )
     monkeypatch.setattr(content, "promote_open_control_bom_flow", fake_promote)
     monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
     monkeypatch.setattr(content, "publish_distribution_release", fake_publish)
@@ -500,7 +559,9 @@ def test_guided_content_bom_promotion_updates_core_sha(
     assert isinstance(result, Ok)
     assert planned_inputs[0][2] == ("core", "3" * 40)
     assert planned_inputs[-1][2] == ("core", "9" * 40)
+    assert "plan" in published
     plan_obj = published["plan"]
+    assert isinstance(plan_obj, ReleasePlan)
     assert plan_obj.pinned[2].repo.id == "core"
     assert plan_obj.pinned[2].sha == "9" * 40
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ms.core.result import Err
+from ms.core.result import Err, Ok
 from ms.release.domain.open_control_models import (
     OPEN_CONTROL_BOM_REPOS,
     OPEN_CONTROL_NATIVE_CI_REPOS,
@@ -53,12 +53,12 @@ def test_write_oc_sdk_ini_round_trips(tmp_path: Path) -> None:
     core_root.mkdir()
 
     result = write_oc_sdk_ini(core_root=core_root, version="0.1.2", pins=_pins())
-    assert result.is_ok()
+    assert isinstance(result, Ok)
 
     parsed = parse_oc_sdk_ini(text=(core_root / "oc-sdk.ini").read_text(encoding="utf-8"))
-    assert parsed.is_ok()
-    assert parsed.unwrap().version == "0.1.2"
-    assert parsed.unwrap().pins_by_repo()["note"] == f"{2:040x}"
+    assert isinstance(parsed, Ok)
+    assert parsed.value.version == "0.1.2"
+    assert parsed.value.pins_by_repo()["note"] == f"{2:040x}"
 
 
 def test_write_native_ci_sdk_ini_round_trips(tmp_path: Path) -> None:
@@ -66,7 +66,7 @@ def test_write_native_ci_sdk_ini_round_trips(tmp_path: Path) -> None:
     core_root.mkdir()
 
     result = write_native_ci_sdk_ini(core_root=core_root, pins=_pins())
-    assert result.is_ok()
+    assert isinstance(result, Ok)
 
     content = (core_root / "oc-native-sdk.ini").read_text(encoding="utf-8")
     assert "oc-framework=https://github.com/open-control/framework.git#" in content

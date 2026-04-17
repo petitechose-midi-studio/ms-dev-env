@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from ms.core.result import Ok
 from ms.oc_cli.common import (
     OCPlatform,
     build_pio_env,
@@ -95,8 +96,8 @@ def test_resolve_pio_runtime_prefers_workspace_python(tmp_path: Path) -> None:
     (ws / ".ms-workspace").write_text("", encoding="utf-8")
 
     runtime = resolve_pio_runtime(project)
-    assert runtime.is_ok()
-    resolved = runtime.unwrap()
+    assert isinstance(runtime, Ok)
+    resolved = runtime.value
     assert resolved.source == "workspace_venv"
     assert resolved.command("run", "--version")[:3] == [
         str(pio_python),

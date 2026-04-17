@@ -196,6 +196,8 @@ def collect_open_control_repos(*, workspace_root: Path) -> tuple[OpenControlRepo
 
 
 def preflight_open_control(*, workspace_root: Path, core_sha: str) -> OpenControlPreflightReport:
+    from ms.release.flow.bom import compare_bom_state, load_native_ci_bom
+
     repos = collect_open_control_repos(workspace_root=workspace_root)
     oc_sdk = load_oc_sdk_lock(workspace_root=workspace_root, core_sha=core_sha)
     derived_lock = None
@@ -203,8 +205,6 @@ def preflight_open_control(*, workspace_root: Path, core_sha: str) -> OpenContro
 
     local_core = workspace_root / "midi-studio" / "core"
     if local_core.is_dir():
-        from ms.release.flow.bom import compare_bom_state, load_native_ci_bom
-
         derived = load_native_ci_bom(core_root=local_core)
         if isinstance(derived, Ok):
             derived_lock = derived.value

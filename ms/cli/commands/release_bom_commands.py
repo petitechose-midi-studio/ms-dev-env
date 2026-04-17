@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import typer
 
 from ms.cli.commands.release_common import exit_release, release_error_code

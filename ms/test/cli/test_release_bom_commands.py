@@ -12,6 +12,7 @@ from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import detect
 from ms.release.domain.open_control_models import (
+    BomComparisonStatus,
     BomPromotionItem,
     BomPromotionPlan,
     BomRepoState,
@@ -38,7 +39,7 @@ def _ctx(tmp_path: Path, console: MockConsole) -> CLIContext:
     )
 
 
-def _state(*, status: str) -> BomWorkspaceState:
+def _state(*, status: BomComparisonStatus) -> BomWorkspaceState:
     pins = (
         OcSdkPin(repo="framework", sha="1" * 40),
         OcSdkPin(repo="note", sha="2" * 40),
@@ -97,6 +98,7 @@ def _state(*, status: str) -> BomWorkspaceState:
             workspace_dirty=False,
         ),
     )
+    blockers = ("native_ci BOM unavailable",) if status == "blocked" else ()
     return BomWorkspaceState(
         core_root=Path("/tmp/core"),
         bom_lock=OcSdkLock(version="0.1.3", pins=pins),
@@ -107,8 +109,8 @@ def _state(*, status: str) -> BomWorkspaceState:
         ),
         comparison=BomStateComparison(
             repos=repos,
-            status=status,  # type: ignore[arg-type]
-            blockers=(() if status != "blocked" else ("native_ci BOM unavailable",)),
+            status=status,
+            blockers=blockers,
         ),
     )
 
@@ -119,16 +121,14 @@ def test_verify_bom_cmd_succeeds_when_aligned(
     import ms.cli.commands.release_bom_commands as bom_cmd
 
     console = MockConsole()
-    monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
-    monkeypatch.setattr(
-        bom_cmd,
-        "verify_workspace_bom_files",
-        lambda **_: Ok(_state(status="aligned")),
-    )
-    monkeypatch.setattr(
-        bom_cmd,
-        "validate_workspace_bom_targets",
-        lambda **_: Ok(
+
+    def fake_verify_workspace_bom_files(**_: object) -> Ok[BomWorkspaceState]:
+        return Ok(_state(status="aligned"))
+
+    def fake_validate_workspace_bom_targets(
+        **_: object,
+    ) -> Ok[tuple[BomValidationTarget, ...]]:
+        return Ok(
             (
                 BomValidationTarget(
                     key="core-release",
@@ -137,7 +137,14 @@ def test_verify_bom_cmd_succeeds_when_aligned(
                     command=("python", "-m", "platformio", "run", "-e", "release"),
                 ),
             )
-        ),
+        )
+
+    monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
+    monkeypatch.setattr(bom_cmd, "verify_workspace_bom_files", fake_verify_workspace_bom_files)
+    monkeypatch.setattr(
+        bom_cmd,
+        "validate_workspace_bom_targets",
+        fake_validate_workspace_bom_targets,
     )
 
     bom_cmd.verify_bom_cmd()
@@ -151,12 +158,12 @@ def test_verify_bom_cmd_exits_when_not_aligned(
     import ms.cli.commands.release_bom_commands as bom_cmd
 
     console = MockConsole()
+
+    def fake_verify_workspace_bom_files(**_: object) -> Ok[BomWorkspaceState]:
+        return Ok(_state(status="promotion_required"))
+
     monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
-    monkeypatch.setattr(
-        bom_cmd,
-        "verify_workspace_bom_files",
-        lambda **_: Ok(_state(status="promotion_required")),
-    )
+    monkeypatch.setattr(bom_cmd, "verify_workspace_bom_files", fake_verify_workspace_bom_files)
 
     with pytest.raises(typer.Exit) as exc:
         bom_cmd.verify_bom_cmd(validate_targets=False)
@@ -189,8 +196,11 @@ def test_sync_bom_cmd_preview_warns_when_write_needed(
         ),
     )
 
+    def fake_plan_workspace_bom_sync(**_: object) -> Ok[BomSyncPreview]:
+        return Ok(preview)
+
     monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
-    monkeypatch.setattr(bom_cmd, "plan_workspace_bom_sync", lambda **_: Ok(preview))
+    monkeypatch.setattr(bom_cmd, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
 
     bom_cmd.sync_bom_cmd(write=False, validate_targets=False)
 
@@ -229,9 +239,15 @@ def test_sync_bom_cmd_write_runs_sync(
         ),
     )
 
+    def fake_plan_workspace_bom_sync(**_: object) -> Ok[BomSyncPreview]:
+        return Ok(preview)
+
+    def fake_sync_workspace_bom(**_: object) -> Ok[BomSyncResult]:
+        return Ok(result)
+
     monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
-    monkeypatch.setattr(bom_cmd, "plan_workspace_bom_sync", lambda **_: Ok(preview))
-    monkeypatch.setattr(bom_cmd, "sync_workspace_bom", lambda **_: Ok(result))
+    monkeypatch.setattr(bom_cmd, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(bom_cmd, "sync_workspace_bom", fake_sync_workspace_bom)
 
     bom_cmd.sync_bom_cmd(write=True, validate_targets=True)
 

@@ -9,7 +9,6 @@ from ms.output.console import ConsoleProtocol
 from ms.release.domain.models import ReleaseRepo
 from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
-from ms.release.view.content_console import print_open_control_preflight
 
 from .content_contracts import ContentGuidedDependencies
 from .content_repo_pins import set_sha, sha_map
@@ -140,7 +139,7 @@ def run_content_bom_step(
         release_repos=release_repos,
     )
     if assessment.report is not None:
-        print_open_control_preflight(console=console, report=assessment.report)
+        deps.print_open_control_preflight(console=console, report=assessment.report)
 
     options: list[MenuOption[str]] = []
     if assessment.status == "aligned":

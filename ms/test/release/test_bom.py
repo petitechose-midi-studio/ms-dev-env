@@ -2,9 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from ms.core.result import Err
+from ms.core.result import Err, Ok
 from ms.release.domain.open_control_models import (
     OPEN_CONTROL_BOM_REPOS,
     OPEN_CONTROL_NATIVE_CI_REPOS,
@@ -68,8 +66,8 @@ def test_collect_workspace_bom_state_includes_note(tmp_path: Path) -> None:
         (repo_root / ".git").write_text("gitdir: nowhere\n", encoding="utf-8")
 
     repos = collect_workspace_bom_state(workspace_root=workspace_root)
-    assert repos.is_ok()
-    assert tuple(repo.repo for repo in repos.unwrap()) == OPEN_CONTROL_BOM_REPOS
+    assert isinstance(repos, Ok)
+    assert tuple(repo.repo for repo in repos.value) == OPEN_CONTROL_BOM_REPOS
 
 
 def test_load_bom_lock_from_file_parses_note_pin(tmp_path: Path) -> None:
@@ -97,8 +95,8 @@ def test_load_bom_lock_from_file_parses_note_pin(tmp_path: Path) -> None:
     )
 
     parsed = load_bom_lock_from_file(path=lock_file)
-    assert parsed.is_ok()
-    assert parsed.unwrap().pins_by_repo()["note"] == "2222222222222222222222222222222222222222"
+    assert isinstance(parsed, Ok)
+    assert parsed.value.pins_by_repo()["note"] == "2222222222222222222222222222222222222222"
 
 
 def test_load_native_ci_bom_reads_platformio_native_ci_inline_pins(tmp_path: Path) -> None:
@@ -119,9 +117,9 @@ def test_load_native_ci_bom_reads_platformio_native_ci_inline_pins(tmp_path: Pat
     )
 
     derived = load_native_ci_bom(core_root=core_root)
-    assert derived.is_ok()
-    assert derived.unwrap().pins_by_repo()["note"] == "2222222222222222222222222222222222222222"
-    assert "framework" in derived.unwrap().pins_by_repo()
+    assert isinstance(derived, Ok)
+    assert derived.value.pins_by_repo()["note"] == "2222222222222222222222222222222222222222"
+    assert "framework" in derived.value.pins_by_repo()
 
 
 def test_compare_bom_state_reports_blocked_when_derived_is_incomplete() -> None:
@@ -171,8 +169,8 @@ def test_plan_bom_promotion_bumps_patch_and_includes_note() -> None:
     )
 
     plan = plan_bom_promotion(current_lock=lock, workspace_repos=tuple(repos))
-    assert plan.is_ok()
-    value = plan.unwrap()
+    assert isinstance(plan, Ok)
+    value = plan.value
     assert value.current_version == "0.1.2"
     assert value.next_version == "0.1.3"
     assert value.requires_write is True
@@ -207,8 +205,9 @@ def test_sync_bom_files_writes_canonical_and_derived_files(tmp_path: Path) -> No
     core_root.mkdir()
 
     lock = _lock("0.1.2", "a")
-    plan = plan_bom_promotion(current_lock=lock, workspace_repos=_workspace_repos(lock)).unwrap()
-    written = sync_bom_files(core_root=core_root, plan=plan)
+    plan = plan_bom_promotion(current_lock=lock, workspace_repos=_workspace_repos(lock))
+    assert isinstance(plan, Ok)
+    written = sync_bom_files(core_root=core_root, plan=plan.value)
 
-    assert written.is_ok()
-    assert tuple(path.name for path in written.unwrap()) == ("oc-sdk.ini", "oc-native-sdk.ini")
+    assert isinstance(written, Ok)
+    assert tuple(path.name for path in written.value) == ("oc-sdk.ini", "oc-native-sdk.ini")

@@ -32,6 +32,7 @@ from ms.release.flow.guided.sessions import ContentReleaseSession, clear_content
 from ms.release.flow.permissions import ensure_core_release_permissions, ensure_release_permissions
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.open_control import preflight_open_control
+from ms.release.view.content_console import print_open_control_preflight
 from ms.release.view.guided_console import print_notes_status
 
 
@@ -180,6 +181,14 @@ def run_guided_content_release(
             self, *, workspace_root: Path, core_sha: str
         ) -> OpenControlPreflightReport:
             return preflight_open_control(workspace_root=workspace_root, core_sha=core_sha)
+
+        def print_open_control_preflight(
+            self,
+            *,
+            console: ConsoleProtocol,
+            report: OpenControlPreflightReport,
+        ) -> None:
+            print_open_control_preflight(console=console, report=report)
 
         def promote_open_control_bom(
             self,
