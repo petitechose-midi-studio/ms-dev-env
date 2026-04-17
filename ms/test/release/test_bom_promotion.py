@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from pytest import MonkeyPatch
 
-from ms.core.result import Ok
+from ms.core.result import Err, Ok
 from ms.output.console import MockConsole
 from ms.release.domain.open_control_models import (
     BomComparisonStatus,
@@ -17,6 +17,7 @@ from ms.release.domain.open_control_models import (
     OcSdkLock,
     OcSdkPin,
 )
+from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import promote_open_control_bom
 from ms.release.flow.bom_workflow import (
     BomSyncPreview,
@@ -209,11 +210,86 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
     assert calls == [
         "clean",
         "pull",
-        "branch:release/oc-sdk-v0.1.4-99999999",
         "sync",
+        "branch:release/oc-sdk-v0.1.4-99999999",
         "commit:release(core): promote OpenControl BOM to v0.1.4",
         "pr:release(core): promote OpenControl BOM to v0.1.4",
         "merge",
         "head",
         "pull",
     ]
+
+
+def test_promote_open_control_bom_restores_main_when_sync_fails(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    import ms.release.flow.bom_promotion as promotion
+
+    core_root = tmp_path / "midi-studio" / "core"
+    core_root.mkdir(parents=True)
+    (core_root / "oc-sdk.ini").write_text("old sdk\n", encoding="utf-8")
+    (core_root / "oc-native-sdk.ini").write_text("old native\n", encoding="utf-8")
+
+    preview = BomSyncPreview(
+        state=_workspace_state(root=core_root, status="promotion_required"),
+        plan=BomPromotionPlan(
+            source="workspace",
+            current_version="0.1.3",
+            next_version="0.1.4",
+            items=(
+                BomPromotionItem(
+                    repo="framework",
+                    from_sha="1" * 40,
+                    to_sha="9" * 40,
+                    changed=True,
+                ),
+            ),
+            requires_write=True,
+        ),
+    )
+
+    calls: list[str] = []
+
+    def fake_ensure_core_repo(**_: object) -> Ok[SimpleNamespace]:
+        return Ok(SimpleNamespace(root=core_root))
+
+    def fake_ensure_clean_core_repo(**_: object) -> Ok[None]:
+        calls.append("clean")
+        return Ok(None)
+
+    def fake_core_checkout_main_and_pull(**_: object) -> Ok[None]:
+        calls.append("pull")
+        return Ok(None)
+
+    def fake_plan_workspace_bom_sync(**_: object) -> Ok[BomSyncPreview]:
+        return Ok(preview)
+
+    def fake_sync_workspace_bom(**_: object) -> Err[ReleaseError]:
+        calls.append("sync")
+        (core_root / "oc-sdk.ini").write_text("new sdk\n", encoding="utf-8")
+        (core_root / "oc-native-sdk.ini").write_text("new native\n", encoding="utf-8")
+        return Err(
+            ReleaseError(
+                kind="repo_failed",
+                message="validation failed",
+                hint="core release failed",
+            )
+        )
+
+    monkeypatch.setattr(promotion, "ensure_core_repo", fake_ensure_core_repo)
+    monkeypatch.setattr(promotion, "ensure_clean_core_repo", fake_ensure_clean_core_repo)
+    monkeypatch.setattr(promotion, "core_checkout_main_and_pull", fake_core_checkout_main_and_pull)
+    monkeypatch.setattr(promotion, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(promotion, "sync_workspace_bom", fake_sync_workspace_bom)
+
+    result = promote_open_control_bom(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        dry_run=False,
+    )
+
+    assert isinstance(result, Err)
+    assert result.error.message == "validation failed"
+    assert calls == ["clean", "pull", "sync"]
+    assert (core_root / "oc-sdk.ini").read_text(encoding="utf-8") == "old sdk\n"
+    assert (core_root / "oc-native-sdk.ini").read_text(encoding="utf-8") == "old native\n"

@@ -28,15 +28,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
+      - name: Setup ms runtime
+        uses: ./.github/actions/setup-ms-runtime
 
       - name: Setup Rust (main/manual only)
         if: ${{ github.event_name != 'pull_request' }}
@@ -48,9 +41,6 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libsdl2-dev libasound2-dev libudev-dev libusb-1.0-0-dev
-
-      - name: Sync Python deps
-        run: uv sync --frozen --extra dev
 
       - name: Setup workspace (real)
         run: uv run ms setup --skip-prereqs --yes
