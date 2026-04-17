@@ -20,6 +20,8 @@ from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import (
     BomPromotionResult,
+)
+from ms.release.flow.bom_promotion import (
     promote_open_control_bom as promote_open_control_bom_flow,
 )
 from ms.release.flow.ci_gate import ensure_ci_green

@@ -26,13 +26,13 @@ from ms.release.domain.open_control_models import (
 )
 from ms.release.flow.app_prepare import AppPrepareResult
 from ms.release.flow.bom_promotion import BomPromotionResult
-from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.flow.guided.sessions import (
     AppReleaseSession,
     ContentReleaseSession,
     new_app_session,
     new_content_session,
 )
+from ms.release.flow.pr_outcome import PrMergeOutcome
 
 
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:

@@ -15,7 +15,6 @@ from .content_repo_pins import set_sha, sha_map
 from .menu_option import MenuOption
 from .sessions import ContentReleaseSession
 
-
 ContentBomStatus = Literal["aligned", "review_required", "blocked"]
 
 
