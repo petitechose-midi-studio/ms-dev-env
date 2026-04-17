@@ -11,6 +11,8 @@ from ms.release.errors import ReleaseError
 from ms.release.flow.bom_workflow import plan_workspace_bom_sync, sync_workspace_bom
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.github.client import get_ref_head_sha
+from ms.release.infra.open_control import OC_SDK_LOCK_FILE
+from ms.release.infra.open_control_writer import OC_NATIVE_SDK_FILE
 from ms.release.infra.repos.core import (
     checkout_main_and_pull as core_checkout_main_and_pull,
 )
@@ -92,6 +94,21 @@ def promote_open_control_bom(
             )
         )
 
+    snapshot = _snapshot_bom_files(core_root=core_root)
+    if isinstance(snapshot, Err):
+        return snapshot
+    synced = sync_workspace_bom(
+        workspace_root=workspace_root,
+        allow_dirty_workspace=False,
+        validate_targets=True,
+        include_plugin_release=True,
+    )
+    if isinstance(synced, Err):
+        restored = _restore_bom_files(snapshot=snapshot.value)
+        if isinstance(restored, Err):
+            return restored
+        return synced
+
     branch = _branch_name(plan=preview.value.plan)
     created = core_create_branch(
         repo_root=core_root,
@@ -100,16 +117,10 @@ def promote_open_control_bom(
         dry_run=dry_run,
     )
     if isinstance(created, Err):
+        restored = _restore_bom_files(snapshot=snapshot.value)
+        if isinstance(restored, Err):
+            return restored
         return created
-
-    synced = sync_workspace_bom(
-        workspace_root=workspace_root,
-        allow_dirty_workspace=False,
-        validate_targets=True,
-        include_plugin_release=True,
-    )
-    if isinstance(synced, Err):
-        return synced
 
     title = f"release(core): promote OpenControl BOM to v{synced.value.plan.next_version}"
     commit_message = title
@@ -124,7 +135,7 @@ def promote_open_control_bom(
         dry_run=dry_run,
     )
     if isinstance(committed, Err):
-        return committed
+        return _with_branch_hint(error=committed.error, branch=branch)
 
     pr = core_open_pr(
         workspace_root=workspace_root,
@@ -135,7 +146,7 @@ def promote_open_control_bom(
         dry_run=dry_run,
     )
     if isinstance(pr, Err):
-        return pr
+        return _with_branch_hint(error=pr.error, branch=branch)
 
     merged = core_merge_pr(
         workspace_root=workspace_root,
@@ -148,7 +159,7 @@ def promote_open_control_bom(
             ReleaseError(
                 kind=merged.error.kind,
                 message=merged.error.message,
-                hint=f"PR: {pr.value}\n{merged.error.hint or ''}".strip(),
+                hint=_merge_failure_hint(branch=branch, pr_url=pr.value, detail=merged.error.hint),
             )
         )
 
@@ -158,7 +169,7 @@ def promote_open_control_bom(
         ref=CORE_DEFAULT_BRANCH,
     )
     if isinstance(head, Err):
-        return head
+        return _with_branch_hint(error=head.error, branch=branch, pr_url=pr.value)
 
     refreshed = core_checkout_main_and_pull(
         repo_root=core_root,
@@ -166,7 +177,7 @@ def promote_open_control_bom(
         dry_run=dry_run,
     )
     if isinstance(refreshed, Err):
-        return refreshed
+        return _with_branch_hint(error=refreshed.error, branch=branch, pr_url=pr.value)
 
     console.print(f"core BOM merged on {head.value[:12]}", Style.DIM)
     return Ok(
@@ -201,3 +212,69 @@ def _render_item(item: BomPromotionItem) -> str:
     before = item.from_sha[:12] if item.from_sha is not None else "unset"
     after = item.to_sha[:12]
     return f"- {item.repo}: {before} -> {after}"
+
+
+def _snapshot_bom_files(*, core_root: Path) -> Result[dict[Path, str | None], ReleaseError]:
+    snapshot: dict[Path, str | None] = {}
+    for path in _bom_files(core_root=core_root):
+        try:
+            snapshot[path] = path.read_text(encoding="utf-8") if path.exists() else None
+        except OSError as error:
+            return Err(
+                ReleaseError(
+                    kind="repo_failed",
+                    message=f"failed to snapshot {path.name}",
+                    hint=str(error),
+                )
+            )
+    return Ok(snapshot)
+
+
+def _restore_bom_files(*, snapshot: dict[Path, str | None]) -> Result[None, ReleaseError]:
+    for path, content in snapshot.items():
+        try:
+            if content is None:
+                if path.exists():
+                    path.unlink()
+                continue
+            path.write_text(content, encoding="utf-8")
+        except OSError as error:
+            return Err(
+                ReleaseError(
+                    kind="repo_failed",
+                    message=f"failed to restore {path.name} after BOM promotion error",
+                    hint=str(error),
+                )
+            )
+    return Ok(None)
+
+
+def _bom_files(*, core_root: Path) -> tuple[Path, ...]:
+    return (
+        core_root / OC_SDK_LOCK_FILE,
+        core_root / OC_NATIVE_SDK_FILE,
+    )
+
+
+def _with_branch_hint(
+    *, error: ReleaseError, branch: str, pr_url: str | None = None
+) -> Err[ReleaseError]:
+    lines = [f"core branch: {branch}"]
+    if pr_url is not None:
+        lines.append(f"PR: {pr_url}")
+    if error.hint:
+        lines.append(error.hint)
+    return Err(
+        ReleaseError(
+            kind=error.kind,
+            message=error.message,
+            hint="\n".join(lines),
+        )
+    )
+
+
+def _merge_failure_hint(*, branch: str, pr_url: str, detail: str | None) -> str:
+    lines = [f"core branch: {branch}", f"PR: {pr_url}"]
+    if detail:
+        lines.append(detail)
+    return "\n".join(lines)
