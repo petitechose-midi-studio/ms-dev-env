@@ -42,8 +42,7 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install Linux system deps (main/manual only)
-        if: ${{ github.event_name != 'pull_request' }}
+      - name: Install Linux system deps
         shell: bash
         run: |
           set -euo pipefail
