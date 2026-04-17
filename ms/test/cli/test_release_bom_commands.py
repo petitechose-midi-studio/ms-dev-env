@@ -125,6 +125,43 @@ def test_verify_bom_cmd_succeeds_when_aligned(
     def fake_verify_workspace_bom_files(**_: object) -> Ok[BomWorkspaceState]:
         return Ok(_state(status="aligned"))
 
+    monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
+    monkeypatch.setattr(bom_cmd, "verify_workspace_bom_files", fake_verify_workspace_bom_files)
+
+    bom_cmd.verify_bom_cmd()
+
+    assert any("OpenControl BOM verified" in message for message in console.messages)
+
+
+def test_verify_bom_cmd_exits_when_not_aligned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ms.cli.commands.release_bom_commands as bom_cmd
+
+    console = MockConsole()
+
+    def fake_verify_workspace_bom_files(**_: object) -> Ok[BomWorkspaceState]:
+        return Ok(_state(status="promotion_required"))
+
+    monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
+    monkeypatch.setattr(bom_cmd, "verify_workspace_bom_files", fake_verify_workspace_bom_files)
+
+    with pytest.raises(typer.Exit) as exc:
+        bom_cmd.verify_bom_cmd()
+
+    assert exc.value.exit_code == int(ErrorCode.USER_ERROR)
+
+
+def test_validate_bom_targets_cmd_succeeds_when_aligned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import ms.cli.commands.release_bom_commands as bom_cmd
+
+    console = MockConsole()
+
+    def fake_verify_workspace_bom_files(**_: object) -> Ok[BomWorkspaceState]:
+        return Ok(_state(status="aligned"))
+
     def fake_validate_workspace_bom_targets(
         **_: object,
     ) -> Ok[tuple[BomValidationTarget, ...]]:
@@ -147,28 +184,10 @@ def test_verify_bom_cmd_succeeds_when_aligned(
         fake_validate_workspace_bom_targets,
     )
 
-    bom_cmd.verify_bom_cmd()
+    bom_cmd.validate_bom_targets_cmd()
 
-    assert any("OpenControl BOM verified" in message for message in console.messages)
-
-
-def test_verify_bom_cmd_exits_when_not_aligned(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import ms.cli.commands.release_bom_commands as bom_cmd
-
-    console = MockConsole()
-
-    def fake_verify_workspace_bom_files(**_: object) -> Ok[BomWorkspaceState]:
-        return Ok(_state(status="promotion_required"))
-
-    monkeypatch.setattr(bom_cmd, "build_context", lambda: _ctx(tmp_path, console))
-    monkeypatch.setattr(bom_cmd, "verify_workspace_bom_files", fake_verify_workspace_bom_files)
-
-    with pytest.raises(typer.Exit) as exc:
-        bom_cmd.verify_bom_cmd(validate_targets=False)
-
-    assert exc.value.exit_code == int(ErrorCode.USER_ERROR)
+    assert any("core release" in message for message in console.messages)
+    assert any("OpenControl BOM targets validated" in message for message in console.messages)
 
 
 def test_sync_bom_cmd_preview_warns_when_write_needed(

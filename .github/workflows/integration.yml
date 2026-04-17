@@ -56,6 +56,9 @@ jobs:
       - name: Verify release BOM
         run: uv run ms release verify-bom
 
+      - name: Validate release BOM targets
+        run: uv run ms release validate-bom-targets
+
       - name: Build midi-studio-loader (rust)
         shell: bash
         working-directory: midi-studio/loader
