@@ -7,13 +7,21 @@ from pathlib import Path
 
 import pytest
 
+from ms.core.result import Ok
 from ms.oc_cli.common import (
     OCPlatform,
     build_pio_env,
     detect_env,
     find_project_root,
     list_serial_ports,
+    resolve_pio_runtime,
 )
+
+
+def _platformio_python_path(workspace_root: Path) -> Path:
+    if os.name == "nt":
+        return workspace_root / "tools" / "platformio" / "venv" / "Scripts" / "python.exe"
+    return workspace_root / "tools" / "platformio" / "venv" / "bin" / "python"
 
 
 def test_find_project_root_walks_up(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -66,7 +74,6 @@ def test_build_pio_env_isolates_platformio_state(
     (ws / ".ms-workspace").write_text("", encoding="utf-8")
 
     for k in [
-        "PIO",
         "PLATFORMIO_CORE_DIR",
         "PLATFORMIO_CACHE_DIR",
         "PLATFORMIO_BUILD_CACHE_DIR",
@@ -77,7 +84,26 @@ def test_build_pio_env_isolates_platformio_state(
     assert env["PLATFORMIO_CORE_DIR"].endswith(str(Path(".ms") / "platformio"))
     assert env["PLATFORMIO_CACHE_DIR"].endswith(str(Path(".ms") / "platformio-cache"))
     assert env["PLATFORMIO_BUILD_CACHE_DIR"].endswith(str(Path(".ms") / "platformio-build-cache"))
-    assert env["PIO"]
+
+
+def test_resolve_pio_runtime_prefers_workspace_python(tmp_path: Path) -> None:
+    ws = tmp_path / "ws"
+    project = ws / "proj"
+    pio_python = _platformio_python_path(ws)
+    project.mkdir(parents=True)
+    pio_python.parent.mkdir(parents=True)
+    pio_python.write_text("", encoding="utf-8")
+    (ws / ".ms-workspace").write_text("", encoding="utf-8")
+
+    runtime = resolve_pio_runtime(project)
+    assert isinstance(runtime, Ok)
+    resolved = runtime.value
+    assert resolved.source == "workspace_venv"
+    assert resolved.command("run", "--version")[:3] == [
+        str(pio_python),
+        "-m",
+        "platformio",
+    ]
 
 
 def test_list_serial_ports_parses_json_and_filters(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -87,5 +113,5 @@ def test_list_serial_ports_parses_json_and_filters(monkeypatch: pytest.MonkeyPat
         return subprocess.CompletedProcess(args=[], returncode=0, stdout=json_out, stderr="")
 
     monkeypatch.setattr("ms.oc_cli.common.subprocess.run", fake_run)
-    ports = list_serial_ports("pio", env={})
+    ports = list_serial_ports(["python", "-m", "platformio"], env={})
     assert ports == ["COM3"]

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 
+from .content_bom_step import assess_content_bom
 from .content_contracts import ContentGuidedDependencies
 from .content_repo_pins import sha_map
 from .fsm import StepOutcome, advance
@@ -16,11 +18,18 @@ from .sessions import ContentReleaseSession
 def step_content_summary(
     *,
     deps: ContentGuidedDependencies,
+    workspace_root: Path,
     session: ContentReleaseSession,
     release_repos: tuple[ReleaseRepo, ...],
 ) -> Result[StepOutcome[ContentReleaseSession], ReleaseError]:
     sha_by_id = sha_map(session)
     notes_label = session.notes_path or "none"
+    bom = assess_content_bom(
+        deps=deps,
+        workspace_root=workspace_root,
+        session=session,
+        release_repos=release_repos,
+    )
     options: list[MenuOption[str]] = [
         MenuOption(value="channel", label=f"Channel: {session.channel}", detail="Edit channel"),
         MenuOption(value="bump", label=f"Bump: {session.bump}", detail="Edit semantic bump"),
@@ -35,6 +44,7 @@ def step_content_summary(
         )
     options.extend(
         [
+            MenuOption(value="bom", label=bom.label, detail=bom.detail),
             MenuOption(value="tag", label=f"Tag: {session.tag}", detail="Computed release tag"),
             MenuOption(
                 value="notes",
@@ -104,6 +114,17 @@ def step_content_summary(
                 replace(
                     session,
                     step="tag",
+                    idx_summary=choice.index,
+                    return_to_summary=True,
+                )
+            )
+        )
+    if choice.value == "bom":
+        return Ok(
+            advance(
+                replace(
+                    session,
+                    step="bom",
                     idx_summary=choice.index,
                     return_to_summary=True,
                 )

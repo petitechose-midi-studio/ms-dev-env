@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -13,6 +14,12 @@ from ms.platform.detection import LinuxDistro, Platform
 from ms.services.checkers.base import CheckStatus
 from ms.services.checkers.common import Hints
 from ms.services.checkers.tools import ToolsChecker
+
+
+def _platformio_python_path(workspace_root: Path) -> Path:
+    if os.name == "nt":
+        return workspace_root / "tools" / "platformio" / "venv" / "Scripts" / "python.exe"
+    return workspace_root / "tools" / "platformio" / "venv" / "bin" / "python"
 
 
 class MockCommandRunner:
@@ -193,6 +200,52 @@ class TestToolsCheckerBundledTool:
 
         assert result.status == CheckStatus.WARNING
         assert "optional" in result.message
+
+
+class TestToolsCheckerPlatformio:
+    """Tests for workspace PlatformIO runtime resolution."""
+
+    def test_platformio_runtime_found(self, tmp_path: Path) -> None:
+        tools_dir = tmp_path / "tools"
+        pio_python = _platformio_python_path(tmp_path)
+        pio_python.parent.mkdir(parents=True)
+        pio_python.write_text("", encoding="utf-8")
+        (tmp_path / ".ms-workspace").write_text("", encoding="utf-8")
+
+        runner = MockCommandRunner(
+            {
+                (str(pio_python), "-m", "platformio", "--version"): (
+                    0,
+                    "PlatformIO Core, version 6.1.18",
+                    "",
+                ),
+            }
+        )
+        checker = ToolsChecker(
+            platform=Platform.WINDOWS,
+            tools_dir=tools_dir,
+            runner=runner,
+        )
+
+        result = checker.check_platformio_runtime()
+
+        assert result.status == CheckStatus.OK
+        assert "6.1.18" in result.message
+
+    def test_platformio_runtime_missing(self, tmp_path: Path) -> None:
+        tools_dir = tmp_path / "tools"
+        tools_dir.mkdir()
+        (tmp_path / ".ms-workspace").write_text("", encoding="utf-8")
+
+        checker = ToolsChecker(
+            platform=Platform.WINDOWS,
+            tools_dir=tools_dir,
+        )
+
+        result = checker.check_platformio_runtime()
+
+        assert result.status == CheckStatus.ERROR
+        assert "sync --tools" in (result.hint or "")
 
 
 class TestToolsCheckerCargo:

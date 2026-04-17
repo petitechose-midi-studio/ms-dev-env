@@ -18,6 +18,12 @@ from ms.release.domain.config import RELEASE_REPOS
 from ms.release.domain.models import PinnedRepo, ReleaseBump, ReleaseChannel, ReleasePlan
 from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
+from ms.release.flow.bom_promotion import (
+    BomPromotionResult,
+)
+from ms.release.flow.bom_promotion import (
+    promote_open_control_bom as promote_open_control_bom_flow,
+)
 from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.content_plan import plan_release
 from ms.release.flow.content_prepare import prepare_distribution_pr
@@ -25,9 +31,10 @@ from ms.release.flow.content_publish import publish_distribution_release
 from ms.release.flow.guided.content_steps import MenuOption, run_guided_content_release_flow
 from ms.release.flow.guided.selection import Selection
 from ms.release.flow.guided.sessions import ContentReleaseSession, clear_content_session
-from ms.release.flow.permissions import ensure_release_permissions
+from ms.release.flow.permissions import ensure_core_release_permissions, ensure_release_permissions
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.open_control import preflight_open_control
+from ms.release.view.content_console import print_open_control_preflight
 from ms.release.view.guided_console import print_notes_status
 
 
@@ -176,6 +183,34 @@ def run_guided_content_release(
             self, *, workspace_root: Path, core_sha: str
         ) -> OpenControlPreflightReport:
             return preflight_open_control(workspace_root=workspace_root, core_sha=core_sha)
+
+        def print_open_control_preflight(
+            self,
+            *,
+            console: ConsoleProtocol,
+            report: OpenControlPreflightReport,
+        ) -> None:
+            print_open_control_preflight(console=console, report=report)
+
+        def promote_open_control_bom(
+            self,
+            *,
+            workspace_root: Path,
+            console: ConsoleProtocol,
+            dry_run: bool,
+        ) -> Result[BomPromotionResult, ReleaseError]:
+            allowed = ensure_core_release_permissions(
+                workspace_root=workspace_root,
+                console=console,
+                require_write=True,
+            )
+            if isinstance(allowed, Err):
+                return allowed
+            return promote_open_control_bom_flow(
+                workspace_root=workspace_root,
+                console=console,
+                dry_run=dry_run,
+            )
 
         def plan_release(
             self,

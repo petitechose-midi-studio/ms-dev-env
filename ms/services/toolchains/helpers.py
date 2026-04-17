@@ -5,9 +5,9 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok
 from ms.output.console import Style
-from ms.platform.resources import recommended_parallel_jobs
 from ms.platform.process import run as run_process
 from ms.platform.process import run_silent
+from ms.platform.resources import recommended_parallel_jobs
 from ms.tools.download import Downloader
 from ms.tools.http import RealHttpClient
 from ms.tools.installer import Installer

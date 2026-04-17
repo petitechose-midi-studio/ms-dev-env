@@ -270,3 +270,9 @@ def print_open_control_preflight(
                 f"local {mismatch.local_sha[:7]} != pinned {mismatch.pinned_sha[:7]}",
                 Style.DIM,
             )
+
+    if report.comparison is not None:
+        console.print(f"bom status: {report.comparison.status}", Style.DIM)
+        if report.comparison.blockers:
+            for blocker in report.comparison.blockers:
+                console.print(f"- blocker: {blocker}", Style.DIM)

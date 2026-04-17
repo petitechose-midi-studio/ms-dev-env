@@ -10,6 +10,7 @@ import time
 
 import typer
 
+from ms.core.result import Err
 from ms.oc_cli.common import (
     OCPlatform,
     build_pio_env,
@@ -17,6 +18,7 @@ from ms.oc_cli.common import (
     find_project_root,
     get_console,
     kill_monitors,
+    resolve_pio_runtime,
     run_with_spinner,
     show_results,
     wait_for_serial_port,
@@ -38,8 +40,14 @@ def _cli(
 
     kill_monitors(platform)
 
+    pio_runtime = resolve_pio_runtime(project_root)
+    if isinstance(pio_runtime, Err):
+        console.print(f"error: {pio_runtime.error.message}", style="red bold")
+        if pio_runtime.error.hint:
+            console.print(f"hint: {pio_runtime.error.hint}", style="dim")
+        raise typer.Exit(code=1)
     pio_env = build_pio_env(project_root, platform)
-    pio = pio_env.get("PIO", "pio")
+    pio = pio_runtime.value.command()
     env_name = detect_env(project_root, env)
 
     console.clear()
@@ -50,7 +58,7 @@ def _cli(
     start = time.time()
     build_code, build_out, _ = run_with_spinner(
         "Building",
-        [pio, "run", "-e", env_name, "-d", str(project_root)],
+        [*pio, "run", "-e", env_name, "-d", str(project_root)],
         cwd=project_root,
         env=pio_env,
     )
@@ -61,7 +69,7 @@ def _cli(
         up_code, up_out, _ = run_with_spinner(
             "Uploading",
             [
-                pio,
+                *pio,
                 "run",
                 "-e",
                 env_name,
@@ -96,10 +104,10 @@ def _cli(
 
     if port:
         console.print(f"Monitor: {port}", style="dim")
-        cmd = [pio, "device", "monitor", "-p", port, "--quiet", "--raw"]
+        cmd = [*pio, "device", "monitor", "-p", port, "--quiet", "--raw"]
     else:
         console.print("Monitor: auto", style="dim")
-        cmd = [pio, "device", "monitor", "-d", str(project_root), "--quiet", "--raw"]
+        cmd = [*pio, "device", "monitor", "-d", str(project_root), "--quiet", "--raw"]
     console.print("---------------------------------", style="dim")
     console.print()
 

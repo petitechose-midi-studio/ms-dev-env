@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ms.core.platformio_runtime import resolve_platformio_runtime
+from ms.core.result import Err
 from ms.core.versions import RUST_MIN_VERSION, RUST_MIN_VERSION_TEXT
 from ms.services.checkers.base import CheckResult
 from ms.services.checkers.common import (
@@ -68,7 +70,6 @@ class ToolsChecker:
             JdkTool,
             MavenTool,
             NinjaTool,
-            PlatformioTool,
         )
 
         results.append(self.check_bundled_tool(CMakeTool(), ["--version"]))
@@ -76,9 +77,28 @@ class ToolsChecker:
         results.append(self.check_bundled_tool(BunTool(), ["--version"], required=False))
         results.append(self.check_bundled_tool(JdkTool(), ["-version"]))
         results.append(self.check_bundled_tool(MavenTool(), ["-version"]))
-        results.append(self.check_bundled_tool(PlatformioTool(), ["--version"]))
+        results.append(self.check_platformio_runtime())
 
         return results
+
+    def check_platformio_runtime(self) -> CheckResult:
+        runtime = resolve_platformio_runtime(self.tools_dir.parent)
+        if isinstance(runtime, Err):
+            return CheckResult.error(
+                "platformio",
+                runtime.error.message,
+                hint=runtime.error.hint,
+            )
+
+        version = self._get_version_from_args(runtime.value.command("--version"))
+        if version:
+            return CheckResult.success("platformio", version)
+
+        return CheckResult.error(
+            "platformio",
+            "broken workspace runtime",
+            hint="Run: uv run ms sync --tools",
+        )
 
     def check_system_tool(
         self,
@@ -252,6 +272,15 @@ class ToolsChecker:
             return ""
         try:
             result = self.runner.run([str(path), *version_args])
+            if result.returncode == 0:
+                return first_line(result.stdout + result.stderr)
+        except OSError:
+            pass
+        return ""
+
+    def _get_version_from_args(self, args: list[str]) -> str:
+        try:
+            result = self.runner.run(args)
             if result.returncode == 0:
                 return first_line(result.stdout + result.stderr)
         except OSError:

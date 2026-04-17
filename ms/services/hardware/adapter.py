@@ -14,15 +14,7 @@ from .models import HardwareAction, HardwareError, failure_kind
 
 class OCHardwareAdapterMixin(HardwareContextBase):
     def _build_env(self) -> dict[str, str]:
-        env = self._workspace.platformio_env_vars()
-        pio_venv = self._workspace.tools_dir / "platformio" / "venv"
-        if self._platform.platform.is_windows:
-            pio_bin = pio_venv / "Scripts" / "pio.exe"
-        else:
-            pio_bin = pio_venv / "bin" / "pio"
-        if pio_bin.exists():
-            env["PIO"] = str(pio_bin)
-        return env
+        return self._workspace.platformio_env_vars()
 
     def _oc_cmd(self, module: str, *, env: str | None) -> list[str]:
         cmd = [sys.executable, "-m", f"ms.oc_cli.{module}"]

@@ -5,6 +5,13 @@ from pathlib import Path
 
 from rich.console import Console
 
+from ms.core.platformio_runtime import (
+    PlatformioRuntime,
+    PlatformioRuntimeError,
+    resolve_platformio_runtime,
+)
+from ms.core.result import Err, Result
+
 from .models import OCPlatform
 
 
@@ -28,36 +35,25 @@ def _find_workspace_root(start: Path) -> Path | None:
     return None
 
 
-def _resolve_pio_cmd(start: Path, platform: OCPlatform) -> str:
-    explicit = os.environ.get("PIO")
-    if explicit:
-        return explicit
-
-    workspace = _find_workspace_root(start)
-    if workspace is None:
-        return "pio"
-
-    venv = workspace / "tools" / "platformio" / "venv"
-    pio = venv / ("Scripts/pio.exe" if platform.is_windows else "bin/pio")
-    if pio.exists():
-        return str(pio)
-
-    return "pio"
-
-
 def build_pio_env(start: Path, platform: OCPlatform) -> dict[str, str]:
-    env = dict(os.environ)
-    workspace = _find_workspace_root(start)
-    if workspace is None:
+    del platform
+    runtime = resolve_pio_runtime(start)
+    if isinstance(runtime, Err):
+        env = dict(os.environ)
+        workspace = _find_workspace_root(start)
+        if workspace is None:
+            return env
+
+        ms_state = workspace / ".ms"
+        env.setdefault("PLATFORMIO_CORE_DIR", str(ms_state / "platformio"))
+        env.setdefault("PLATFORMIO_CACHE_DIR", str(ms_state / "platformio-cache"))
+        env.setdefault("PLATFORMIO_BUILD_CACHE_DIR", str(ms_state / "platformio-build-cache"))
         return env
+    return runtime.value.env
 
-    ms_state = workspace / ".ms"
-    env.setdefault("PLATFORMIO_CORE_DIR", str(ms_state / "platformio"))
-    env.setdefault("PLATFORMIO_CACHE_DIR", str(ms_state / "platformio-cache"))
-    env.setdefault("PLATFORMIO_BUILD_CACHE_DIR", str(ms_state / "platformio-build-cache"))
 
-    env.setdefault("PIO", _resolve_pio_cmd(start, platform))
-    return env
+def resolve_pio_runtime(start: Path) -> Result[PlatformioRuntime, PlatformioRuntimeError]:
+    return resolve_platformio_runtime(start)
 
 
 def detect_env(project_root: Path, explicit: str | None) -> str:

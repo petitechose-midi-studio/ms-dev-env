@@ -4,6 +4,7 @@ import os
 import shutil
 from pathlib import Path
 
+from ms.core.platformio_runtime import resolve_platformio_runtime
 from ms.core.result import Err, Ok, Result
 from ms.output.console import Style
 from ms.output.errors import build_error_exit_code, print_build_error
@@ -32,19 +33,14 @@ class BuildHelpersMixin(BuildContextBase):
         env.update(self._workspace.platformio_env_vars())
         return env
 
-    def _pio_cmd(self) -> Path | None:
-        name = "pio.cmd" if self._platform.platform.is_windows else "pio"
-        wrapper = self._workspace.tools_bin_dir / name
-        if wrapper.exists():
-            return wrapper
-
-        pio = self._registry.get_bin_path("platformio")
-        if pio is not None and pio.exists():
-            return pio
-
-        self._console.error("platformio: missing")
-        self._console.print("hint: Run: uv run ms sync --tools", Style.DIM)
-        return None
+    def _platformio_cmd(self) -> list[str] | None:
+        runtime = resolve_platformio_runtime(self._workspace.root)
+        if isinstance(runtime, Err):
+            self._console.error("platformio: missing")
+            if runtime.error.hint:
+                self._console.print(f"hint: {runtime.error.hint}", Style.DIM)
+            return None
+        return runtime.value.command()
 
     def _read_app_config(self, app_path: Path) -> Result[AppConfig, BuildError]:
         app_cmake = app_path / "app.cmake"
@@ -71,11 +67,11 @@ class BuildHelpersMixin(BuildContextBase):
         if libdeps.is_dir():
             return Ok(None)
 
-        pio = self._pio_cmd()
+        pio = self._platformio_cmd()
         if pio is None:
             return Err(ToolMissing(tool_id="platformio"))
 
-        cmd = [str(pio), "pkg", "install"]
+        cmd = [*pio, "pkg", "install"]
         self._console.print(" ".join(cmd), Style.DIM)
         if dry_run:
             return Ok(None)
