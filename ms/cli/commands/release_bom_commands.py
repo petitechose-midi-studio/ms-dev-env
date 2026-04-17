@@ -22,6 +22,7 @@ from ms.release.flow.bom_workflow import (
 
 def register_bom_commands(*, namespace: typer.Typer) -> None:
     namespace.command("verify-bom")(verify_bom_cmd)
+    namespace.command("validate-bom-targets")(validate_bom_targets_cmd)
     namespace.command("sync-bom")(sync_bom_cmd)
 
 
@@ -31,10 +32,28 @@ def verify_bom_cmd(
         "--allow-dirty-workspace",
         help="Allow dirty open-control workspace repos during comparison.",
     ),
-    validate_targets: bool = typer.Option(
-        True,
-        "--validate-targets/--no-validate-targets",
-        help="Run build/test validations after file verification.",
+) -> None:
+    ctx = build_context()
+    verified = verify_workspace_bom_files(
+        workspace_root=ctx.workspace.root,
+        allow_dirty_workspace=allow_dirty_workspace,
+    )
+    if isinstance(verified, Err):
+        exit_release(verified.error.pretty(), code=release_error_code(verified.error.kind))
+
+    _print_bom_state(console=ctx.console, state=verified.value)
+    if verified.value.comparison.status != "aligned":
+        _print_bom_blockers(console=ctx.console, state=verified.value)
+        exit_release("OpenControl BOM is not aligned", code=ErrorCode.USER_ERROR)
+
+    ctx.console.success("OpenControl BOM verified")
+
+
+def validate_bom_targets_cmd(
+    allow_dirty_workspace: bool = typer.Option(
+        False,
+        "--allow-dirty-workspace",
+        help="Allow dirty open-control workspace repos during comparison.",
     ),
     include_plugin_release: bool = typer.Option(
         True,
@@ -55,18 +74,15 @@ def verify_bom_cmd(
         _print_bom_blockers(console=ctx.console, state=verified.value)
         exit_release("OpenControl BOM is not aligned", code=ErrorCode.USER_ERROR)
 
-    validations: tuple[BomValidationTarget, ...] = ()
-    if validate_targets:
-        validated = validate_workspace_bom_targets(
-            workspace_root=ctx.workspace.root,
-            include_plugin_release=include_plugin_release,
-        )
-        if isinstance(validated, Err):
-            exit_release(validated.error.pretty(), code=release_error_code(validated.error.kind))
-        validations = validated.value
+    validated = validate_workspace_bom_targets(
+        workspace_root=ctx.workspace.root,
+        include_plugin_release=include_plugin_release,
+    )
+    if isinstance(validated, Err):
+        exit_release(validated.error.pretty(), code=release_error_code(validated.error.kind))
 
-    _print_validation_summary(console=ctx.console, validations=validations)
-    ctx.console.success("OpenControl BOM verified")
+    _print_validation_summary(console=ctx.console, validations=validated.value)
+    ctx.console.success("OpenControl BOM targets validated")
 
 
 def sync_bom_cmd(
