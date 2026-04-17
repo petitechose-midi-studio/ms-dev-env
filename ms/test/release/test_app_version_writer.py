@@ -21,15 +21,13 @@ def _seed_app_repo(tmp_path: Path, *, version: str, cargo_lock_version: str | No
         encoding="utf-8",
     )
     (src_tauri / "Cargo.toml").write_text(
-        "[package]\nname = \"ms-manager\"\nversion = \"{}\"\n".format(version),
+        f"[package]\nname = \"ms-manager\"\nversion = \"{version}\"\n",
         encoding="utf-8",
     )
     (src_tauri / "Cargo.lock").write_text(
-        (
-            "[[package]]\n"
-            'name = "ms-manager"\n'
-            'version = "{}"\n'
-        ).format(cargo_lock_version or version),
+        "[[package]]\n"
+        'name = "ms-manager"\n'
+        f'version = "{cargo_lock_version or version}"\n',
         encoding="utf-8",
     )
 
