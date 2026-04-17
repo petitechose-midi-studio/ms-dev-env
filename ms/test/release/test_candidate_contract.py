@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 from pytest import MonkeyPatch
 
 from ms.core.result import Err, Ok
-from ms.platform.process import ProcessError
 from ms.release.domain import CANDIDATE_SCHEMA, CandidateInputRepo, CandidateManifest
 from ms.release.infra.candidate_contract import (
     compute_build_input_fingerprint,
@@ -16,7 +16,12 @@ from ms.release.infra.candidate_contract import (
     write_candidate_checksums,
     write_candidate_manifest,
 )
-from ms.release.infra.candidate_signatures import verify_candidate_manifest
+from ms.release.infra.candidate_signatures import (
+    derive_candidate_public_key,
+    sign_candidate_manifest,
+    verify_candidate_manifest,
+    verify_candidate_manifest_with_public_key,
+)
 
 
 def test_compute_build_input_fingerprint_is_order_independent() -> None:
@@ -118,137 +123,64 @@ def test_candidate_manifest_roundtrip_and_payload_validation(tmp_path: Path) -> 
     assert isinstance(validated, Ok)
 
 
-def test_verify_candidate_manifest_uses_distribution_signature_backend(
+def test_candidate_signatures_roundtrip_without_distribution_repo(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    import ms.release.infra.candidate_signatures as signatures
+    manifest_path = tmp_path / "candidate.json"
+    sig_path = tmp_path / "candidate.json.sig"
+    manifest_path.write_text('{"schema":"ms-candidate/v1"}\n', encoding="utf-8")
 
-    distribution_root = tmp_path / "distribution"
-    distribution_root.mkdir()
-    (distribution_root / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
+    seed = bytes(range(32))
+    seed_b64 = base64.b64encode(seed).decode("ascii")
+    monkeypatch.setenv("MS_CANDIDATE_ED25519_SK", seed_b64)
 
-    calls: list[tuple[tuple[str, ...], Path]] = []
-
-    def fake_run_process(
-        cmd: list[str],
-        cwd: Path,
-        env: dict[str, str] | None,
-        *,
-        timeout: float | None,
-    ) -> Ok[str]:
-        del env, timeout
-        calls.append((tuple(cmd), cwd))
-        return Ok("")
-
-    monkeypatch.setattr(signatures, "run_process", fake_run_process)
-
-    verified = verify_candidate_manifest(
+    signed = sign_candidate_manifest(
         workspace_root=tmp_path,
-        manifest_path=tmp_path / "candidate.json",
-        sig_path=tmp_path / "candidate.json.sig",
+        manifest_path=manifest_path,
+        sig_path=sig_path,
     )
+    assert isinstance(signed, Ok)
 
-    assert isinstance(verified, Ok)
-    assert calls == [
-        (
-            (
-                "cargo",
-                "run",
-                "-p",
-                "ms-dist-manifest",
-                "--",
-                "verify",
-                "--in",
-                str(tmp_path / "candidate.json"),
-                "--sig",
-                str(tmp_path / "candidate.json.sig"),
-                "--pk-env",
-                "MS_CANDIDATE_ED25519_PK",
-            ),
-            distribution_root,
-        )
-    ]
-
-
-def test_derive_candidate_public_key_uses_signature_backend(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    import ms.release.infra.candidate_signatures as signatures
-
-    distribution_root = tmp_path / "distribution"
-    distribution_root.mkdir()
-    (distribution_root / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
-
-    calls: list[tuple[tuple[str, ...], Path]] = []
-
-    def fake_run_process(
-        cmd: list[str],
-        cwd: Path,
-        env: dict[str, str] | None,
-        *,
-        timeout: float | None,
-    ) -> Ok[str]:
-        del env, timeout
-        calls.append((tuple(cmd), cwd))
-        return Ok("pubkey\n")
-
-    monkeypatch.setattr(signatures, "run_process", fake_run_process)
-
-    derived = signatures.derive_candidate_public_key(workspace_root=tmp_path)
-
+    derived = derive_candidate_public_key(workspace_root=tmp_path)
     assert isinstance(derived, Ok)
-    assert derived.value == "pubkey"
-    assert calls == [
-        (
-            (
-                "cargo",
-                "run",
-                "-p",
-                "ms-dist-manifest",
-                "--",
-                "pubkey",
-                "--key-env",
-                "MS_CANDIDATE_ED25519_SK",
-            ),
-            distribution_root,
-        )
-    ]
-
-
-def test_verify_candidate_manifest_reports_backend_failure(
-    tmp_path: Path, monkeypatch: MonkeyPatch
-) -> None:
-    import ms.release.infra.candidate_signatures as signatures
-
-    distribution_root = tmp_path / "distribution"
-    distribution_root.mkdir()
-    (distribution_root / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
-
-    def fake_run_process(
-        cmd: list[str],
-        cwd: Path,
-        env: dict[str, str] | None,
-        *,
-        timeout: float | None,
-    ) -> Err[ProcessError]:
-        del cmd, cwd, env, timeout
-        return Err(
-            ProcessError(
-                command=("cargo",),
-                returncode=1,
-                stdout="",
-                stderr="verify failed",
-            )
-        )
-
-    monkeypatch.setattr(signatures, "run_process", fake_run_process)
+    monkeypatch.setenv("MS_CANDIDATE_ED25519_PK", derived.value)
 
     verified = verify_candidate_manifest(
         workspace_root=tmp_path,
-        manifest_path=tmp_path / "candidate.json",
-        sig_path=tmp_path / "candidate.json.sig",
+        manifest_path=manifest_path,
+        sig_path=sig_path,
+    )
+    assert isinstance(verified, Ok)
+
+    verified_with_explicit_key = verify_candidate_manifest_with_public_key(
+        workspace_root=tmp_path,
+        manifest_path=manifest_path,
+        sig_path=sig_path,
+        public_key_b64=derived.value,
+    )
+    assert isinstance(verified_with_explicit_key, Ok)
+
+
+def test_candidate_signatures_report_invalid_signature(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    manifest_path = tmp_path / "candidate.json"
+    sig_path = tmp_path / "candidate.json.sig"
+    manifest_path.write_text('{"schema":"ms-candidate/v1"}\n', encoding="utf-8")
+    sig_path.write_text(base64.b64encode(b"\x00" * 64).decode("ascii"), encoding="utf-8")
+
+    seed = bytes(range(32))
+    monkeypatch.setenv("MS_CANDIDATE_ED25519_SK", base64.b64encode(seed).decode("ascii"))
+    derived = derive_candidate_public_key(workspace_root=tmp_path)
+    assert isinstance(derived, Ok)
+    monkeypatch.setenv("MS_CANDIDATE_ED25519_PK", derived.value)
+
+    verified = verify_candidate_manifest(
+        workspace_root=tmp_path,
+        manifest_path=manifest_path,
+        sig_path=sig_path,
     )
 
     assert isinstance(verified, Err)
     assert verified.error.kind == "verification_failed"
-    assert verified.error.message == "candidate signature command failed"
+    assert verified.error.message == "candidate signature verify failed"
