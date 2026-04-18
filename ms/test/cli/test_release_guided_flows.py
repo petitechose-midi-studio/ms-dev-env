@@ -25,8 +25,9 @@ from ms.release.domain.open_control_models import (
     OcSdkPin,
     OpenControlPreflightReport,
 )
+from ms.release.flow.app_candidate_ensure import EnsuredAppCandidate
 from ms.release.flow.app_prepare import AppPrepareResult
-from ms.release.flow.app_publish import AppPublishResult, EnsuredAppCandidate
+from ms.release.flow.app_publish import AppPublishResult
 from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.content_candidates import (
     ContentCandidateAssessment,

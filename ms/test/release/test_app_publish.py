@@ -7,11 +7,13 @@ from pytest import MonkeyPatch
 from ms.core.result import Err, Ok
 from ms.output.console import MockConsole
 from ms.release.errors import ReleaseError
-from ms.release.flow.app_publish import (
+from ms.release.flow.app_candidate_ensure import (
     AppCandidateState,
-    AppPublishResult,
     EnsuredAppCandidate,
     ensure_app_candidate,
+)
+from ms.release.flow.app_publish import (
+    AppPublishResult,
     publish_app_release,
 )
 from ms.release.infra.github.workflows import WorkflowRun
@@ -20,7 +22,7 @@ from ms.release.infra.github.workflows import WorkflowRun
 def test_ensure_app_candidate_reuses_ready_candidate(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    import ms.release.flow.app_publish as app_publish
+    import ms.release.flow.app_candidate_ensure as app_candidate
 
     dispatch_calls = {"count": 0}
 
@@ -35,9 +37,9 @@ def test_ensure_app_candidate_reuses_ready_candidate(
         dispatch_calls["count"] += 1
         return Ok(WorkflowRun(id=41, url="https://example.test/run/41", request_id="req-41"))
 
-    monkeypatch.setattr(app_publish, "_probe_app_candidate", fake_probe_app_candidate)
+    monkeypatch.setattr(app_candidate, "_probe_app_candidate", fake_probe_app_candidate)
     monkeypatch.setattr(
-        app_publish,
+        app_candidate,
         "dispatch_app_candidate_workflow",
         fake_dispatch_app_candidate_workflow,
     )
@@ -59,7 +61,7 @@ def test_ensure_app_candidate_reuses_ready_candidate(
 def test_ensure_app_candidate_waits_for_incomplete_candidate_before_dispatch(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    import ms.release.flow.app_publish as app_publish
+    import ms.release.flow.app_candidate_ensure as app_candidate
 
     probes = iter(
         (
@@ -84,15 +86,15 @@ def test_ensure_app_candidate_waits_for_incomplete_candidate_before_dispatch(
     def fake_sleep(seconds: float) -> None:
         del seconds
 
-    monkeypatch.setattr(app_publish, "_probe_app_candidate", fake_probe_app_candidate)
+    monkeypatch.setattr(app_candidate, "_probe_app_candidate", fake_probe_app_candidate)
     monkeypatch.setattr(
-        app_publish,
+        app_candidate,
         "dispatch_app_candidate_workflow",
         fake_dispatch_app_candidate_workflow,
     )
-    monkeypatch.setattr(app_publish, "_INCOMPLETE_PROBE_ATTEMPTS", 3)
-    monkeypatch.setattr(app_publish, "_INCOMPLETE_PROBE_DELAY_SECONDS", 0.0)
-    monkeypatch.setattr(app_publish, "sleep", fake_sleep)
+    monkeypatch.setattr(app_candidate, "_INCOMPLETE_PROBE_ATTEMPTS", 3)
+    monkeypatch.setattr(app_candidate, "_INCOMPLETE_PROBE_DELAY_SECONDS", 0.0)
+    monkeypatch.setattr(app_candidate, "sleep", fake_sleep)
 
     ensured = ensure_app_candidate(
         workspace_root=tmp_path,
@@ -110,7 +112,7 @@ def test_ensure_app_candidate_waits_for_incomplete_candidate_before_dispatch(
 def test_ensure_app_candidate_fails_for_invalid_candidate(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    import ms.release.flow.app_publish as app_publish
+    import ms.release.flow.app_candidate_ensure as app_candidate
 
     dispatch_calls = {"count": 0}
 
@@ -131,9 +133,9 @@ def test_ensure_app_candidate_fails_for_invalid_candidate(
         dispatch_calls["count"] += 1
         return Ok(WorkflowRun(id=43, url="https://example.test/run/43", request_id="req-43"))
 
-    monkeypatch.setattr(app_publish, "_probe_app_candidate", fake_probe_app_candidate)
+    monkeypatch.setattr(app_candidate, "_probe_app_candidate", fake_probe_app_candidate)
     monkeypatch.setattr(
-        app_publish,
+        app_candidate,
         "dispatch_app_candidate_workflow",
         fake_dispatch_app_candidate_workflow,
     )
