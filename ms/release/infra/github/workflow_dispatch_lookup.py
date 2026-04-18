@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from time import sleep
+from urllib.parse import quote
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_str_dict, get_int, get_list, get_str, get_table
@@ -12,8 +13,8 @@ from ms.release.errors import ReleaseError
 from .gh_base import run_gh_process
 from .timeouts import GH_TIMEOUT_SECONDS
 
-_LOOKUP_MAX_ATTEMPTS = 6
-_LOOKUP_DELAY_SECONDS = 1.0
+_LOOKUP_MAX_ATTEMPTS = 20
+_LOOKUP_DELAY_SECONDS = 2.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,11 +34,7 @@ def resolve_dispatched_run(
     request_id: str,
 ) -> Result[WorkflowRunResolution, ReleaseError]:
     marker_name = dispatch_marker_name(request_id=request_id)
-    cmd = [
-        "gh",
-        "api",
-        f"repos/{repo_slug}/actions/artifacts?per_page=100",
-    ]
+    cmd = ["gh", "api", _artifact_lookup_endpoint(repo_slug=repo_slug, marker_name=marker_name)]
 
     for attempt in range(_LOOKUP_MAX_ATTEMPTS):
         result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
@@ -73,6 +70,11 @@ def resolve_dispatched_run(
             ),
         )
     )
+
+
+def _artifact_lookup_endpoint(*, repo_slug: str, marker_name: str) -> str:
+    encoded_name = quote(marker_name, safe="")
+    return f"repos/{repo_slug}/actions/artifacts?per_page=100&name={encoded_name}"
 
 
 def _find_dispatched_run(
