@@ -50,6 +50,7 @@ def test_dispatch_publish_workflow_matches_request_id(
         channel="stable",
         tag="v1.2.3",
         spec_path="releases/stable/spec-v1.2.3.json",
+        tooling_sha="f" * 40,
         console=MockConsole(),
         dry_run=False,
     )
@@ -91,6 +92,7 @@ def test_dispatch_publish_workflow_retries_until_match(
         channel="stable",
         tag="v1.2.3",
         spec_path="releases/stable/spec-v1.2.3.json",
+        tooling_sha="f" * 40,
         console=MockConsole(),
         dry_run=False,
     )
@@ -125,6 +127,7 @@ def test_dispatch_publish_workflow_fails_without_request_id_match(
         channel="stable",
         tag="v1.2.3",
         spec_path="releases/stable/spec-v1.2.3.json",
+        tooling_sha="f" * 40,
         console=MockConsole(),
         dry_run=False,
     )
