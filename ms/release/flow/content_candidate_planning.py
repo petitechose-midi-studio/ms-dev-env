@@ -58,109 +58,69 @@ def plan_content_candidates(
     if isinstance(producer_keys, Err):
         return producer_keys
 
+    targets = (
+        _single_repo_candidate_target(
+            target_id="loader-binaries",
+            label=f"loader {loader_pin.sha[:12]}",
+            producer_id="loader-binaries",
+            repo_slug=loader_pin.repo.slug,
+            workflow_file=".github/workflows/candidate.yml",
+            ref=loader_pin.repo.ref,
+            candidate_tag=f"rc-{loader_pin.sha}-tooling-{tooling.sha}",
+            input_repo_id="loader",
+            source_sha=loader_pin.sha,
+            tooling=tooling,
+            public_key_b64=producer_keys.value["loader-binaries"],
+        ),
+        _single_repo_candidate_target(
+            target_id="oc-bridge-binaries",
+            label=f"oc-bridge {bridge_pin.sha[:12]}",
+            producer_id="oc-bridge-binaries",
+            repo_slug=bridge_pin.repo.slug,
+            workflow_file=".github/workflows/candidate.yml",
+            ref=bridge_pin.repo.ref,
+            candidate_tag=f"rc-{bridge_pin.sha}-tooling-{tooling.sha}",
+            input_repo_id="oc-bridge",
+            source_sha=bridge_pin.sha,
+            tooling=tooling,
+            public_key_b64=producer_keys.value["oc-bridge-binaries"],
+        ),
+        _single_repo_candidate_target(
+            target_id="core-default-firmware",
+            label=f"core firmware {core_pin.sha[:12]}",
+            producer_id="core-default-firmware",
+            repo_slug=core_pin.repo.slug,
+            workflow_file=".github/workflows/candidate.yml",
+            ref=core_pin.repo.ref,
+            candidate_tag=f"rc-{core_pin.sha}-tooling-{tooling.sha}",
+            input_repo_id="core",
+            source_sha=core_pin.sha,
+            tooling=tooling,
+            public_key_b64=producer_keys.value["core-default-firmware"],
+        ),
+        _single_repo_candidate_target(
+            target_id="plugin-bitwig-extension",
+            label=f"bitwig extension {bitwig_pin.sha[:12]}",
+            producer_id="plugin-bitwig-extension",
+            repo_slug=bitwig_pin.repo.slug,
+            workflow_file=".github/workflows/candidate-extension.yml",
+            ref=bitwig_pin.repo.ref,
+            candidate_tag=f"rc-plugin-bitwig-extension-{bitwig_pin.sha}-tooling-{tooling.sha}",
+            input_repo_id="plugin-bitwig",
+            source_sha=bitwig_pin.sha,
+            tooling=tooling,
+            public_key_b64=producer_keys.value["plugin-bitwig-extension"],
+        ),
+        _plugin_bitwig_firmware_target(
+            bitwig_pin=bitwig_pin,
+            core_pin=core_pin,
+            ui_sha=ui_sha.value,
+            tooling=tooling,
+            public_key_b64=producer_keys.value["plugin-bitwig-firmware"],
+        ),
+    )
     return Ok(
-        (
-            ContentCandidateTarget(
-                id="loader-binaries",
-                label=f"loader {loader_pin.sha[:12]}",
-                producer_id="loader-binaries",
-                repo_slug=loader_pin.repo.slug,
-                workflow_file=".github/workflows/candidate.yml",
-                ref=loader_pin.repo.ref,
-                candidate_tag=f"rc-{loader_pin.sha}-tooling-{tooling.sha}",
-                workflow_inputs=(("source_sha", loader_pin.sha), ("tooling_sha", tooling.sha)),
-                expected_input_repos=(
-                    CandidateInputRepo(id="loader", repo=loader_pin.repo.slug, sha=loader_pin.sha),
-                    tooling_input_repo(tooling=tooling),
-                ),
-                public_key_b64=producer_keys.value["loader-binaries"],
-            ),
-            ContentCandidateTarget(
-                id="oc-bridge-binaries",
-                label=f"oc-bridge {bridge_pin.sha[:12]}",
-                producer_id="oc-bridge-binaries",
-                repo_slug=bridge_pin.repo.slug,
-                workflow_file=".github/workflows/candidate.yml",
-                ref=bridge_pin.repo.ref,
-                candidate_tag=f"rc-{bridge_pin.sha}-tooling-{tooling.sha}",
-                workflow_inputs=(("source_sha", bridge_pin.sha), ("tooling_sha", tooling.sha)),
-                expected_input_repos=(
-                    CandidateInputRepo(
-                        id="oc-bridge",
-                        repo=bridge_pin.repo.slug,
-                        sha=bridge_pin.sha,
-                    ),
-                    tooling_input_repo(tooling=tooling),
-                ),
-                public_key_b64=producer_keys.value["oc-bridge-binaries"],
-            ),
-            ContentCandidateTarget(
-                id="core-default-firmware",
-                label=f"core firmware {core_pin.sha[:12]}",
-                producer_id="core-default-firmware",
-                repo_slug=core_pin.repo.slug,
-                workflow_file=".github/workflows/candidate.yml",
-                ref=core_pin.repo.ref,
-                candidate_tag=f"rc-{core_pin.sha}-tooling-{tooling.sha}",
-                workflow_inputs=(("source_sha", core_pin.sha), ("tooling_sha", tooling.sha)),
-                expected_input_repos=(
-                    CandidateInputRepo(id="core", repo=core_pin.repo.slug, sha=core_pin.sha),
-                    tooling_input_repo(tooling=tooling),
-                ),
-                public_key_b64=producer_keys.value["core-default-firmware"],
-            ),
-            ContentCandidateTarget(
-                id="plugin-bitwig-extension",
-                label=f"bitwig extension {bitwig_pin.sha[:12]}",
-                producer_id="plugin-bitwig-extension",
-                repo_slug=bitwig_pin.repo.slug,
-                workflow_file=".github/workflows/candidate-extension.yml",
-                ref=bitwig_pin.repo.ref,
-                candidate_tag=f"rc-plugin-bitwig-extension-{bitwig_pin.sha}-tooling-{tooling.sha}",
-                workflow_inputs=(("source_sha", bitwig_pin.sha), ("tooling_sha", tooling.sha)),
-                expected_input_repos=(
-                    CandidateInputRepo(
-                        id="plugin-bitwig",
-                        repo=bitwig_pin.repo.slug,
-                        sha=bitwig_pin.sha,
-                    ),
-                    tooling_input_repo(tooling=tooling),
-                ),
-                public_key_b64=producer_keys.value["plugin-bitwig-extension"],
-            ),
-            ContentCandidateTarget(
-                id="plugin-bitwig-firmware",
-                label=f"bitwig firmware {core_pin.sha[:12]} + {bitwig_pin.sha[:12]}",
-                producer_id="plugin-bitwig-firmware",
-                repo_slug=bitwig_pin.repo.slug,
-                workflow_file=".github/workflows/candidate-firmware.yml",
-                ref=bitwig_pin.repo.ref,
-                candidate_tag=(
-                    f"rc-plugin-bitwig-firmware-{core_pin.sha}-{bitwig_pin.sha}"
-                    f"-tooling-{tooling.sha}"
-                ),
-                workflow_inputs=(
-                    ("source_sha", bitwig_pin.sha),
-                    ("core_sha", core_pin.sha),
-                    ("tooling_sha", tooling.sha),
-                ),
-                expected_input_repos=(
-                    CandidateInputRepo(
-                        id="plugin-bitwig",
-                        repo=bitwig_pin.repo.slug,
-                        sha=bitwig_pin.sha,
-                    ),
-                    CandidateInputRepo(id="core", repo=core_pin.repo.slug, sha=core_pin.sha),
-                    CandidateInputRepo(
-                        id="ui",
-                        repo="petitechose-midi-studio/ui",
-                        sha=ui_sha.value,
-                    ),
-                    tooling_input_repo(tooling=tooling),
-                ),
-                public_key_b64=producer_keys.value["plugin-bitwig-firmware"],
-            ),
-        )
+        targets
     )
 
 
@@ -200,3 +160,71 @@ def _resolve_candidate_public_keys(
             return producer
         keys[producer_id] = producer.value.public_key_b64
     return Ok(keys)
+
+
+def _single_repo_candidate_target(
+    *,
+    target_id: str,
+    label: str,
+    producer_id: str,
+    repo_slug: str,
+    workflow_file: str,
+    ref: str,
+    candidate_tag: str,
+    input_repo_id: str,
+    source_sha: str,
+    tooling: ReleaseTooling,
+    public_key_b64: str,
+) -> ContentCandidateTarget:
+    return ContentCandidateTarget(
+        id=target_id,
+        label=label,
+        producer_id=producer_id,
+        repo_slug=repo_slug,
+        workflow_file=workflow_file,
+        ref=ref,
+        candidate_tag=candidate_tag,
+        workflow_inputs=(("source_sha", source_sha), ("tooling_sha", tooling.sha)),
+        expected_input_repos=(
+            CandidateInputRepo(id=input_repo_id, repo=repo_slug, sha=source_sha),
+            tooling_input_repo(tooling=tooling),
+        ),
+        public_key_b64=public_key_b64,
+    )
+
+
+def _plugin_bitwig_firmware_target(
+    *,
+    bitwig_pin: PinnedRepo,
+    core_pin: PinnedRepo,
+    ui_sha: str,
+    tooling: ReleaseTooling,
+    public_key_b64: str,
+) -> ContentCandidateTarget:
+    return ContentCandidateTarget(
+        id="plugin-bitwig-firmware",
+        label=f"bitwig firmware {core_pin.sha[:12]} + {bitwig_pin.sha[:12]}",
+        producer_id="plugin-bitwig-firmware",
+        repo_slug=bitwig_pin.repo.slug,
+        workflow_file=".github/workflows/candidate-firmware.yml",
+        ref=bitwig_pin.repo.ref,
+        candidate_tag=(
+            f"rc-plugin-bitwig-firmware-{core_pin.sha}-{bitwig_pin.sha}-tooling-{tooling.sha}"
+        ),
+        workflow_inputs=(
+            ("source_sha", bitwig_pin.sha),
+            ("core_sha", core_pin.sha),
+            ("tooling_sha", tooling.sha),
+        ),
+        expected_input_repos=(
+            CandidateInputRepo(
+                id="plugin-bitwig",
+                repo=bitwig_pin.repo.slug,
+                sha=bitwig_pin.sha,
+            ),
+            CandidateInputRepo(id="core", repo=core_pin.repo.slug, sha=core_pin.sha),
+            CandidateInputRepo(id="ui", repo="petitechose-midi-studio/ui", sha=ui_sha),
+            tooling_input_repo(tooling=tooling),
+        ),
+        public_key_b64=public_key_b64,
+    )
