@@ -57,3 +57,6 @@ Thumbs.db
 # Memories archives (kept out of repo)
 /docs/memories/_OLD/
 /docs/memories/work/_OLD/
+
+# Temporary local planning / roadmap docs
+/docs/temp/
