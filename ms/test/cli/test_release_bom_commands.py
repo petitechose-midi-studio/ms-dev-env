@@ -187,6 +187,8 @@ def test_validate_bom_targets_cmd_succeeds_when_aligned(
     bom_cmd.validate_bom_targets_cmd()
 
     assert any("core release" in message for message in console.messages)
+    assert any("verify-bom:" in message for message in console.messages)
+    assert any("validate-targets:" in message for message in console.messages)
     assert any("OpenControl BOM targets validated" in message for message in console.messages)
 
 
