@@ -34,8 +34,15 @@ def test_gh_api_json_retries_transient_error(
         Ok('{"ok": true}'),
     ]
 
-    def fake_run(cmd: list[str], *, cwd: Path, timeout: float | None = None):
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ):
         del cwd
+        del env
         del timeout
         calls.append(cmd)
         return responses.pop(0)
@@ -49,13 +56,30 @@ def test_gh_api_json_retries_transient_error(
     assert len(calls) == 2
 
 
+def test_gh_process_env_promotes_github_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    monkeypatch.setenv("GITHUB_TOKEN", "workflow-token")
+
+    env = gh_mod.gh_process_env()
+
+    assert env["GITHUB_TOKEN"] == "workflow-token"
+    assert env["GH_TOKEN"] == "workflow-token"
+
+
 def test_gh_api_json_does_not_retry_on_non_transient(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     calls: list[list[str]] = []
 
-    def fake_run(cmd: list[str], *, cwd: Path, timeout: float | None = None):
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ):
         del cwd
+        del env
         del timeout
         calls.append(cmd)
         return _err(stderr="HTTP 404 Not Found", returncode=1)
@@ -78,8 +102,15 @@ def test_viewer_permission_retries_transient_error(
         Ok('{"viewerPermission": "WRITE"}'),
     ]
 
-    def fake_run(cmd: list[str], *, cwd: Path, timeout: float | None = None):
+    def fake_run(
+        cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ):
         del cwd
+        del env
         del timeout
         calls.append(cmd)
         return responses.pop(0)

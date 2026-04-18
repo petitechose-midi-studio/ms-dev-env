@@ -4,8 +4,8 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.platform.process import run as run_process
 from ms.release.errors import ReleaseError
+from ms.release.infra.github.gh_base import run_gh_process
 from ms.release.infra.github.pr_state import wait_until_mergeable, wait_until_merged
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
@@ -51,7 +51,7 @@ def create_pull_request(
     if dry_run:
         return Ok("(dry-run)")
 
-    result = run_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+    result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         e = result.error
         return Err(
@@ -101,7 +101,7 @@ def merge_pull_request(
     if dry_run:
         return Ok(None)
 
-    merged = run_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+    merged = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(merged, Err):
         e = merged.error
         if allow_auto_merge_fallback and _is_auto_merge_disabled(e.stderr):
@@ -129,7 +129,7 @@ def merge_pull_request(
                 "--rebase",
                 *(["--delete-branch"] if delete_branch else []),
             ]
-            direct = run_process(direct_cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+            direct = run_gh_process(direct_cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
             if isinstance(direct, Err):
                 de = direct.error
                 return Err(

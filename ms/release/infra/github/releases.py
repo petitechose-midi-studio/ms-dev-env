@@ -4,10 +4,9 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_str
-from ms.platform.process import run as run_process
 from ms.release.domain.models import DistributionRelease
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.gh_base import gh_api_json
+from ms.release.infra.github.gh_base import gh_api_json, run_gh_process
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
 
@@ -71,7 +70,7 @@ def download_release_assets(
     ]
     for pattern in patterns:
         cmd.extend(["--pattern", pattern])
-    result = run_process(
+    result = run_gh_process(
         cmd,
         cwd=workspace_root,
         timeout=GH_TIMEOUT_SECONDS,
@@ -105,7 +104,7 @@ def release_exists_by_tag(
     repo: str,
     tag: str,
 ) -> Result[bool, ReleaseError]:
-    result = run_process(
+    result = run_gh_process(
         ["gh", "release", "view", tag, "--repo", repo, "--json", "tagName"],
         cwd=workspace_root,
         timeout=GH_TIMEOUT_SECONDS,
