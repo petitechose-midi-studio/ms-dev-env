@@ -59,6 +59,11 @@ def test_dispatch_publish_workflow_matches_request_id(
     assert result.value.request_id == "ms-123456781234"
     assert result.value.url.endswith("/101")
     assert sum(1 for cmd in calls if cmd[:2] == ["gh", "api"]) == 1
+    assert any(
+        cmd[2].endswith("?per_page=100&name=dispatch-ms-123456781234")
+        for cmd in calls
+        if cmd[:2] == ["gh", "api"]
+    )
 
 
 def test_dispatch_publish_workflow_retries_until_match(
@@ -102,6 +107,11 @@ def test_dispatch_publish_workflow_retries_until_match(
     assert isinstance(result, Ok)
     assert result.value.id == 201
     assert sum(1 for cmd in calls if cmd[:2] == ["gh", "api"]) == 2
+    assert all(
+        cmd[2].endswith("?per_page=100&name=dispatch-ms-123456781234")
+        for cmd in calls
+        if cmd[:2] == ["gh", "api"]
+    )
 
 
 def test_dispatch_publish_workflow_fails_without_request_id_match(
