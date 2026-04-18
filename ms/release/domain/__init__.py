@@ -8,6 +8,11 @@ from ms.release.domain.candidate_models import (
     CandidateInputRepo,
     CandidateManifest,
 )
+from ms.release.domain.candidate_producers import (
+    TRUSTED_CANDIDATE_PRODUCERS,
+    TrustedCandidateProducer,
+    resolve_trusted_candidate_producer,
+)
 from ms.release.domain.config import (
     APP_CANDIDATE_WORKFLOW,
     APP_DEFAULT_BRANCH,
@@ -49,6 +54,8 @@ __all__ = [
     "CandidateArtifact",
     "CandidateInputRepo",
     "CandidateManifest",
+    "TRUSTED_CANDIDATE_PRODUCERS",
+    "TrustedCandidateProducer",
     "DIST_DEFAULT_BRANCH",
     "DIST_LOCAL_DIR",
     "DIST_NOTES_DIR",
@@ -70,6 +77,7 @@ __all__ = [
     "format_beta_tag",
     "parse_beta_tag",
     "parse_stable_tag",
+    "resolve_trusted_candidate_producer",
     "suggest_tag",
     "validate_tag",
 ]

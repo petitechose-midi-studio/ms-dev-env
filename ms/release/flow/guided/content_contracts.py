@@ -9,6 +9,7 @@ from ms.release.domain.models import PinnedRepo, ReleasePlan
 from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import BomPromotionResult
+from ms.release.flow.content_candidates import EnsuredContentCandidate
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
 from .menu_option import MenuOption
@@ -70,6 +71,15 @@ class ContentGuidedDependencies(Protocol):
         pinned: tuple[PinnedRepo, ...],
         allow_non_green: bool,
     ) -> Result[None, ReleaseError]: ...
+
+    def ensure_content_candidates(
+        self,
+        *,
+        workspace_root: Path,
+        console: ConsoleProtocol,
+        pinned: tuple[PinnedRepo, ...],
+        dry_run: bool,
+    ) -> Result[tuple[EnsuredContentCandidate, ...], ReleaseError]: ...
 
     def preflight_open_control(
         self,

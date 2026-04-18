@@ -25,6 +25,7 @@ from ms.release.flow.bom_promotion import (
     promote_open_control_bom as promote_open_control_bom_flow,
 )
 from ms.release.flow.ci_gate import ensure_ci_green
+from ms.release.flow.content_candidates import ensure_content_candidates
 from ms.release.flow.content_plan import plan_release
 from ms.release.flow.content_prepare import prepare_distribution_pr
 from ms.release.flow.content_publish import publish_distribution_release
@@ -177,6 +178,21 @@ def run_guided_content_release(
                 workspace_root=workspace_root,
                 pinned=pinned,
                 allow_non_green=allow_non_green,
+            )
+
+        def ensure_content_candidates(
+            self,
+            *,
+            workspace_root: Path,
+            console: ConsoleProtocol,
+            pinned: tuple[PinnedRepo, ...],
+            dry_run: bool,
+        ):
+            return ensure_content_candidates(
+                workspace_root=workspace_root,
+                console=console,
+                pinned=pinned,
+                dry_run=dry_run,
             )
 
         def preflight_open_control(
