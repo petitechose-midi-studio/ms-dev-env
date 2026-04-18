@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from ms.release.domain import CandidateInputRepo
 from ms.release.infra.github.workflows import WorkflowRun
+
+
+class ContentCandidateState(StrEnum):
+    READY = "ready"
+    MISSING = "missing"
+    INCOMPLETE = "incomplete"
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,4 +37,8 @@ class EnsuredContentCandidate:
 @dataclass(frozen=True, slots=True)
 class ContentCandidateAssessment:
     target: ContentCandidateTarget
-    available: bool
+    state: ContentCandidateState
+
+    @property
+    def available(self) -> bool:
+        return self.state is ContentCandidateState.READY
