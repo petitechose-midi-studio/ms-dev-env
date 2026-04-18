@@ -63,6 +63,7 @@ def test_promote_open_control_bom_returns_already_merged_when_no_write_needed(
     monkeypatch: MonkeyPatch, tmp_path: Path
 ) -> None:
     import ms.release.flow.bom_promotion as promotion
+    import ms.release.flow.bom_promotion_steps as promotion_steps
 
     preview = BomSyncPreview(
         state=_workspace_state(root=tmp_path / "core", status="aligned"),
@@ -94,10 +95,10 @@ def test_promote_open_control_bom_returns_already_merged_when_no_write_needed(
     def fake_get_ref_head_sha(**_: object) -> Ok[str]:
         return Ok("a" * 40)
 
-    monkeypatch.setattr(promotion, "ensure_core_repo", fake_ensure_core_repo)
-    monkeypatch.setattr(promotion, "ensure_clean_core_repo", fake_ok_none)
-    monkeypatch.setattr(promotion, "core_checkout_main_and_pull", fake_ok_none)
-    monkeypatch.setattr(promotion, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(promotion_steps, "ensure_core_repo", fake_ensure_core_repo)
+    monkeypatch.setattr(promotion_steps, "ensure_clean_core_repo", fake_ok_none)
+    monkeypatch.setattr(promotion_steps, "core_checkout_main_and_pull", fake_ok_none)
+    monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
     monkeypatch.setattr(promotion, "get_ref_head_sha", fake_get_ref_head_sha)
 
     result = promote_open_control_bom(
@@ -114,7 +115,7 @@ def test_promote_open_control_bom_returns_already_merged_when_no_write_needed(
 def test_promote_open_control_bom_creates_and_merges_core_pr(
     monkeypatch: MonkeyPatch, tmp_path: Path
 ) -> None:
-    import ms.release.flow.bom_promotion as promotion
+    import ms.release.flow.bom_promotion_steps as promotion_steps
 
     core_root = tmp_path / "midi-studio" / "core"
     written = (core_root / "oc-sdk.ini", core_root / "oc-native-sdk.ini")
@@ -183,16 +184,20 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
         calls.append("head")
         return Ok("c" * 40)
 
-    monkeypatch.setattr(promotion, "ensure_core_repo", fake_ensure_core_repo)
-    monkeypatch.setattr(promotion, "ensure_clean_core_repo", fake_ensure_clean_core_repo)
-    monkeypatch.setattr(promotion, "core_checkout_main_and_pull", fake_core_checkout_main_and_pull)
-    monkeypatch.setattr(promotion, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
-    monkeypatch.setattr(promotion, "core_create_branch", fake_core_create_branch)
-    monkeypatch.setattr(promotion, "sync_workspace_bom", fake_sync_workspace_bom)
-    monkeypatch.setattr(promotion, "core_commit_and_push", fake_core_commit_and_push)
-    monkeypatch.setattr(promotion, "core_open_pr", fake_core_open_pr)
-    monkeypatch.setattr(promotion, "core_merge_pr", fake_core_merge_pr)
-    monkeypatch.setattr(promotion, "get_ref_head_sha", fake_get_ref_head_sha)
+    monkeypatch.setattr(promotion_steps, "ensure_core_repo", fake_ensure_core_repo)
+    monkeypatch.setattr(promotion_steps, "ensure_clean_core_repo", fake_ensure_clean_core_repo)
+    monkeypatch.setattr(
+        promotion_steps,
+        "core_checkout_main_and_pull",
+        fake_core_checkout_main_and_pull,
+    )
+    monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(promotion_steps, "core_create_branch", fake_core_create_branch)
+    monkeypatch.setattr(promotion_steps, "sync_workspace_bom", fake_sync_workspace_bom)
+    monkeypatch.setattr(promotion_steps, "core_commit_and_push", fake_core_commit_and_push)
+    monkeypatch.setattr(promotion_steps, "core_open_pr", fake_core_open_pr)
+    monkeypatch.setattr(promotion_steps, "core_merge_pr", fake_core_merge_pr)
+    monkeypatch.setattr(promotion_steps, "get_ref_head_sha", fake_get_ref_head_sha)
 
     result = promote_open_control_bom(
         workspace_root=tmp_path,
@@ -223,7 +228,7 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
 def test_promote_open_control_bom_restores_main_when_sync_fails(
     monkeypatch: MonkeyPatch, tmp_path: Path
 ) -> None:
-    import ms.release.flow.bom_promotion as promotion
+    import ms.release.flow.bom_promotion_steps as promotion_steps
 
     core_root = tmp_path / "midi-studio" / "core"
     core_root.mkdir(parents=True)
@@ -276,11 +281,15 @@ def test_promote_open_control_bom_restores_main_when_sync_fails(
             )
         )
 
-    monkeypatch.setattr(promotion, "ensure_core_repo", fake_ensure_core_repo)
-    monkeypatch.setattr(promotion, "ensure_clean_core_repo", fake_ensure_clean_core_repo)
-    monkeypatch.setattr(promotion, "core_checkout_main_and_pull", fake_core_checkout_main_and_pull)
-    monkeypatch.setattr(promotion, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
-    monkeypatch.setattr(promotion, "sync_workspace_bom", fake_sync_workspace_bom)
+    monkeypatch.setattr(promotion_steps, "ensure_core_repo", fake_ensure_core_repo)
+    monkeypatch.setattr(promotion_steps, "ensure_clean_core_repo", fake_ensure_clean_core_repo)
+    monkeypatch.setattr(
+        promotion_steps,
+        "core_checkout_main_and_pull",
+        fake_core_checkout_main_and_pull,
+    )
+    monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(promotion_steps, "sync_workspace_bom", fake_sync_workspace_bom)
 
     result = promote_open_control_bom(
         workspace_root=tmp_path,
