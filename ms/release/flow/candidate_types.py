@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from ms.release.domain import CandidateInputRepo
+from ms.release.domain import CandidateInputRepo, CandidateManifest
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,3 +47,23 @@ class CandidateVerifyRequest:
     expected_workflow_file: str | None = None
     expected_input_repos: tuple[CandidateInputRepo, ...] | None = None
     public_key_env: str = "MS_CANDIDATE_ED25519_PK"
+    public_key_b64: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateFetchRequest:
+    producer_id: str
+    candidate_tag: str
+    output_dir: Path
+    asset_filenames: tuple[str, ...]
+    expected_input_repos: tuple[CandidateInputRepo, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateFetchResult:
+    producer_id: str
+    candidate_repo: str
+    candidate_tag: str
+    output_dir: Path
+    copied_files: tuple[Path, ...]
+    manifest: CandidateManifest

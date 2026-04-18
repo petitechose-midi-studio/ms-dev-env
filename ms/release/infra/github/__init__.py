@@ -8,7 +8,6 @@ from ms.release.infra.github.client import (
     current_user,
     get_ref_head_sha,
     get_repo_file_text,
-    list_distribution_releases,
     list_recent_commits,
     viewer_permission,
 )
@@ -19,6 +18,11 @@ from ms.release.infra.github.gh_base import (
     run_gh_read,
 )
 from ms.release.infra.github.pr_merge import create_pull_request, merge_pull_request
+from ms.release.infra.github.releases import (
+    download_release_assets,
+    list_distribution_releases,
+    release_exists_by_tag,
+)
 from ms.release.infra.github.run_watch import watch_run
 from ms.release.infra.github.timeouts import (
     GH_CLONE_TIMEOUT_SECONDS,
@@ -33,6 +37,7 @@ from ms.release.infra.github.workflows import (
     WorkflowRun,
     dispatch_app_candidate_workflow,
     dispatch_app_release_workflow,
+    dispatch_candidate_workflow,
     dispatch_publish_workflow,
 )
 
@@ -51,6 +56,8 @@ __all__ = [
     "compare_commits",
     "create_pull_request",
     "current_user",
+    "dispatch_candidate_workflow",
+    "download_release_assets",
     "dispatch_app_candidate_workflow",
     "dispatch_app_release_workflow",
     "dispatch_publish_workflow",
@@ -64,6 +71,7 @@ __all__ = [
     "list_distribution_releases",
     "list_recent_commits",
     "merge_pull_request",
+    "release_exists_by_tag",
     "run_gh_read",
     "viewer_permission",
     "watch_run",

@@ -10,6 +10,7 @@ from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleasePlan
 from ms.release.errors import ReleaseError
 from ms.release.flow.ci_gate import ensure_ci_green
+from ms.release.flow.content_candidates import ensure_content_candidates
 from ms.release.infra.artifacts.notes_writer import write_release_notes
 from ms.release.infra.artifacts.spec_writer import write_release_spec
 from ms.release.infra.repos.distribution import (
@@ -234,6 +235,15 @@ def prepare_content_release_distribution(
     )
     if isinstance(green, Err):
         return green
+
+    candidates = ensure_content_candidates(
+        workspace_root=workspace_root,
+        console=console,
+        pinned=pinned,
+        dry_run=dry_run,
+    )
+    if isinstance(candidates, Err):
+        return candidates
 
     pr = prepare_distribution_pr(
         workspace_root=workspace_root,

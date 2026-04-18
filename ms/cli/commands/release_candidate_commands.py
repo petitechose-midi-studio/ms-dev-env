@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import typer
@@ -10,8 +11,10 @@ from ms.core.result import Err, Ok, Result
 from ms.release.domain import CandidateInputRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.candidate_workflow import (
+    CandidateFetchRequest,
     CandidateVerifyRequest,
     CandidateWriteRequest,
+    fetch_candidate_assets,
     load_candidate_artifact_specs,
     load_candidate_input_repos,
     load_string_pairs_json,
@@ -21,6 +24,7 @@ from ms.release.flow.candidate_workflow import (
 
 
 def register_candidate_commands(*, namespace: typer.Typer) -> None:
+    namespace.command("fetch")(fetch_candidate_cmd)
     namespace.command("write")(write_candidate_cmd)
     namespace.command("verify")(verify_candidate_cmd)
 
@@ -154,6 +158,42 @@ def verify_candidate_cmd(
     ctx.console.print(verified.value.build_input_fingerprint)
 
 
+def fetch_candidate_cmd(
+    producer_id: str = typer.Option(..., "--producer-id", help="Trusted producer id."),
+    candidate_tag: str = typer.Option(..., "--candidate-tag", help="Candidate release tag."),
+    out_dir: Path = typer.Option(..., "--out-dir", help="Directory to copy fetched assets into."),
+    asset_filename: list[str] = typer.Option(
+        [],
+        "--asset-filename",
+        help="Candidate asset filename to copy into --out-dir.",
+    ),
+    input_repo: list[str] = typer.Option(
+        [],
+        "--input-repo",
+        help="Expected input repo triplet as id=repo=sha.",
+    ),
+) -> None:
+    ctx = build_context()
+
+    expected_input_repos = _unwrap_or_exit(_parse_candidate_input_repo_args(tuple(input_repo)))
+    fetched = fetch_candidate_assets(
+        workspace_root=ctx.workspace.root,
+        request=CandidateFetchRequest(
+            producer_id=producer_id,
+            candidate_tag=candidate_tag,
+            output_dir=out_dir,
+            asset_filenames=tuple(asset_filename),
+            expected_input_repos=expected_input_repos,
+        ),
+    )
+    if isinstance(fetched, Err):
+        exit_release(fetched.error.pretty(), code=release_error_code(fetched.error.kind))
+
+    ctx.console.success("Candidate assets fetched")
+    for path in fetched.value.copied_files:
+        ctx.console.print(str(path))
+
+
 def _load_optional_pairs(path: Path | None) -> Result[tuple[tuple[str, str], ...], ReleaseError]:
     if path is None:
         return Ok(())
@@ -164,6 +204,42 @@ def _load_expected_input_repos(path: Path | None) -> tuple[CandidateInputRepo, .
     if path is None:
         return None
     return _unwrap_or_exit(load_candidate_input_repos(path))
+
+
+def _parse_candidate_input_repo_args(
+    values: tuple[str, ...],
+) -> Result[tuple[CandidateInputRepo, ...], ReleaseError]:
+    repos: list[CandidateInputRepo] = []
+    for idx, value in enumerate(values):
+        repo = _parse_candidate_input_repo_arg(value=value, idx=idx)
+        if isinstance(repo, Err):
+            return repo
+        repos.append(repo.value)
+    return Ok(tuple(repos))
+
+
+def _parse_candidate_input_repo_arg(
+    *, value: str, idx: int
+) -> Result[CandidateInputRepo, ReleaseError]:
+    parts = value.split("=", maxsplit=2)
+    if len(parts) != 3:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"invalid --input-repo at index {idx}: {value}",
+                hint="expected id=repo=sha",
+            )
+        )
+    repo_id, repo_slug, sha = parts
+    if not repo_id or not repo_slug or re.fullmatch(r"[0-9a-f]{40}", sha) is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"invalid --input-repo at index {idx}: {value}",
+                hint="expected id=repo=40-char lowercase sha",
+            )
+        )
+    return Ok(CandidateInputRepo(id=repo_id, repo=repo_slug, sha=sha))
 
 
 def _unwrap_or_exit[T](result: Result[T, ReleaseError]) -> T:

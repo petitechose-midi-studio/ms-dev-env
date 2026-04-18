@@ -69,6 +69,15 @@ def dispatch_content_release(
         auto_label="notes: automatic notes only",
     )
 
+    candidates = deps.ensure_content_candidates(
+        workspace_root=workspace_root,
+        console=console,
+        pinned=plan.pinned,
+        dry_run=dry_run,
+    )
+    if isinstance(candidates, Err):
+        return candidates
+
     pr = deps.prepare_distribution_pr(
         workspace_root=workspace_root,
         console=console,

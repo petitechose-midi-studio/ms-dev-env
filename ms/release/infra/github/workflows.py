@@ -206,6 +206,27 @@ def dispatch_publish_workflow(
     )
 
 
+def dispatch_candidate_workflow(
+    *,
+    workspace_root: Path,
+    repo_slug: str,
+    workflow_file: str,
+    ref: str,
+    inputs: tuple[tuple[str, str], ...],
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[WorkflowRun, ReleaseError]:
+    return _dispatch_workflow(
+        workspace_root=workspace_root,
+        repo_slug=repo_slug,
+        workflow_file=workflow_file,
+        ref=ref,
+        inputs=inputs,
+        console=console,
+        dry_run=dry_run,
+    )
+
+
 def dispatch_app_release_workflow(
     *,
     workspace_root: Path,

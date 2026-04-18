@@ -335,6 +335,9 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     def fake_ci_green(*args: object, **kwargs: object):
         return Ok(None)
 
+    def fake_ensure_content_candidates(*args: object, **kwargs: object):
+        return Ok(())
+
     def fake_open_control(*args: object, **kwargs: object) -> OpenControlPreflightReport:
         return OpenControlPreflightReport(
             oc_sdk=OcSdkLoad(lock=_oc_sdk_lock(version="0.1.3"), source="git", error=None),
@@ -370,6 +373,7 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr(content, "select_one", fake_select_one)
     monkeypatch.setattr(content, "confirm_yn", fake_confirm)
     monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
     monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
     monkeypatch.setattr(content, "publish_distribution_release", fake_publish)
@@ -473,6 +477,9 @@ def test_guided_content_bom_promotion_updates_core_sha(
     def fake_ci_green(*args: object, **kwargs: object):
         return Ok(None)
 
+    def fake_ensure_content_candidates(*args: object, **kwargs: object):
+        return Ok(())
+
     def fake_open_control(*args: object, **kwargs: object) -> OpenControlPreflightReport:
         core_sha = str(kwargs["core_sha"])
         if core_sha == "9" * 40:
@@ -540,6 +547,7 @@ def test_guided_content_bom_promotion_updates_core_sha(
     monkeypatch.setattr(content, "select_one", fake_select_one)
     monkeypatch.setattr(content, "confirm_yn", fake_confirm)
     monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
     def fake_ensure_core_release_permissions(**_: object) -> Ok[None]:
         return Ok(None)
