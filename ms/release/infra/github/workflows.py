@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import base64
-import json
 from dataclasses import dataclass
 from pathlib import Path
-from time import sleep
 from uuid import uuid4
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_obj_list, as_str_dict, get_int, get_str
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.config import (
     APP_CANDIDATE_WORKFLOW,
@@ -21,16 +18,19 @@ from ms.release.domain.config import (
 )
 from ms.release.domain.models import ReleaseChannel
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.gh_base import run_gh_process
-from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
-_RUN_LOOKUP_MAX_ATTEMPTS = 6
-_RUN_LOOKUP_DELAY_SECONDS = 1.0
+from .gh_base import run_gh_process
+from .timeouts import GH_TIMEOUT_SECONDS
+from .workflow_dispatch_lookup import resolve_dispatched_run
+
+
 @dataclass(frozen=True, slots=True)
 class WorkflowRun:
     id: int
     url: str
     request_id: str
+
+
 def _dispatch_workflow(
     *,
     workspace_root: Path,
@@ -52,8 +52,8 @@ def _dispatch_workflow(
         "--ref",
         ref,
     ]
-    for k, v in inputs:
-        cmd.extend(["-f", f"{k}={v}"])
+    for key, value in inputs:
+        cmd.extend(["-f", f"{key}={value}"])
     cmd.extend(["-f", f"request_id={request_id}"])
 
     console.print(" ".join(cmd[:3]) + " ...", Style.DIM)
@@ -63,119 +63,32 @@ def _dispatch_workflow(
 
     result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
-        e = result.error
+        error = result.error
         return Err(
             ReleaseError(
                 kind="workflow_failed",
                 message="failed to dispatch workflow",
-                hint=e.stderr.strip() or None,
+                hint=error.stderr.strip() or None,
             )
         )
 
-    return _resolve_dispatched_run(
+    resolved = resolve_dispatched_run(
         workspace_root=workspace_root,
         repo_slug=repo_slug,
-        workflow_file=workflow_file,
-        ref=ref,
         request_id=request_id,
     )
-def _resolve_dispatched_run(
-    *,
-    workspace_root: Path,
-    repo_slug: str,
-    workflow_file: str,
-    ref: str,
-    request_id: str,
-) -> Result[WorkflowRun, ReleaseError]:
-    list_cmd = [
-        "gh",
-        "run",
-        "list",
-        "--repo",
-        repo_slug,
-        "--workflow",
-        workflow_file,
-        "--limit",
-        "20",
-        "--json",
-        "databaseId,url,event,headBranch,displayTitle",
-    ]
+    if isinstance(resolved, Err):
+        return resolved
 
-    for attempt in range(_RUN_LOOKUP_MAX_ATTEMPTS):
-        list_result = run_gh_process(list_cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
-        if isinstance(list_result, Err):
-            e = list_result.error
-            return Err(
-                ReleaseError(
-                    kind="workflow_failed",
-                    message="failed to query workflow runs",
-                    hint=e.stderr.strip() or None,
-                )
-            )
-
-        parsed = _find_dispatched_run(
-            payload=list_result.value,
-            ref=ref,
+    return Ok(
+        WorkflowRun(
+            id=resolved.value.run_id,
+            url=resolved.value.url,
             request_id=request_id,
         )
-        if isinstance(parsed, Err):
-            return parsed
-        if parsed.value is not None:
-            return Ok(parsed.value)
-        if attempt < _RUN_LOOKUP_MAX_ATTEMPTS - 1:
-            sleep(_RUN_LOOKUP_DELAY_SECONDS)
-
-    return Err(
-        ReleaseError(
-            kind="workflow_failed",
-            message="could not deterministically identify the dispatched workflow run",
-            hint=(
-                f"Run list did not expose request_id={request_id}; check Actions in {repo_slug} "
-                "and ensure workflow run title includes the dispatch request_id."
-            ),
-        )
     )
-def _find_dispatched_run(
-    *,
-    payload: str,
-    ref: str,
-    request_id: str,
-) -> Result[WorkflowRun | None, ReleaseError]:
-    try:
-        obj: object = json.loads(payload)
-    except json.JSONDecodeError as e:
-        return Err(
-            ReleaseError(
-                kind="workflow_failed",
-                message=f"invalid JSON from gh run list: {e}",
-            )
-        )
 
-    raw = as_obj_list(obj)
-    if raw is None:
-        return Err(ReleaseError(kind="workflow_failed", message="unexpected gh run list payload"))
 
-    for item in raw:
-        d = as_str_dict(item)
-        if d is None:
-            continue
-
-        event = get_str(d, "event")
-        head = get_str(d, "headBranch")
-        url = get_str(d, "url")
-        run_id = get_int(d, "databaseId")
-        title = get_str(d, "displayTitle")
-        if event != "workflow_dispatch":
-            continue
-        if head != ref:
-            continue
-        if url is None or run_id is None:
-            continue
-        if not isinstance(title, str) or request_id not in title:
-            continue
-        return Ok(WorkflowRun(id=run_id, url=url, request_id=request_id))
-
-    return Ok(None)
 def dispatch_publish_workflow(
     *,
     workspace_root: Path,
@@ -200,6 +113,8 @@ def dispatch_publish_workflow(
         console=console,
         dry_run=dry_run,
     )
+
+
 def dispatch_candidate_workflow(
     *,
     workspace_root: Path,
@@ -219,6 +134,8 @@ def dispatch_candidate_workflow(
         console=console,
         dry_run=dry_run,
     )
+
+
 def dispatch_app_release_workflow(
     *,
     workspace_root: Path,
@@ -268,6 +185,8 @@ def dispatch_app_release_workflow(
         console=console,
         dry_run=dry_run,
     )
+
+
 def dispatch_app_candidate_workflow(
     *,
     workspace_root: Path,
