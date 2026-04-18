@@ -4,8 +4,16 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok
 from ms.release.domain.config import APP_RELEASE_REPO, RELEASE_REPOS
-from ms.release.domain.models import PinnedRepo
+from ms.release.domain.models import PinnedRepo, ReleaseTooling
 from ms.release.resolve.plan_io import PlanInput, read_plan_file, write_plan_file
+
+
+def _tooling() -> ReleaseTooling:
+    return ReleaseTooling(
+        repo="petitechose-midi-studio/ms-dev-env",
+        ref="main",
+        sha="f" * 40,
+    )
 
 
 def test_plan_file_roundtrip_content_schema_v2(tmp_path: Path) -> None:
@@ -15,7 +23,13 @@ def test_plan_file_roundtrip_content_schema_v2(tmp_path: Path) -> None:
         PinnedRepo(repo=RELEASE_REPOS[2], sha="2" * 40),
         PinnedRepo(repo=RELEASE_REPOS[3], sha="3" * 40),
     )
-    plan = PlanInput(product="content", channel="stable", tag="v1.2.3", pinned=pinned)
+    plan = PlanInput(
+        product="content",
+        channel="stable",
+        tag="v1.2.3",
+        pinned=pinned,
+        tooling=_tooling(),
+    )
     path = tmp_path / "plan.json"
 
     written = write_plan_file(path=path, plan=plan)
@@ -33,6 +47,7 @@ def test_plan_file_roundtrip_content_schema_v2(tmp_path: Path) -> None:
         "plugin-bitwig",
     ]
     assert [p.sha for p in read.value.pinned] == ["0" * 40, "1" * 40, "2" * 40, "3" * 40]
+    assert read.value.tooling == _tooling()
 
 
 def test_plan_file_preserves_ref_override(tmp_path: Path) -> None:
@@ -54,7 +69,13 @@ def test_plan_file_preserves_ref_override(tmp_path: Path) -> None:
         PinnedRepo(repo=core_feature, sha="2" * 40),
         PinnedRepo(repo=repo3, sha="3" * 40),
     )
-    plan = PlanInput(product="content", channel="beta", tag="v1.2.3-beta.1", pinned=pinned)
+    plan = PlanInput(
+        product="content",
+        channel="beta",
+        tag="v1.2.3-beta.1",
+        pinned=pinned,
+        tooling=_tooling(),
+    )
     path = tmp_path / "plan.json"
 
     written = write_plan_file(path=path, plan=plan)
@@ -94,7 +115,13 @@ def test_plan_file_rejects_missing_repos(tmp_path: Path) -> None:
 
 def test_plan_file_roundtrip_app_product(tmp_path: Path) -> None:
     pinned = (PinnedRepo(repo=APP_RELEASE_REPO, sha="a" * 40),)
-    plan = PlanInput(product="app", channel="beta", tag="v0.2.0-beta.1", pinned=pinned)
+    plan = PlanInput(
+        product="app",
+        channel="beta",
+        tag="v0.2.0-beta.1",
+        pinned=pinned,
+        tooling=None,
+    )
     path = tmp_path / "plan-app.json"
 
     written = write_plan_file(path=path, plan=plan)

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from ms.core.result import Err, Ok
-from ms.release.domain.models import PinnedRepo
+from ms.release.domain.models import PinnedRepo, ReleaseTooling
 from ms.release.infra.artifacts import notes_writer as notes_mod
 from ms.release.infra.artifacts import spec_writer as spec_mod
 from ms.release.infra.artifacts.notes_writer import write_release_notes
@@ -19,6 +19,14 @@ def _pinned() -> tuple[PinnedRepo, ...]:
     return tuple(PinnedRepo(repo=r, sha=str(i) * 40) for i, r in enumerate(RELEASE_REPOS))
 
 
+def _tooling() -> ReleaseTooling:
+    return ReleaseTooling(
+        repo="petitechose-midi-studio/ms-dev-env",
+        ref="main",
+        sha="f" * 40,
+    )
+
+
 def test_write_release_spec(tmp_path: Path) -> None:
     pinned = _pinned()
     result = write_release_spec(
@@ -26,13 +34,16 @@ def test_write_release_spec(tmp_path: Path) -> None:
         channel="stable",
         tag="v1.2.3",
         pinned=pinned,
+        tooling=_tooling(),
     )
     assert isinstance(result, Ok)
     assert result.value.abs_path.exists()
     text = result.value.abs_path.read_text(encoding="utf-8")
-    assert '"schema": 1' in text
+    assert '"schema": 2' in text
     assert '"channel": "stable"' in text
     assert '"tag": "v1.2.3"' in text
+    assert '"tooling"' in text
+    assert _tooling().sha in text
     assert "midi-studio-windows-x86_64-bundle.zip" in text
     assert "midi-studio-default-firmware.hex" in text
     assert "midi_studio.bwextension" in text
@@ -76,6 +87,7 @@ def test_write_release_spec_reports_atomic_write_error(
         channel="stable",
         tag="v1.2.3",
         pinned=pinned,
+        tooling=_tooling(),
     )
     assert isinstance(result, Err)
     assert result.error.kind == "repo_failed"

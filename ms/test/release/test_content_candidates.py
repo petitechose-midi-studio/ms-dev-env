@@ -6,7 +6,7 @@ from pytest import MonkeyPatch
 
 from ms.core.result import Ok
 from ms.output.console import MockConsole
-from ms.release.domain.models import PinnedRepo, ReleaseRepo
+from ms.release.domain.models import PinnedRepo, ReleasePlan, ReleaseRepo, ReleaseTooling
 from ms.release.flow.content_candidates import (
     ContentCandidateTarget,
     ensure_content_candidates,
@@ -56,6 +56,14 @@ def _pinned() -> tuple[PinnedRepo, ...]:
     )
 
 
+def _tooling() -> ReleaseTooling:
+    return ReleaseTooling(
+        repo="petitechose-midi-studio/ms-dev-env",
+        ref="main",
+        sha="f" * 40,
+    )
+
+
 def test_plan_content_candidates_resolves_tags_and_ui_sha(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
@@ -73,7 +81,11 @@ def test_plan_content_candidates_resolves_tags_and_ui_sha(
 
     monkeypatch.setattr(planning, "get_repo_file_text", fake_get_repo_file_text)
 
-    planned = plan_content_candidates(workspace_root=tmp_path, pinned=_pinned())
+    planned = plan_content_candidates(
+        workspace_root=tmp_path,
+        pinned=_pinned(),
+        tooling=_tooling(),
+    )
 
     assert isinstance(planned, Ok)
     assert [target.id for target in planned.value] == [
@@ -83,12 +95,13 @@ def test_plan_content_candidates_resolves_tags_and_ui_sha(
         "plugin-bitwig-extension",
         "plugin-bitwig-firmware",
     ]
-    assert planned.value[2].candidate_tag == "rc-" + ("3" * 40)
+    assert planned.value[2].candidate_tag == "rc-" + ("3" * 40) + "-tooling-" + ("f" * 40)
     assert (
         planned.value[4].candidate_tag
-        == "rc-plugin-bitwig-firmware-" + ("3" * 40) + "-" + ("4" * 40)
+        == "rc-plugin-bitwig-firmware-" + ("3" * 40) + "-" + ("4" * 40) + "-tooling-" + ("f" * 40)
     )
     assert planned.value[4].expected_input_repos[2].sha == "a" * 40
+    assert planned.value[4].expected_input_repos[3].id == "ms-dev-env"
 
 
 def test_ensure_content_candidates_dispatches_only_missing_targets(
@@ -103,8 +116,8 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
         repo_slug="petitechose-midi-studio/core",
         workflow_file=".github/workflows/candidate.yml",
         ref="main",
-        candidate_tag="rc-" + ("3" * 40),
-        workflow_inputs=(("source_sha", "3" * 40),),
+        candidate_tag="rc-" + ("3" * 40) + "-tooling-" + ("f" * 40),
+        workflow_inputs=(("source_sha", "3" * 40), ("tooling_sha", "f" * 40)),
         expected_input_repos=(),
         public_key_b64="pk",
     )
@@ -113,9 +126,9 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
     dispatched: list[tuple[str, tuple[tuple[str, str], ...]]] = []
 
     def fake_plan_content_candidates(
-        *, workspace_root: Path, pinned: tuple[PinnedRepo, ...]
+        *, workspace_root: Path, pinned: tuple[PinnedRepo, ...], tooling: ReleaseTooling
     ) -> Ok[tuple[ContentCandidateTarget, ...]]:
-        del workspace_root, pinned
+        del workspace_root, pinned, tooling
         return Ok((target,))
 
     def fake_probe_content_candidate(
@@ -152,11 +165,21 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
     ensured = ensure_content_candidates(
         workspace_root=tmp_path,
         console=MockConsole(),
-        pinned=_pinned(),
+        plan=ReleasePlan(
+            channel="beta",
+            tag="v1.2.3-beta.1",
+            pinned=_pinned(),
+            tooling=_tooling(),
+            spec_path="release-specs/v1.2.3-beta.1.json",
+            notes_path=None,
+            title="release(content): v1.2.3-beta.1",
+        ),
         dry_run=False,
     )
 
     assert isinstance(ensured, Ok)
-    assert dispatched == [("petitechose-midi-studio/core", (("source_sha", "3" * 40),))]
+    assert dispatched == [
+        ("petitechose-midi-studio/core", (("source_sha", "3" * 40), ("tooling_sha", "f" * 40)))
+    ]
     assert ensured.value[0].ready_on_entry is False
     assert ensured.value[0].run is not None

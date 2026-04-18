@@ -10,12 +10,11 @@ from ms.release.errors import ReleaseError
 
 from .content_bom_step import assess_content_bom
 from .content_contracts import ContentGuidedDependencies
+from .content_plan_state import resolve_content_release_plan
 from .content_release_dispatch import (
     dispatch_content_release,
     ensure_open_control_clean,
-    validate_content_confirm_inputs,
 )
-from .content_repo_pins import pinned
 from .fsm import FINISH, StepOutcome, advance
 from .sessions import ContentReleaseSession
 
@@ -44,13 +43,18 @@ def run_content_confirm_step(
     if not approved:
         return Ok(advance(replace(session, step="summary")))
 
-    pinned_repos = pinned(session, release_repos=release_repos)
-    if isinstance(pinned_repos, Err):
-        return pinned_repos
+    planned = resolve_content_release_plan(
+        deps=deps,
+        workspace_root=workspace_root,
+        session=session,
+        release_repos=release_repos,
+    )
+    if isinstance(planned, Err):
+        return planned
 
     green = deps.ensure_ci_green(
         workspace_root=workspace_root,
-        pinned=pinned_repos.value,
+        pinned=planned.value.pinned,
         allow_non_green=False,
     )
     if isinstance(green, Err):
@@ -59,25 +63,10 @@ def run_content_confirm_step(
     clean = ensure_open_control_clean(
         deps=deps,
         workspace_root=workspace_root,
-        pinned=pinned_repos.value,
+        pinned=planned.value.pinned,
     )
     if isinstance(clean, Err):
         return clean
-
-    valid = validate_content_confirm_inputs(session)
-    if isinstance(valid, Err):
-        return valid
-    channel, bump, tag = valid.value
-
-    planned = deps.plan_release(
-        workspace_root=workspace_root,
-        channel=channel,
-        bump=bump,
-        tag_override=tag,
-        pinned=pinned_repos.value,
-    )
-    if isinstance(planned, Err):
-        return planned
 
     dispatched = dispatch_content_release(
         deps=deps,

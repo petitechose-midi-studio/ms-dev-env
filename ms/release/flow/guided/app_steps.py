@@ -12,6 +12,7 @@ from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
 from .app_notes_step import run_app_notes_step
 from .app_pins import pinned_app_repo
 from .app_release_dispatch import dispatch_app_release, validate_app_confirm_inputs
+from .app_summary_options import build_app_summary_options
 from .fsm import FINISH, StepHandler, StepOutcome, advance, run_state_machine
 from .menu_option import MenuOption
 from .sessions import AppReleaseSession
@@ -158,35 +159,23 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         if choice.action == "back":
             return Ok(advance(replace(s, step="sha")))
         return Ok(
-            advance(replace(s, tag=tag, version=version, step="summary", return_to_summary=False))
+            advance(
+                replace(
+                    s,
+                    tag=tag,
+                    version=version,
+                    tooling_sha=plan.tooling.sha,
+                    step="summary",
+                    return_to_summary=False,
+                )
+            )
         )
 
     def _step_summary(s: AppReleaseSession) -> Result[StepOutcome[AppReleaseSession], ReleaseError]:
-        notes_label = s.notes_path or "none"
-        options = [
-            MenuOption(value="channel", label=f"Channel: {s.channel}", detail="Edit channel"),
-            MenuOption(value="bump", label=f"Bump: {s.bump}", detail="Edit semantic bump"),
-            MenuOption(
-                value="sha",
-                label=f"Source SHA: {(s.repo_sha or 'unset')[:12]}",
-                detail="Edit selected source commit",
-            ),
-            MenuOption(value="tag", label=f"Tag: {s.tag}", detail=f"Version: {s.version}"),
-            MenuOption(
-                value="notes",
-                label=f"Notes file: {notes_label}",
-                detail="Optional attached notes",
-            ),
-            MenuOption(
-                value="start",
-                label="Start release",
-                detail="Continue to final confirmation",
-            ),
-        ]
         choice = deps.select_menu(
             title="App Release Summary",
             subtitle="Select an item to edit, or start release",
-            options=options,
+            options=build_app_summary_options(s),
             initial_index=s.idx_summary,
             allow_back=True,
         )
@@ -244,7 +233,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         valid = validate_app_confirm_inputs(s)
         if isinstance(valid, Err):
             return valid
-        tag, version, repo_sha = valid.value
+        tag, version, repo_sha, tooling_sha = valid.value
 
         dispatched = dispatch_app_release(
             deps=deps,
@@ -257,6 +246,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             tag=tag,
             version=version,
             repo_sha=repo_sha,
+            tooling_sha=tooling_sha,
         )
         if isinstance(dispatched, Err):
             return dispatched

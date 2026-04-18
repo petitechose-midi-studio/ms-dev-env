@@ -18,7 +18,7 @@ def save_content_session(
 ) -> Result[None, ReleaseError]:
     path = content_session_path(workspace_root=workspace_root)
     payload: dict[str, object] = {
-        "schema": 2,
+        "schema": 3,
         "release_id": session.release_id,
         "created_at": session.created_at,
         "created_by": session.created_by,
@@ -36,6 +36,7 @@ def save_content_session(
         "idx_bump": session.idx_bump,
         "idx_repo": session.idx_repo,
         "idx_summary": session.idx_summary,
+        "idx_candidates": session.idx_candidates,
         "return_to_summary": session.return_to_summary,
     }
 
@@ -81,7 +82,7 @@ def load_content_session(
             )
         )
 
-    if data.get("schema") != 2:
+    if data.get("schema") not in {2, 3}:
         return Err(
             ReleaseError(
                 kind="invalid_input",
@@ -128,7 +129,7 @@ def load_content_session(
 
     return Ok(
         ContentReleaseSession(
-            schema=2,
+            schema=3,
             release_id=release_id,
             created_at=created_at,
             created_by=created_by,
@@ -146,6 +147,7 @@ def load_content_session(
             idx_bump=get_int(data, name="idx_bump", default=0),
             idx_repo=get_int(data, name="idx_repo", default=0),
             idx_summary=get_int(data, name="idx_summary", default=0),
+            idx_candidates=get_int(data, name="idx_candidates", default=0),
             return_to_summary=bool(data.get("return_to_summary", False)),
         )
     )

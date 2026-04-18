@@ -88,6 +88,7 @@ def prepare_content_release(
         bump=bump,
         tag_override=resolved.tag,
         pinned=resolved.pinned,
+        tooling_override=resolved.tooling,
     )
     if isinstance(planned, Err):
         exit_release(planned.error.message, code=ErrorCode.USER_ERROR)

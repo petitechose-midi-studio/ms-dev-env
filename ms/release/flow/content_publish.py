@@ -24,6 +24,7 @@ def publish_distribution_release(
         channel=plan.channel,
         tag=plan.tag,
         spec_path=plan.spec_path,
+        tooling_sha=plan.tooling.sha,
         console=console,
         dry_run=dry_run,
     )

@@ -9,10 +9,10 @@ from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_list, get_str
 from ms.platform.files import atomic_write_text
 from ms.release.domain import config
-from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo
+from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo, ReleaseTooling
 from ms.release.errors import ReleaseError
 
-PLAN_SCHEMA = 2
+PLAN_SCHEMA = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +21,7 @@ class PlanInput:
     channel: ReleaseChannel
     tag: str
     pinned: tuple[PinnedRepo, ...]
+    tooling: ReleaseTooling | None = None
 
 
 def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError]:
@@ -39,6 +40,12 @@ def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError
             for p in plan.pinned
         ],
     }
+    if plan.tooling is not None:
+        payload["tooling"] = {
+            "repo": plan.tooling.repo,
+            "ref": plan.tooling.ref,
+            "sha": plan.tooling.sha,
+        }
 
     try:
         atomic_write_text(path, json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -88,7 +95,7 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
         )
 
     schema = get_int(data, "schema")
-    if schema != PLAN_SCHEMA:
+    if schema not in {2, PLAN_SCHEMA}:
         return Err(
             ReleaseError(
                 kind="invalid_input",
@@ -211,4 +218,45 @@ def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
             )
         )
 
-    return Ok(PlanInput(product=product, channel=channel, tag=tag, pinned=tuple(pinned)))
+    tooling: ReleaseTooling | None = None
+    tooling_obj = data.get("tooling")
+    if tooling_obj is not None:
+        tooling_data = as_str_dict(tooling_obj)
+        if tooling_data is None:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message="tooling must be an object",
+                    hint=str(path),
+                )
+            )
+        tooling_repo = get_str(tooling_data, "repo")
+        tooling_ref = get_str(tooling_data, "ref")
+        tooling_sha = get_str(tooling_data, "sha")
+        if tooling_repo is None or tooling_ref is None or tooling_sha is None:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message="tooling is missing repo/ref/sha",
+                    hint=str(path),
+                )
+            )
+        if len(tooling_sha) != 40:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message="invalid tooling sha in plan",
+                    hint=tooling_sha,
+                )
+            )
+        tooling = ReleaseTooling(repo=tooling_repo, ref=tooling_ref, sha=tooling_sha)
+
+    return Ok(
+        PlanInput(
+            product=product,
+            channel=channel,
+            tag=tag,
+            pinned=tuple(pinned),
+            tooling=tooling,
+        )
+    )

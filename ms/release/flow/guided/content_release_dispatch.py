@@ -72,7 +72,7 @@ def dispatch_content_release(
     candidates = deps.ensure_content_candidates(
         workspace_root=workspace_root,
         console=console,
-        pinned=plan.pinned,
+        plan=plan,
         dry_run=dry_run,
     )
     if isinstance(candidates, Err):

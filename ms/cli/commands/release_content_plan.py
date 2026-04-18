@@ -101,6 +101,7 @@ def plan_cmd(
                 channel=plan_r.value.channel,
                 tag=plan_r.value.tag,
                 pinned=plan_r.value.pinned,
+                tooling=plan_r.value.tooling,
             ),
         )
         if isinstance(plan_file, Err):

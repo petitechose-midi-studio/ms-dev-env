@@ -106,6 +106,7 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         console: ConsoleProtocol,
         tag: str,
         source_sha: str,
+        tooling_sha: str,
         notes_markdown: str | None,
         notes_source_path: str | None,
         watch: bool,

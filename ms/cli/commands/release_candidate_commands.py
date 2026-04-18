@@ -22,11 +22,16 @@ from ms.release.flow.candidate_workflow import (
     write_candidate_bundle,
 )
 
+from .release_candidate_workflow_commands import export_plugin_bitwig_firmware_cmd
+
 
 def register_candidate_commands(*, namespace: typer.Typer) -> None:
     namespace.command("fetch")(fetch_candidate_cmd)
     namespace.command("write")(write_candidate_cmd)
     namespace.command("verify")(verify_candidate_cmd)
+    namespace.command("export-plugin-bitwig-firmware", hidden=True)(
+        export_plugin_bitwig_firmware_cmd
+    )
 
 
 def write_candidate_cmd(

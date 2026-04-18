@@ -108,6 +108,17 @@ def _distribution_artifacts_match_plan(*, dist_root: Path, plan: ReleasePlan) ->
     if spec.get("channel") != plan.channel:
         return False
 
+    tooling_obj = spec.get("tooling")
+    tooling = as_str_dict(tooling_obj) if tooling_obj is not None else None
+    if tooling is None:
+        return False
+    if tooling.get("repo") != plan.tooling.repo:
+        return False
+    if tooling.get("ref") != plan.tooling.ref:
+        return False
+    if tooling.get("sha") != plan.tooling.sha:
+        return False
+
     repos_obj = as_obj_list(spec.get("repos"))
     if repos_obj is None:
         return False
@@ -165,6 +176,7 @@ def prepare_distribution_pr(
         channel=plan.channel,
         tag=plan.tag,
         pinned=plan.pinned,
+        tooling=plan.tooling,
     )
     if isinstance(spec, Err):
         return spec
@@ -239,7 +251,7 @@ def prepare_content_release_distribution(
     candidates = ensure_content_candidates(
         workspace_root=workspace_root,
         console=console,
-        pinned=pinned,
+        plan=plan,
         dry_run=dry_run,
     )
     if isinstance(candidates, Err):

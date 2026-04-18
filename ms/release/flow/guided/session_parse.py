@@ -60,6 +60,8 @@ def parse_content_step(value: str | None) -> ContentSessionStep | None:
         return "notes"
     if value == "summary":
         return "summary"
+    if value == "candidates":
+        return "candidates"
     if value == "confirm":
         return "confirm"
     return None
