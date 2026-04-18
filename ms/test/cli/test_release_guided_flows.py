@@ -27,7 +27,11 @@ from ms.release.domain.open_control_models import (
 )
 from ms.release.flow.app_prepare import AppPrepareResult
 from ms.release.flow.bom_promotion import BomPromotionResult
-from ms.release.flow.content_candidates import ContentCandidateAssessment, ContentCandidateTarget
+from ms.release.flow.content_candidates import (
+    ContentCandidateAssessment,
+    ContentCandidateState,
+    ContentCandidateTarget,
+)
 from ms.release.flow.guided.sessions import (
     AppReleaseSession,
     ContentReleaseSession,
@@ -91,7 +95,11 @@ def _candidate_assessments(*, available: bool) -> tuple[ContentCandidateAssessme
         ),
     )
     return tuple(
-        ContentCandidateAssessment(target=target, available=available) for target in targets
+        ContentCandidateAssessment(
+            target=target,
+            state=ContentCandidateState.READY if available else ContentCandidateState.MISSING,
+        )
+        for target in targets
     )
 
 

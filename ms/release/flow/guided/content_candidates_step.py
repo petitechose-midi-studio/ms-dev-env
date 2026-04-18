@@ -117,5 +117,5 @@ def _candidate_options(
 
 
 def _candidate_label(item: ContentCandidateAssessment) -> str:
-    status = "ready" if item.available else "missing"
+    status = item.state.value
     return f"{status}: {item.target.label}"
