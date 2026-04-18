@@ -11,18 +11,17 @@ from __future__ import annotations
 import json
 import os
 import ssl
+import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import Protocol, TypeVar, runtime_checkable
 from urllib.parse import urlparse
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import StrDict, as_str_dict
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 __all__ = [
     "HttpClient",
@@ -30,6 +29,9 @@ __all__ = [
     "MockHttpClient",
     "HttpError",
 ]
+
+_T = TypeVar("_T")
+_RETRYABLE_HTTP_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,15 +113,26 @@ class RealHttpClient:
     - Timeout handling
     """
 
-    def __init__(self, timeout: float = 30.0, user_agent: str = "ms-cli/0.2.0") -> None:
+    def __init__(
+        self,
+        timeout: float = 30.0,
+        user_agent: str = "ms-cli/0.2.0",
+        *,
+        retry_attempts: int = 3,
+        retry_backoff: float = 1.0,
+    ) -> None:
         """Initialize HTTP client.
 
         Args:
             timeout: Request timeout in seconds
             user_agent: User-Agent header value
+            retry_attempts: Total attempts for transient failures
+            retry_backoff: Base delay in seconds between retries
         """
         self.timeout = timeout
         self.user_agent = user_agent
+        self.retry_attempts = max(1, retry_attempts)
+        self.retry_backoff = max(0.0, retry_backoff)
         # Use system certificates
         self._ssl_context = ssl.create_default_context()
 
@@ -137,15 +150,30 @@ class RealHttpClient:
         headers["X-GitHub-Api-Version"] = "2022-11-28"
         return headers
 
-    def _request(self, url: str) -> Result[bytes, HttpError]:
-        """Make HTTP GET request.
+    def _should_retry(self, error: HttpError, *, attempt: int) -> bool:
+        return attempt < self.retry_attempts and (
+            error.status == 0 or error.status in _RETRYABLE_HTTP_STATUSES
+        )
 
-        Args:
-            url: URL to fetch
+    def _retry_delay(self, *, attempt: int) -> float:
+        return self.retry_backoff * attempt
 
-        Returns:
-            Ok with response bytes, or Err with HttpError
-        """
+    def _run_with_retry(
+        self,
+        *,
+        operation: Callable[[], Result[_T, HttpError]],
+    ) -> Result[_T, HttpError]:
+        attempt = 1
+        while True:
+            result = operation()
+            if not isinstance(result, Err):
+                return result
+            if not self._should_retry(result.error, attempt=attempt):
+                return result
+            time.sleep(self._retry_delay(attempt=attempt))
+            attempt += 1
+
+    def _request_once(self, url: str) -> Result[bytes, HttpError]:
         try:
             req = urllib.request.Request(
                 url,
@@ -167,6 +195,17 @@ class RealHttpClient:
             return Err(HttpError(url=url, status=0, message=str(e)))
         except OSError as e:
             return Err(HttpError(url=url, status=0, message=str(e)))
+
+    def _request(self, url: str) -> Result[bytes, HttpError]:
+        """Make HTTP GET request.
+
+        Args:
+            url: URL to fetch
+
+        Returns:
+            Ok with response bytes, or Err with HttpError
+        """
+        return self._run_with_retry(operation=lambda: self._request_once(url))
 
     def get_json(self, url: str) -> Result[StrDict, HttpError]:
         """Fetch URL and parse as JSON."""
@@ -194,13 +233,12 @@ class RealHttpClient:
         except UnicodeDecodeError as e:
             return Err(HttpError(url=url, status=0, message=f"Decode error: {e}"))
 
-    def download(
+    def _download_once(
         self,
         url: str,
         dest: Path,
         progress: Callable[[int, int], None] | None = None,
     ) -> Result[Path, HttpError]:
-        """Download URL to file with optional progress callback."""
         try:
             req = urllib.request.Request(
                 url,
@@ -240,6 +278,17 @@ class RealHttpClient:
             return Err(HttpError(url=url, status=0, message=str(e)))
         except OSError as e:
             return Err(HttpError(url=url, status=0, message=str(e)))
+
+    def download(
+        self,
+        url: str,
+        dest: Path,
+        progress: Callable[[int, int], None] | None = None,
+    ) -> Result[Path, HttpError]:
+        """Download URL to file with optional progress callback."""
+        return self._run_with_retry(
+            operation=lambda: self._download_once(url, dest, progress=progress)
+        )
 
 
 class MockHttpClient:
