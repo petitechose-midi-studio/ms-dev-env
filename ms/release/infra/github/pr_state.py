@@ -6,8 +6,8 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_str_dict
-from ms.platform.process import run as run_process
 from ms.release.errors import ReleaseError
+from ms.release.infra.github.gh_base import run_gh_process
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
 _MERGEABLE_WAIT_SECONDS = 15 * 60
@@ -48,7 +48,7 @@ def wait_until_mergeable(
 ) -> Result[None, ReleaseError]:
     deadline = time.monotonic() + _MERGEABLE_WAIT_SECONDS
     while time.monotonic() < deadline:
-        view = run_process(
+        view = run_gh_process(
             [
                 "gh",
                 "pr",
@@ -108,7 +108,7 @@ def wait_until_merged(
 ) -> Result[None, ReleaseError]:
     deadline = time.monotonic() + _MERGE_WAIT_SECONDS
     while time.monotonic() < deadline:
-        view = run_process(
+        view = run_gh_process(
             [
                 "gh",
                 "pr",

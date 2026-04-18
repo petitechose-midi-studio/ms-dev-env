@@ -10,7 +10,6 @@ from uuid import uuid4
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_str
 from ms.output.console import ConsoleProtocol, Style
-from ms.platform.process import run as run_process
 from ms.release.domain.config import (
     APP_CANDIDATE_WORKFLOW,
     APP_DEFAULT_BRANCH,
@@ -22,6 +21,7 @@ from ms.release.domain.config import (
 )
 from ms.release.domain.models import ReleaseChannel
 from ms.release.errors import ReleaseError
+from ms.release.infra.github.gh_base import run_gh_process
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
 _RUN_LOOKUP_MAX_ATTEMPTS = 6
@@ -65,7 +65,7 @@ def _dispatch_workflow(
     if dry_run:
         return Ok(WorkflowRun(id=0, url="(dry-run)", request_id=request_id))
 
-    result = run_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+    result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         e = result.error
         return Err(
@@ -108,7 +108,7 @@ def _resolve_dispatched_run(
     ]
 
     for attempt in range(_RUN_LOOKUP_MAX_ATTEMPTS):
-        list_result = run_process(list_cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+        list_result = run_gh_process(list_cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
         if isinstance(list_result, Err):
             e = list_result.error
             return Err(

@@ -4,8 +4,8 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.platform.process import run as run_process
 from ms.release.errors import ReleaseError
+from ms.release.infra.github.gh_base import run_gh_process
 from ms.release.infra.github.timeouts import GH_WATCH_TIMEOUT_SECONDS
 
 
@@ -24,7 +24,7 @@ def watch_run(
     if dry_run:
         return Ok(None)
 
-    result = run_process(cmd, cwd=workspace_root, timeout=GH_WATCH_TIMEOUT_SECONDS)
+    result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_WATCH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
         e = result.error
         return Err(

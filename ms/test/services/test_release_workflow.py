@@ -43,7 +43,7 @@ def test_dispatch_publish_workflow_matches_request_id(
             return Ok(json.dumps(payload))
         raise AssertionError(f"unexpected command: {cmd}")
 
-    monkeypatch.setattr(workflow_mod, "run_process", fake_run)
+    monkeypatch.setattr(workflow_mod, "run_gh_process", fake_run)
 
     result = workflow_mod.dispatch_publish_workflow(
         workspace_root=tmp_path,
@@ -84,7 +84,7 @@ def test_dispatch_publish_workflow_retries_until_match(
             return Ok(list_payloads.pop(0))
         raise AssertionError(f"unexpected command: {cmd}")
 
-    monkeypatch.setattr(workflow_mod, "run_process", fake_run)
+    monkeypatch.setattr(workflow_mod, "run_gh_process", fake_run)
 
     result = workflow_mod.dispatch_publish_workflow(
         workspace_root=tmp_path,
@@ -118,7 +118,7 @@ def test_dispatch_publish_workflow_fails_without_request_id_match(
             return Ok(payload)
         raise AssertionError(f"unexpected command: {cmd}")
 
-    monkeypatch.setattr(workflow_mod, "run_process", fake_run)
+    monkeypatch.setattr(workflow_mod, "run_gh_process", fake_run)
 
     result = workflow_mod.dispatch_publish_workflow(
         workspace_root=tmp_path,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 from time import sleep
@@ -28,6 +29,28 @@ _ReleaseErrorKind = Literal[
     "repo_failed",
     "workflow_failed",
 ]
+
+
+def gh_process_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    merged = dict(os.environ if env is None else {**os.environ, **env})
+    if "GH_TOKEN" not in merged and "GITHUB_TOKEN" in merged:
+        merged["GH_TOKEN"] = merged["GITHUB_TOKEN"]
+    return merged
+
+
+def run_gh_process(
+    cmd: list[str],
+    *,
+    cwd: Path,
+    timeout: float,
+    env: dict[str, str] | None = None,
+) -> Result[str, ProcessError]:
+    return run_process(
+        cmd,
+        cwd=cwd,
+        env=gh_process_env(env),
+        timeout=timeout,
+    )
 
 
 def _is_transient_gh_error(error: ProcessError) -> bool:
@@ -67,7 +90,7 @@ def run_gh_read(
 ) -> Result[str, ReleaseError]:
     attempts = max(1, retry_attempts)
     for attempt in range(attempts):
-        result = run_process(cmd, cwd=workspace_root, timeout=timeout)
+        result = run_gh_process(cmd, cwd=workspace_root, timeout=timeout)
         if isinstance(result, Ok):
             return result
 
@@ -100,7 +123,11 @@ def ensure_gh_available() -> Result[None, ReleaseError]:
 
 
 def ensure_gh_auth(*, workspace_root: Path) -> Result[None, ReleaseError]:
-    result = run_process(["gh", "auth", "status"], cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+    result = run_gh_process(
+        ["gh", "auth", "status"],
+        cwd=workspace_root,
+        timeout=GH_TIMEOUT_SECONDS,
+    )
     if isinstance(result, Err):
         return Err(
             ReleaseError(
