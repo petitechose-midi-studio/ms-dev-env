@@ -1,6 +1,8 @@
 """Tests for tools/http.py - HTTP client abstraction."""
 
 # pyright: reportPrivateUsage=false
+import urllib.error
+from email.message import Message
 from pathlib import Path
 
 import pytest
@@ -12,6 +14,31 @@ from ms.tools.http import (
     MockHttpClient,
     RealHttpClient,
 )
+
+
+class _FakeResponse:
+    def __init__(self, body: bytes, *, headers: dict[str, str] | None = None) -> None:
+        self._body = body
+        self._offset = 0
+        self.headers = headers or {"Content-Length": str(len(body))}
+
+    def __enter__(self) -> "_FakeResponse":
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
+        del exc_type, exc, tb
+        return False
+
+    def read(self, size: int = -1) -> bytes:
+        if size < 0:
+            size = len(self._body) - self._offset
+        chunk = self._body[self._offset : self._offset + size]
+        self._offset += len(chunk)
+        return chunk
+
+
+def _no_sleep(_: float) -> None:
+    return None
 
 # =============================================================================
 # HttpError tests
@@ -237,6 +264,8 @@ class TestRealHttpClient:
         client = RealHttpClient(timeout=60.0, user_agent="test-agent/1.0")
         assert client.timeout == 60.0
         assert client.user_agent == "test-agent/1.0"
+        assert client.retry_attempts == 3
+        assert client.retry_backoff == 1.0
 
     def test_build_headers_adds_github_auth_when_token_present(
         self,
@@ -292,6 +321,87 @@ class TestRealHttpClient:
         assert isinstance(result, Err)
         assert result.error.status == 0
         assert not dest.exists()
+
+    def test_get_json_retries_transient_http_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        attempts = {"count": 0}
+
+        def fake_urlopen(*args: object, **kwargs: object) -> _FakeResponse:
+            del args, kwargs
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise urllib.error.HTTPError(
+                    "https://example.com/data",
+                    503,
+                    "Unavailable",
+                    hdrs=Message(),
+                    fp=None,
+                )
+            return _FakeResponse(b'{"ok": true}')
+
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        monkeypatch.setattr("time.sleep", _no_sleep)
+        client = RealHttpClient(retry_attempts=2, retry_backoff=0.0)
+
+        result = client.get_json("https://example.com/data")
+
+        assert isinstance(result, Ok)
+        assert result.value == {"ok": True}
+        assert attempts["count"] == 2
+
+    def test_get_text_does_not_retry_non_transient_http_error(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        attempts = {"count": 0}
+
+        def fake_urlopen(*args: object, **kwargs: object) -> _FakeResponse:
+            del args, kwargs
+            attempts["count"] += 1
+            raise urllib.error.HTTPError(
+                "https://example.com/missing",
+                404,
+                "Not Found",
+                hdrs=Message(),
+                fp=None,
+            )
+
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        monkeypatch.setattr("time.sleep", _no_sleep)
+        client = RealHttpClient(retry_attempts=3, retry_backoff=0.0)
+
+        result = client.get_text("https://example.com/missing")
+
+        assert isinstance(result, Err)
+        assert result.error.status == 404
+        assert attempts["count"] == 1
+
+    def test_download_retries_network_error(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        attempts = {"count": 0}
+
+        def fake_urlopen(*args: object, **kwargs: object) -> _FakeResponse:
+            del args, kwargs
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise urllib.error.URLError("temporary failure")
+            return _FakeResponse(b"hello")
+
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        monkeypatch.setattr("time.sleep", _no_sleep)
+        client = RealHttpClient(retry_attempts=2, retry_backoff=0.0)
+
+        dest = tmp_path / "file.bin"
+        result = client.download("https://example.com/file.bin", dest)
+
+        assert isinstance(result, Ok)
+        assert dest.read_bytes() == b"hello"
+        assert attempts["count"] == 2
 
 
 # =============================================================================
