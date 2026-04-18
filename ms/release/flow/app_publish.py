@@ -9,10 +9,9 @@ from ms.release.domain.notes import AppPublishNotes
 from ms.release.errors import ReleaseError
 from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.infra.github.run_watch import watch_run
-from ms.release.infra.github.workflows import (
-    dispatch_app_candidate_workflow,
-    dispatch_app_release_workflow,
-)
+from ms.release.infra.github.workflows import dispatch_app_release_workflow
+
+from .app_candidate_ensure import AppPublishResult, ensure_app_candidate
 
 
 def publish_app_release(
@@ -26,7 +25,7 @@ def publish_app_release(
     notes_source_path: str | None,
     watch: bool,
     dry_run: bool,
-) -> Result[tuple[str, str], ReleaseError]:
+) -> Result[AppPublishResult, ReleaseError]:
     if notes_markdown is not None:
         source_label = notes_source_path or "(unknown source)"
         console.print(
@@ -37,7 +36,7 @@ def publish_app_release(
     else:
         console.print("release notes: automatic notes only", Style.DIM)
 
-    candidate = dispatch_app_candidate_workflow(
+    candidate = ensure_app_candidate(
         workspace_root=workspace_root,
         source_sha=source_sha,
         tooling_sha=tooling_sha,
@@ -47,10 +46,10 @@ def publish_app_release(
     if isinstance(candidate, Err):
         return candidate
 
-    if watch:
+    if watch and candidate.value.run is not None:
         watched = watch_run(
             workspace_root=workspace_root,
-            run_id=candidate.value.id,
+            run_id=candidate.value.run.id,
             repo_slug=config.APP_REPO_SLUG,
             console=console,
             dry_run=dry_run,
@@ -82,9 +81,7 @@ def publish_app_release(
         if isinstance(watched, Err):
             return watched
 
-    return Ok((candidate.value.url, release.value.url))
-
-
+    return Ok(AppPublishResult(candidate=candidate.value, release=release.value))
 def resolve_app_publish_notes(
     *,
     notes_file: Path | None,

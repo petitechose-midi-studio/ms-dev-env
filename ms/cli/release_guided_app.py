@@ -19,7 +19,7 @@ from ms.release.domain.models import AppReleasePlan, PinnedRepo, ReleaseBump, Re
 from ms.release.errors import ReleaseError
 from ms.release.flow.app_plan import plan_app_release
 from ms.release.flow.app_prepare import AppPrepareResult, prepare_app_pr
-from ms.release.flow.app_publish import publish_app_release
+from ms.release.flow.app_publish import AppPublishResult, publish_app_release
 from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.guided.app_steps import MenuOption, run_guided_app_release_flow
 from ms.release.flow.guided.selection import Selection
@@ -219,7 +219,7 @@ def run_guided_app_release(
             notes_source_path: str | None,
             watch: bool,
             dry_run: bool,
-        ) -> Result[tuple[str, str], ReleaseError]:
+        ) -> Result[AppPublishResult, ReleaseError]:
             return publish_app_release(
                 workspace_root=workspace_root,
                 console=console,

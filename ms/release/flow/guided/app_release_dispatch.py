@@ -79,9 +79,11 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
     if isinstance(run, Err):
         return run
 
-    candidate_url, release_url = run.value
-    console.success(f"Candidate run: {candidate_url}")
-    console.success(f"Release run: {release_url}")
+    if run.value.candidate.run is None:
+        console.success(f"Candidate ready: {run.value.candidate.release_url}")
+    else:
+        console.success(f"Candidate run: {run.value.candidate.run.url}")
+    console.success(f"Release run: {run.value.release.url}")
     console.print(
         "Next: approve the 'app-release' environment in GitHub Actions to publish.",
         Style.DIM,

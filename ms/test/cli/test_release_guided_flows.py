@@ -25,7 +25,9 @@ from ms.release.domain.open_control_models import (
     OcSdkPin,
     OpenControlPreflightReport,
 )
+from ms.release.flow.app_candidate_ensure import EnsuredAppCandidate
 from ms.release.flow.app_prepare import AppPrepareResult
+from ms.release.flow.app_publish import AppPublishResult
 from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.content_candidates import (
     ContentCandidateAssessment,
@@ -39,6 +41,7 @@ from ms.release.flow.guided.sessions import (
     new_content_session,
 )
 from ms.release.flow.pr_outcome import PrMergeOutcome
+from ms.release.infra.github.workflows import WorkflowRun
 
 
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:
@@ -176,7 +179,20 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
     def fake_publish(*args: object, **kwargs: object):
         published.update(kwargs)
-        return Ok(("https://example/candidate", "https://example/release"))
+        return Ok(
+            AppPublishResult(
+                candidate=EnsuredAppCandidate(
+                    candidate_tag="rc-" + ("b" * 40) + "-tooling-" + ("f" * 40),
+                    release_url="https://example/candidate",
+                    run=None,
+                ),
+                release=WorkflowRun(
+                    id=101,
+                    url="https://example/release",
+                    request_id="req-101",
+                ),
+            )
+        )
 
     def fake_clear(*args: object, **kwargs: object):
         return Ok(None)
@@ -286,7 +302,16 @@ def test_guided_app_summary_edit_recomputes_tag(
         )
 
     def fake_publish(*args: object, **kwargs: object):
-        return Ok(("c", "r"))
+        return Ok(
+            AppPublishResult(
+                candidate=EnsuredAppCandidate(
+                    candidate_tag="rc-" + ("b" * 40) + "-tooling-" + ("f" * 40),
+                    release_url="https://example/candidate",
+                    run=None,
+                ),
+                release=WorkflowRun(id=102, url="https://example/release", request_id="req-102"),
+            )
+        )
 
     def fake_clear(*args: object, **kwargs: object):
         return Ok(None)

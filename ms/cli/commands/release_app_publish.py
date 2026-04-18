@@ -38,7 +38,7 @@ def app_publish_cmd(
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without mutating"),
 ) -> None:
-    """Prepare app version PR + dispatch ms-manager Candidate then Release workflows."""
+    """Prepare app version PR + reuse or dispatch the exact ms-manager candidate, then Release."""
     ctx = build_context()
 
     ensure_release_permissions_or_exit(
@@ -89,9 +89,11 @@ def app_publish_cmd(
     if isinstance(run, Err):
         exit_release(run.error.message, code=ErrorCode.NETWORK_ERROR)
 
-    candidate_url, release_url = run.value
-    ctx.console.success(f"Candidate run: {candidate_url}")
-    ctx.console.success(f"Release run: {release_url}")
+    if run.value.candidate.run is None:
+        ctx.console.success(f"Candidate ready: {run.value.candidate.release_url}")
+    else:
+        ctx.console.success(f"Candidate run: {run.value.candidate.run.url}")
+    ctx.console.success(f"Release run: {run.value.release.url}")
     ctx.console.print(
         "Next: approve the 'app-release' environment in GitHub Actions to publish.",
         Style.DIM,

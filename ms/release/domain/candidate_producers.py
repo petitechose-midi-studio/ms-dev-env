@@ -57,6 +57,14 @@ TRUSTED_CANDIDATE_PRODUCERS: tuple[TrustedCandidateProducer, ...] = (
         workflow_file=".github/workflows/candidate-firmware.yml",
         public_key_b64="6ImRpNtLGhjUIEjc3Mh+ql/mO9jnfxamUZUxeXsfEZM=",
     ),
+    TrustedCandidateProducer(
+        id="ms-manager-app",
+        candidate_repo="petitechose-midi-studio/ms-manager",
+        producer_repo="petitechose-midi-studio/ms-manager",
+        producer_kind="ms-manager-app",
+        workflow_file=".github/workflows/candidate.yml",
+        public_key_b64="Rj+AQxyDbizwMO663nl0bpWzv6IY9rdMuREUqsI91Qo=",
+    ),
 )
 
 _TRUSTED_CANDIDATE_PRODUCERS_BY_ID = {
