@@ -23,6 +23,13 @@ class WorkflowRunResolution:
     url: str
 
 
+@dataclass(frozen=True, slots=True)
+class ArtifactLookupPage:
+    resolution: WorkflowRunResolution | None
+    artifact_count: int
+    total_count: int | None
+
+
 def dispatch_marker_name(*, request_id: str) -> str:
     return f"dispatch-{request_id}"
 
@@ -34,22 +41,10 @@ def resolve_dispatched_run(
     request_id: str,
 ) -> Result[WorkflowRunResolution, ReleaseError]:
     marker_name = dispatch_marker_name(request_id=request_id)
-    cmd = ["gh", "api", _artifact_lookup_endpoint(repo_slug=repo_slug, marker_name=marker_name)]
 
     for attempt in range(_LOOKUP_MAX_ATTEMPTS):
-        result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
-        if isinstance(result, Err):
-            e = result.error
-            return Err(
-                ReleaseError(
-                    kind="workflow_failed",
-                    message="failed to query workflow artifacts",
-                    hint=e.stderr.strip() or None,
-                )
-            )
-
-        resolved = _find_dispatched_run(
-            payload=result.value,
+        resolved = _lookup_dispatched_run_once(
+            workspace_root=workspace_root,
             repo_slug=repo_slug,
             marker_name=marker_name,
         )
@@ -72,9 +67,55 @@ def resolve_dispatched_run(
     )
 
 
-def _artifact_lookup_endpoint(*, repo_slug: str, marker_name: str) -> str:
+def _artifact_lookup_endpoint(*, repo_slug: str, marker_name: str, page: int) -> str:
     encoded_name = quote(marker_name, safe="")
-    return f"repos/{repo_slug}/actions/artifacts?per_page=100&name={encoded_name}"
+    return f"repos/{repo_slug}/actions/artifacts?per_page=100&page={page}&name={encoded_name}"
+
+
+def _lookup_dispatched_run_once(
+    *,
+    workspace_root: Path,
+    repo_slug: str,
+    marker_name: str,
+) -> Result[WorkflowRunResolution | None, ReleaseError]:
+    page = 1
+    seen = 0
+
+    while True:
+        cmd = [
+            "gh",
+            "api",
+            _artifact_lookup_endpoint(repo_slug=repo_slug, marker_name=marker_name, page=page),
+        ]
+        result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
+        if isinstance(result, Err):
+            e = result.error
+            return Err(
+                ReleaseError(
+                    kind="workflow_failed",
+                    message="failed to query workflow artifacts",
+                    hint=e.stderr.strip() or None,
+                )
+            )
+
+        resolved = _find_dispatched_run(
+            payload=result.value,
+            repo_slug=repo_slug,
+            marker_name=marker_name,
+        )
+        if isinstance(resolved, Err):
+            return resolved
+        if resolved.value.resolution is not None:
+            return Ok(resolved.value.resolution)
+
+        seen += resolved.value.artifact_count
+        total_count = resolved.value.total_count
+        if resolved.value.artifact_count == 0:
+            return Ok(None)
+        if total_count is not None and seen >= total_count:
+            return Ok(None)
+
+        page += 1
 
 
 def _find_dispatched_run(
@@ -82,7 +123,7 @@ def _find_dispatched_run(
     payload: str,
     repo_slug: str,
     marker_name: str,
-) -> Result[WorkflowRunResolution | None, ReleaseError]:
+) -> Result[ArtifactLookupPage, ReleaseError]:
     try:
         obj: object = json.loads(payload)
     except json.JSONDecodeError as exc:
@@ -100,6 +141,7 @@ def _find_dispatched_run(
     artifacts = get_list(root, "artifacts")
     if artifacts is None:
         return Err(ReleaseError(kind="workflow_failed", message="missing artifacts in response"))
+    total_count = get_int(root, "total_count")
 
     for item in artifacts:
         artifact = as_str_dict(item)
@@ -116,10 +158,20 @@ def _find_dispatched_run(
         if run_id is None:
             continue
         return Ok(
-            WorkflowRunResolution(
-                run_id=run_id,
-                url=f"https://github.com/{repo_slug}/actions/runs/{run_id}",
+            ArtifactLookupPage(
+                resolution=WorkflowRunResolution(
+                    run_id=run_id,
+                    url=f"https://github.com/{repo_slug}/actions/runs/{run_id}",
+                ),
+                artifact_count=len(artifacts),
+                total_count=total_count,
             )
         )
 
-    return Ok(None)
+    return Ok(
+        ArtifactLookupPage(
+            resolution=None,
+            artifact_count=len(artifacts),
+            total_count=total_count,
+        )
+    )
