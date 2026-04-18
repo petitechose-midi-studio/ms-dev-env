@@ -37,6 +37,7 @@ from ms.release.domain.models import (
     ReleaseChannel,
     ReleasePlan,
     ReleaseRepo,
+    ReleaseTooling,
     RepoCommit,
 )
 from ms.release.domain.planner import ReleaseHistory, compute_history, suggest_tag, validate_tag
@@ -71,6 +72,7 @@ __all__ = [
     "ReleaseHistory",
     "ReleasePlan",
     "ReleaseRepo",
+    "ReleaseTooling",
     "RepoCommit",
     "SemVer",
     "compute_history",

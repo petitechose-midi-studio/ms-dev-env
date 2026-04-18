@@ -232,6 +232,7 @@ def dispatch_app_release_workflow(
     workspace_root: Path,
     tag: str,
     source_sha: str,
+    tooling_sha: str,
     notes_markdown: str | None,
     notes_source_path: str | None,
     console: ConsoleProtocol,
@@ -239,7 +240,7 @@ def dispatch_app_release_workflow(
 ) -> Result[WorkflowRun, ReleaseError]:
     inputs: tuple[tuple[str, str], ...]
     if notes_markdown is None:
-        inputs = (("tag", tag), ("source_sha", source_sha))
+        inputs = (("tag", tag), ("source_sha", source_sha), ("tooling_sha", tooling_sha))
     else:
         notes_b64 = base64.b64encode(notes_markdown.encode("utf-8")).decode("ascii")
         if len(notes_b64) > 60000:
@@ -261,6 +262,7 @@ def dispatch_app_release_workflow(
         inputs = (
             ("tag", tag),
             ("source_sha", source_sha),
+            ("tooling_sha", tooling_sha),
             ("notes_b64", notes_b64),
             ("notes_source", notes_source),
         )
@@ -280,6 +282,7 @@ def dispatch_app_candidate_workflow(
     *,
     workspace_root: Path,
     source_sha: str,
+    tooling_sha: str,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
@@ -288,7 +291,7 @@ def dispatch_app_candidate_workflow(
         repo_slug=APP_REPO_SLUG,
         workflow_file=APP_CANDIDATE_WORKFLOW,
         ref=APP_DEFAULT_BRANCH,
-        inputs=(("source_sha", source_sha),),
+        inputs=(("source_sha", source_sha), ("tooling_sha", tooling_sha)),
         console=console,
         dry_run=dry_run,
     )

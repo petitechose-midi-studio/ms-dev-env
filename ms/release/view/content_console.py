@@ -214,6 +214,7 @@ def print_content_plan(*, plan: ReleasePlan, console: ConsoleProtocol) -> None:
     console.header("Release Plan")
     console.print(f"channel: {plan.channel}")
     console.print(f"tag: {plan.tag}")
+    console.print(f"tooling: {plan.tooling.sha} ({plan.tooling.repo}@{plan.tooling.ref})")
     console.print("repos:")
     for pinned_repo in plan.pinned:
         console.print(f"- {pinned_repo.repo.id}: {pinned_repo.sha}")
@@ -231,6 +232,7 @@ def print_content_replay(
     repo_args = " ".join([f"--repo {p.repo.id}={p.sha}" for p in plan.pinned])
     console.newline()
     console.print("Replay:", Style.DIM)
+    console.print(f"tooling: {plan.tooling.sha}", Style.DIM)
     if plan_file is not None:
         console.print(f"ms release content publish --plan {plan_file}", Style.DIM)
     console.print(

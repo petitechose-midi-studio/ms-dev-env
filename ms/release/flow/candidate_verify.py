@@ -19,7 +19,7 @@ def verify_candidate_bundle(
     workspace_root: Path,
     request: CandidateVerifyRequest,
 ) -> Result[CandidateManifest, ReleaseError]:
-    inspected = inspect_candidate_bundle(workspace_root=workspace_root, request=request)
+    inspected = inspect_candidate_metadata(workspace_root=workspace_root, request=request)
     if isinstance(inspected, Err):
         return inspected
     payload = validate_candidate_payload(
@@ -32,7 +32,7 @@ def verify_candidate_bundle(
     return inspected
 
 
-def inspect_candidate_bundle(
+def inspect_candidate_metadata(
     *,
     workspace_root: Path,
     request: CandidateVerifyRequest,

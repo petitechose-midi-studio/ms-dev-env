@@ -13,15 +13,20 @@ from .sessions import AppReleaseSession
 
 def validate_app_confirm_inputs(
     session: AppReleaseSession,
-) -> Result[tuple[str, str, str], ReleaseError]:
-    if session.tag is None or session.version is None or session.repo_sha is None:
+) -> Result[tuple[str, str, str, str], ReleaseError]:
+    if (
+        session.tag is None
+        or session.version is None
+        or session.repo_sha is None
+        or session.tooling_sha is None
+    ):
         return Err(
             ReleaseError(
                 kind="invalid_input",
-                message="incomplete release session; missing tag/version/source sha",
+                message="incomplete release session; missing tag/version/source sha/tooling",
             )
         )
-    return Ok((session.tag, session.version, session.repo_sha))
+    return Ok((session.tag, session.version, session.repo_sha, session.tooling_sha))
 
 
 def dispatch_app_release[PrepareT: AppPrepareResultLike](
@@ -36,6 +41,7 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
     tag: str,
     version: str,
     repo_sha: str,
+    tooling_sha: str,
 ) -> Result[None, ReleaseError]:
     prepared = deps.prepare_app_pr(
         workspace_root=workspace_root,
@@ -64,6 +70,7 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
         console=console,
         tag=tag,
         source_sha=prepared.value.source_sha,
+        tooling_sha=tooling_sha,
         notes_markdown=session.notes_markdown,
         notes_source_path=session.notes_path,
         watch=watch,

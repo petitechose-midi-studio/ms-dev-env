@@ -80,6 +80,7 @@ def app_publish_cmd(
         console=ctx.console,
         tag=prepared.plan.tag,
         source_sha=prepared.source_sha,
+        tooling_sha=prepared.plan.tooling.sha,
         notes_markdown=notes.value.markdown,
         notes_source_path=notes.value.source_path,
         watch=watch,

@@ -10,7 +10,7 @@ import typer
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo
+from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo, ReleaseTooling
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.ci import fetch_green_head_shas
 from ms.release.infra.github.client import current_user, list_recent_commits
@@ -25,6 +25,7 @@ class ResolvedReleaseInputs:
     channel: ReleaseChannel
     tag: str | None
     pinned: tuple[PinnedRepo, ...]
+    tooling: ReleaseTooling | None
 
 
 def exit_release(err: str, *, code: ErrorCode) -> NoReturn:
@@ -181,6 +182,7 @@ def resolve_release_inputs(
             channel=plan_in.channel,
             tag=plan_in.tag,
             pinned=plan_in.pinned,
+            tooling=plan_in.tooling,
         )
 
     if channel is None:
@@ -190,4 +192,5 @@ def resolve_release_inputs(
         channel=channel,
         tag=tag,
         pinned=resolve_pinned(channel),
+        tooling=None,
     )

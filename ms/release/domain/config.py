@@ -6,6 +6,9 @@ DIST_REPO_SLUG = "petitechose-midi-studio/distribution"
 DIST_LOCAL_DIR = "distribution"
 DIST_DEFAULT_BRANCH = "main"
 
+MS_REPO_SLUG = "petitechose-midi-studio/ms-dev-env"
+MS_DEFAULT_BRANCH = "main"
+
 CORE_REPO_SLUG = "petitechose-midi-studio/core"
 CORE_LOCAL_DIR = "midi-studio/core"
 CORE_DEFAULT_BRANCH = "main"

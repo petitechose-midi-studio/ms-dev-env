@@ -76,6 +76,7 @@ def app_plan_cmd(
                 channel=planned.value.channel,
                 tag=planned.value.tag,
                 pinned=planned.value.pinned,
+                tooling=planned.value.tooling,
             ),
         )
         if isinstance(plan_file, Err):

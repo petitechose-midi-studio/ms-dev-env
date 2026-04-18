@@ -21,6 +21,7 @@ def publish_app_release(
     console: ConsoleProtocol,
     tag: str,
     source_sha: str,
+    tooling_sha: str,
     notes_markdown: str | None,
     notes_source_path: str | None,
     watch: bool,
@@ -39,6 +40,7 @@ def publish_app_release(
     candidate = dispatch_app_candidate_workflow(
         workspace_root=workspace_root,
         source_sha=source_sha,
+        tooling_sha=tooling_sha,
         console=console,
         dry_run=dry_run,
     )
@@ -60,6 +62,7 @@ def publish_app_release(
         workspace_root=workspace_root,
         tag=tag,
         source_sha=source_sha,
+        tooling_sha=tooling_sha,
         notes_markdown=notes_markdown,
         notes_source_path=notes_source_path,
         console=console,

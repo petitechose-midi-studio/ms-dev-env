@@ -36,10 +36,18 @@ class PinnedRepo:
 
 
 @dataclass(frozen=True, slots=True)
+class ReleaseTooling:
+    repo: str
+    ref: str
+    sha: str
+
+
+@dataclass(frozen=True, slots=True)
 class ReleasePlan:
     channel: ReleaseChannel
     tag: str
     pinned: tuple[PinnedRepo, ...]
+    tooling: ReleaseTooling
     spec_path: str
     notes_path: str | None
     title: str
@@ -51,6 +59,7 @@ class AppReleasePlan:
     tag: str
     version: str
     pinned: tuple[PinnedRepo, ...]
+    tooling: ReleaseTooling
     title: str
 
 

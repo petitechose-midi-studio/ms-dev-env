@@ -34,7 +34,7 @@ ContentSessionStep = Literal[
 
 @dataclass(frozen=True, slots=True)
 class AppReleaseSession:
-    schema: Literal[2]
+    schema: Literal[3]
     release_id: str
     created_at: str
     created_by: str
@@ -44,6 +44,7 @@ class AppReleaseSession:
     bump: ReleaseBump | None
     tag: str | None
     version: str | None
+    tooling_sha: str | None
     repo_ref: str
     repo_sha: str | None
     notes_path: str | None
@@ -82,7 +83,7 @@ class ContentReleaseSession:
 def new_app_session(*, created_by: str, notes_path: Path | None) -> AppReleaseSession:
     now = datetime.now(tz=UTC).isoformat()
     return AppReleaseSession(
-        schema=2,
+        schema=3,
         release_id=f"app-{uuid4().hex[:12]}",
         created_at=now,
         created_by=created_by,
@@ -92,6 +93,7 @@ def new_app_session(*, created_by: str, notes_path: Path | None) -> AppReleaseSe
         bump=None,
         tag=None,
         version=None,
+        tooling_sha=None,
         repo_ref="main",
         repo_sha=None,
         notes_path=(str(notes_path) if notes_path is not None else None),

@@ -77,7 +77,7 @@ class ContentGuidedDependencies(Protocol):
         *,
         workspace_root: Path,
         console: ConsoleProtocol,
-        pinned: tuple[PinnedRepo, ...],
+        plan: ReleasePlan,
         dry_run: bool,
     ) -> Result[tuple[EnsuredContentCandidate, ...], ReleaseError]: ...
 

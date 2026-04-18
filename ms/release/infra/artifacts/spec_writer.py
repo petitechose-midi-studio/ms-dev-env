@@ -7,7 +7,7 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.platform.files import atomic_write_text
 from ms.release.domain.config import DIST_SPEC_DIR
-from ms.release.domain.models import PinnedRepo, ReleaseChannel
+from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseTooling
 from ms.release.errors import ReleaseError
 
 
@@ -26,7 +26,11 @@ def _demo_url(channel: ReleaseChannel) -> str:
 
 
 def _spec_obj(
-    *, channel: ReleaseChannel, tag: str, pinned: tuple[PinnedRepo, ...]
+    *,
+    channel: ReleaseChannel,
+    tag: str,
+    pinned: tuple[PinnedRepo, ...],
+    tooling: ReleaseTooling,
 ) -> dict[str, object]:
     repos: list[dict[str, object]] = []
     for p in pinned:
@@ -138,10 +142,15 @@ def _spec_obj(
     ]
 
     return {
-        "schema": 1,
+        "schema": 2,
         "channel": channel,
         "tag": tag,
         "repos": repos,
+        "tooling": {
+            "repo": tooling.repo,
+            "ref": tooling.ref,
+            "sha": tooling.sha,
+        },
         "assets": assets,
         "install_sets": install_sets,
         "pages": {"demo_url": _demo_url(channel)},
@@ -154,13 +163,14 @@ def write_release_spec(
     channel: ReleaseChannel,
     tag: str,
     pinned: tuple[PinnedRepo, ...],
+    tooling: ReleaseTooling,
 ) -> Result[WrittenSpec, ReleaseError]:
     rel = spec_path_for_tag(tag)
     path = dist_repo_root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        payload = _spec_obj(channel=channel, tag=tag, pinned=pinned)
+        payload = _spec_obj(channel=channel, tag=tag, pinned=pinned, tooling=tooling)
         text = json.dumps(payload, indent=2) + "\n"
         atomic_write_text(path, text, encoding="utf-8")
     except OSError as e:

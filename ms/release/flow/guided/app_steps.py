@@ -158,7 +158,16 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         if choice.action == "back":
             return Ok(advance(replace(s, step="sha")))
         return Ok(
-            advance(replace(s, tag=tag, version=version, step="summary", return_to_summary=False))
+            advance(
+                replace(
+                    s,
+                    tag=tag,
+                    version=version,
+                    tooling_sha=plan.tooling.sha,
+                    step="summary",
+                    return_to_summary=False,
+                )
+            )
         )
 
     def _step_summary(s: AppReleaseSession) -> Result[StepOutcome[AppReleaseSession], ReleaseError]:
@@ -171,7 +180,13 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
                 label=f"Source SHA: {(s.repo_sha or 'unset')[:12]}",
                 detail="Edit selected source commit",
             ),
-            MenuOption(value="tag", label=f"Tag: {s.tag}", detail=f"Version: {s.version}"),
+            MenuOption(
+                value="tag",
+                label=f"Tag: {s.tag}",
+                detail=(
+                    f"Version: {s.version} / tooling: {(s.tooling_sha or 'unset')[:12]}"
+                ),
+            ),
             MenuOption(
                 value="notes",
                 label=f"Notes file: {notes_label}",
@@ -244,7 +259,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         valid = validate_app_confirm_inputs(s)
         if isinstance(valid, Err):
             return valid
-        tag, version, repo_sha = valid.value
+        tag, version, repo_sha, tooling_sha = valid.value
 
         dispatched = dispatch_app_release(
             deps=deps,
@@ -257,6 +272,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             tag=tag,
             version=version,
             repo_sha=repo_sha,
+            tooling_sha=tooling_sha,
         )
         if isinstance(dispatched, Err):
             return dispatched

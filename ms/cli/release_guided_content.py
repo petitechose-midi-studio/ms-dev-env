@@ -185,13 +185,13 @@ def run_guided_content_release(
             *,
             workspace_root: Path,
             console: ConsoleProtocol,
-            pinned: tuple[PinnedRepo, ...],
+            plan: ReleasePlan,
             dry_run: bool,
         ):
             return ensure_content_candidates(
                 workspace_root=workspace_root,
                 console=console,
-                pinned=pinned,
+                plan=plan,
                 dry_run=dry_run,
             )
 

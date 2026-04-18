@@ -18,7 +18,7 @@ def save_app_session(
 ) -> Result[None, ReleaseError]:
     path = app_session_path(workspace_root=workspace_root)
     payload: dict[str, object] = {
-        "schema": 2,
+        "schema": 3,
         "release_id": session.release_id,
         "created_at": session.created_at,
         "created_by": session.created_by,
@@ -28,6 +28,7 @@ def save_app_session(
         "bump": session.bump,
         "tag": session.tag,
         "version": session.version,
+        "tooling_sha": session.tooling_sha,
         "repo_ref": session.repo_ref,
         "repo_sha": session.repo_sha,
         "notes_path": session.notes_path,
@@ -80,7 +81,7 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
             )
         )
 
-    if data.get("schema") != 2:
+    if data.get("schema") not in {2, 3}:
         return Err(
             ReleaseError(
                 kind="invalid_input",
@@ -114,7 +115,7 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
 
     return Ok(
         AppReleaseSession(
-            schema=2,
+            schema=3,
             release_id=release_id,
             created_at=created_at,
             created_by=created_by,
@@ -124,6 +125,7 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
             bump=parse_bump(get_str(data, "bump")),
             tag=get_str(data, "tag"),
             version=get_str(data, "version"),
+            tooling_sha=get_str(data, "tooling_sha"),
             repo_ref=repo_ref,
             repo_sha=get_str(data, "repo_sha"),
             notes_path=get_str(data, "notes_path"),

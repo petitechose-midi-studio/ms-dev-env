@@ -14,6 +14,7 @@ from ms.release.domain.models import (
     ReleaseBump,
     ReleaseChannel,
     ReleasePlan,
+    ReleaseTooling,
 )
 from ms.release.domain.open_control_models import (
     BomPromotionPlan,
@@ -53,6 +54,14 @@ def _oc_sdk_lock(*, version: str) -> OcSdkLock:
     )
 
 
+def _tooling() -> ReleaseTooling:
+    return ReleaseTooling(
+        repo="petitechose-midi-studio/ms-dev-env",
+        ref="main",
+        sha="f" * 40,
+    )
+
+
 def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import ms.cli.release_guided_app as app
 
@@ -88,6 +97,7 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
                 tag="v1.2.3",
                 version="1.2.3",
                 pinned=(),
+                tooling=_tooling(),
                 title="release(app): v1.2.3",
             )
         )
@@ -200,6 +210,7 @@ def test_guided_app_summary_edit_recomputes_tag(
                 tag="v1.2.3",
                 version="1.2.3",
                 pinned=(),
+                tooling=_tooling(),
                 title="release(app): v1.2.3",
             )
         )
@@ -315,6 +326,7 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
                 channel="stable",
                 tag="v9.9.9",
                 pinned=(),
+                tooling=_tooling(),
                 spec_path="release-specs/v9.9.9.json",
                 notes_path=None,
                 title="release(content): v9.9.9",
@@ -452,6 +464,7 @@ def test_guided_content_bom_promotion_updates_core_sha(
                 channel="stable",
                 tag="v9.9.9",
                 pinned=pinned,
+                tooling=_tooling(),
                 spec_path="release-specs/v9.9.9.json",
                 notes_path=None,
                 title="release(content): v9.9.9",

@@ -5,10 +5,10 @@ from tempfile import TemporaryDirectory
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.release.domain.models import PinnedRepo
+from ms.release.domain.models import ReleasePlan
 from ms.release.errors import ReleaseError
 from ms.release.flow.candidate_types import CandidateVerifyRequest
-from ms.release.flow.candidate_verify import inspect_candidate_bundle
+from ms.release.flow.candidate_verify import inspect_candidate_metadata
 from ms.release.infra.github.releases import download_release_assets
 from ms.release.infra.github.run_watch import watch_run
 from ms.release.infra.github.workflows import dispatch_candidate_workflow
@@ -21,10 +21,14 @@ def ensure_content_candidates(
     *,
     workspace_root: Path,
     console: ConsoleProtocol,
-    pinned: tuple[PinnedRepo, ...],
+    plan: ReleasePlan,
     dry_run: bool,
 ) -> Result[tuple[EnsuredContentCandidate, ...], ReleaseError]:
-    planned = plan_content_candidates(workspace_root=workspace_root, pinned=pinned)
+    planned = plan_content_candidates(
+        workspace_root=workspace_root,
+        pinned=plan.pinned,
+        tooling=plan.tooling,
+    )
     if isinstance(planned, Err):
         return planned
 
@@ -113,7 +117,7 @@ def _probe_content_candidate(
                 return Ok(False)
             return downloaded
 
-        inspected = inspect_candidate_bundle(
+        inspected = inspect_candidate_metadata(
             workspace_root=workspace_root,
             request=CandidateVerifyRequest(
                 artifacts_dir=metadata_dir,
