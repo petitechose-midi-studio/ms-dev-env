@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import typer
 
 from ms.cli.commands.release_common import exit_release, release_error_code
@@ -62,26 +64,32 @@ def validate_bom_targets_cmd(
     ),
 ) -> None:
     ctx = build_context()
+    started_at = time.perf_counter()
     verified = verify_workspace_bom_files(
         workspace_root=ctx.workspace.root,
         allow_dirty_workspace=allow_dirty_workspace,
     )
     if isinstance(verified, Err):
         exit_release(verified.error.pretty(), code=release_error_code(verified.error.kind))
+    verify_elapsed = time.perf_counter() - started_at
 
     _print_bom_state(console=ctx.console, state=verified.value)
     if verified.value.comparison.status != "aligned":
         _print_bom_blockers(console=ctx.console, state=verified.value)
         exit_release("OpenControl BOM is not aligned", code=ErrorCode.USER_ERROR)
 
+    validation_started_at = time.perf_counter()
     validated = validate_workspace_bom_targets(
         workspace_root=ctx.workspace.root,
         include_plugin_release=include_plugin_release,
     )
     if isinstance(validated, Err):
         exit_release(validated.error.pretty(), code=release_error_code(validated.error.kind))
+    validation_elapsed = time.perf_counter() - validation_started_at
 
     _print_validation_summary(console=ctx.console, validations=validated.value)
+    ctx.console.print(f"verify-bom: {verify_elapsed:.1f}s", Style.DIM)
+    ctx.console.print(f"validate-targets: {validation_elapsed:.1f}s", Style.DIM)
     ctx.console.success("OpenControl BOM targets validated")
 
 
