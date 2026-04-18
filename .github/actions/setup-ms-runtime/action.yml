@@ -18,6 +18,17 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Expose GitHub token to shell tools
+      shell: bash
+      env:
+        ACTIONS_GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        {
+          printf 'GITHUB_TOKEN=%s\n' "$ACTIONS_GITHUB_TOKEN"
+          printf 'GH_TOKEN=%s\n' "$ACTIONS_GITHUB_TOKEN"
+        } >> "$GITHUB_ENV"
+
     - name: Setup Python
       uses: actions/setup-python@v6
       with:
