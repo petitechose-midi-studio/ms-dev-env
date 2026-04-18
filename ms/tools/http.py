@@ -9,12 +9,14 @@ This module provides:
 from __future__ import annotations
 
 import json
+import os
 import ssl
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from urllib.parse import urlparse
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import StrDict, as_str_dict
@@ -121,6 +123,20 @@ class RealHttpClient:
         # Use system certificates
         self._ssl_context = ssl.create_default_context()
 
+    def _build_headers(self, url: str) -> dict[str, str]:
+        headers = {"User-Agent": self.user_agent}
+        if urlparse(url).netloc.lower() != "api.github.com":
+            return headers
+
+        token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+        if token is None:
+            return headers
+
+        headers["Authorization"] = f"Bearer {token}"
+        headers["Accept"] = "application/vnd.github+json"
+        headers["X-GitHub-Api-Version"] = "2022-11-28"
+        return headers
+
     def _request(self, url: str) -> Result[bytes, HttpError]:
         """Make HTTP GET request.
 
@@ -133,7 +149,7 @@ class RealHttpClient:
         try:
             req = urllib.request.Request(
                 url,
-                headers={"User-Agent": self.user_agent},
+                headers=self._build_headers(url),
             )
             with urllib.request.urlopen(
                 req,
@@ -188,7 +204,7 @@ class RealHttpClient:
         try:
             req = urllib.request.Request(
                 url,
-                headers={"User-Agent": self.user_agent},
+                headers=self._build_headers(url),
             )
             with urllib.request.urlopen(
                 req,

@@ -59,7 +59,7 @@ def _pinned() -> tuple[PinnedRepo, ...]:
 def test_plan_content_candidates_resolves_tags_and_ui_sha(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    import ms.release.flow.content_candidates as candidates
+    import ms.release.flow.content_candidate_planning as planning
 
     def fake_get_repo_file_text(
         *, workspace_root: Path, repo: str, path: str, ref: str
@@ -71,7 +71,7 @@ def test_plan_content_candidates_resolves_tags_and_ui_sha(
             + "\n"
         )
 
-    monkeypatch.setattr(candidates, "get_repo_file_text", fake_get_repo_file_text)
+    monkeypatch.setattr(planning, "get_repo_file_text", fake_get_repo_file_text)
 
     planned = plan_content_candidates(workspace_root=tmp_path, pinned=_pinned())
 
@@ -94,7 +94,7 @@ def test_plan_content_candidates_resolves_tags_and_ui_sha(
 def test_ensure_content_candidates_dispatches_only_missing_targets(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
-    import ms.release.flow.content_candidates as candidates
+    import ms.release.flow.content_candidate_ensure as ensure_module
 
     target = ContentCandidateTarget(
         id="core-default-firmware",
@@ -124,15 +124,15 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
         del workspace_root, target
         return Ok(next(probes))
 
-    monkeypatch.setattr(candidates, "plan_content_candidates", fake_plan_content_candidates)
-    monkeypatch.setattr(candidates, "_probe_content_candidate", fake_probe_content_candidate)
+    monkeypatch.setattr(ensure_module, "plan_content_candidates", fake_plan_content_candidates)
+    monkeypatch.setattr(ensure_module, "_probe_content_candidate", fake_probe_content_candidate)
 
     def fake_dispatch_candidate_workflow(**kwargs: object) -> Ok[WorkflowRun]:
         dispatched.append((kwargs["repo_slug"], kwargs["inputs"]))  # type: ignore[index]
         return Ok(WorkflowRun(id=42, url="https://example.test/run/42", request_id="req"))
 
     monkeypatch.setattr(
-        candidates,
+        ensure_module,
         "dispatch_candidate_workflow",
         fake_dispatch_candidate_workflow,
     )
@@ -147,7 +147,7 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
         del workspace_root, run_id, repo_slug, console, dry_run
         return Ok(None)
 
-    monkeypatch.setattr(candidates, "watch_run", fake_watch_run)
+    monkeypatch.setattr(ensure_module, "watch_run", fake_watch_run)
 
     ensured = ensure_content_candidates(
         workspace_root=tmp_path,

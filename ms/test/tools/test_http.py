@@ -1,5 +1,6 @@
 """Tests for tools/http.py - HTTP client abstraction."""
 
+# pyright: reportPrivateUsage=false
 from pathlib import Path
 
 import pytest
@@ -236,6 +237,31 @@ class TestRealHttpClient:
         client = RealHttpClient(timeout=60.0, user_agent="test-agent/1.0")
         assert client.timeout == 60.0
         assert client.user_agent == "test-agent/1.0"
+
+    def test_build_headers_adds_github_auth_when_token_present(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        client = RealHttpClient()
+        monkeypatch.setenv("GITHUB_TOKEN", "secret-token")
+
+        headers = client._build_headers("https://api.github.com/repos/open-control/bridge/releases/latest")
+
+        assert headers["User-Agent"] == client.user_agent
+        assert headers["Authorization"] == "Bearer secret-token"
+        assert headers["Accept"] == "application/vnd.github+json"
+        assert headers["X-GitHub-Api-Version"] == "2022-11-28"
+
+    def test_build_headers_skips_github_auth_for_non_api_urls(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        client = RealHttpClient()
+        monkeypatch.setenv("GH_TOKEN", "secret-token")
+
+        headers = client._build_headers("https://github.com/open-control/bridge/releases/latest/download/oc-bridge-linux")
+
+        assert headers == {"User-Agent": client.user_agent}
 
     def test_get_json_invalid_url(self) -> None:
         """get_json handles invalid URL."""
