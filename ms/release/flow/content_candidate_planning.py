@@ -39,7 +39,7 @@ def plan_content_candidates(
         )
 
     core_pin = pinned_by_id["core"]
-    ui_sha = _resolve_core_ui_sha(workspace_root=workspace_root, core_pin=core_pin)
+    ui_sha = resolve_core_ui_sha(workspace_root=workspace_root, core_pin=core_pin)
     if isinstance(ui_sha, Err):
         return ui_sha
 
@@ -164,7 +164,7 @@ def plan_content_candidates(
     )
 
 
-def _resolve_core_ui_sha(
+def resolve_core_ui_sha(
     *,
     workspace_root: Path,
     core_pin: PinnedRepo,

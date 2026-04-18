@@ -26,15 +26,11 @@ from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
 _RUN_LOOKUP_MAX_ATTEMPTS = 6
 _RUN_LOOKUP_DELAY_SECONDS = 1.0
-
-
 @dataclass(frozen=True, slots=True)
 class WorkflowRun:
     id: int
     url: str
     request_id: str
-
-
 def _dispatch_workflow(
     *,
     workspace_root: Path,
@@ -83,8 +79,6 @@ def _dispatch_workflow(
         ref=ref,
         request_id=request_id,
     )
-
-
 def _resolve_dispatched_run(
     *,
     workspace_root: Path,
@@ -141,8 +135,6 @@ def _resolve_dispatched_run(
             ),
         )
     )
-
-
 def _find_dispatched_run(
     *,
     payload: str,
@@ -184,14 +176,13 @@ def _find_dispatched_run(
         return Ok(WorkflowRun(id=run_id, url=url, request_id=request_id))
 
     return Ok(None)
-
-
 def dispatch_publish_workflow(
     *,
     workspace_root: Path,
     channel: ReleaseChannel,
     tag: str,
     spec_path: str,
+    tooling_sha: str,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
@@ -200,12 +191,15 @@ def dispatch_publish_workflow(
         repo_slug=DIST_REPO_SLUG,
         workflow_file=DIST_PUBLISH_WORKFLOW,
         ref=DIST_DEFAULT_BRANCH,
-        inputs=(("channel", channel), ("tag", tag), ("spec_path", spec_path)),
+        inputs=(
+            ("channel", channel),
+            ("tag", tag),
+            ("spec_path", spec_path),
+            ("tooling_sha", tooling_sha),
+        ),
         console=console,
         dry_run=dry_run,
     )
-
-
 def dispatch_candidate_workflow(
     *,
     workspace_root: Path,
@@ -225,8 +219,6 @@ def dispatch_candidate_workflow(
         console=console,
         dry_run=dry_run,
     )
-
-
 def dispatch_app_release_workflow(
     *,
     workspace_root: Path,
@@ -276,8 +268,6 @@ def dispatch_app_release_workflow(
         console=console,
         dry_run=dry_run,
     )
-
-
 def dispatch_app_candidate_workflow(
     *,
     workspace_root: Path,
