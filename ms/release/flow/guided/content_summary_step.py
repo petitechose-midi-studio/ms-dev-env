@@ -52,9 +52,14 @@ def step_content_summary(
                 detail="Optional release notes",
             ),
             MenuOption(
+                value="candidates",
+                label="Candidates: review availability",
+                detail="Check or build signed producer candidates",
+            ),
+            MenuOption(
                 value="start",
                 label="Start release",
-                detail="Continue to final confirmation",
+                detail="Continue to candidate review",
             ),
         ]
     )
@@ -141,6 +146,17 @@ def step_content_summary(
                 )
             )
         )
+    if choice.value == "candidates":
+        return Ok(
+            advance(
+                replace(
+                    session,
+                    step="candidates",
+                    idx_summary=choice.index,
+                    return_to_summary=False,
+                )
+            )
+        )
     if choice.value == "start":
         if session.tag is None:
             return Ok(
@@ -157,7 +173,7 @@ def step_content_summary(
             advance(
                 replace(
                     session,
-                    step="confirm",
+                    step="candidates",
                     idx_summary=choice.index,
                     return_to_summary=False,
                 )

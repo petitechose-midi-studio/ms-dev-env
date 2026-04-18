@@ -25,3 +25,9 @@ class EnsuredContentCandidate:
     target: ContentCandidateTarget
     ready_on_entry: bool
     run: WorkflowRun | None
+
+
+@dataclass(frozen=True, slots=True)
+class ContentCandidateAssessment:
+    target: ContentCandidateTarget
+    available: bool

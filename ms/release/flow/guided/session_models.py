@@ -28,6 +28,7 @@ ContentSessionStep = Literal[
     "tag",
     "notes",
     "summary",
+    "candidates",
     "confirm",
 ]
 
@@ -59,7 +60,7 @@ class AppReleaseSession:
 
 @dataclass(frozen=True, slots=True)
 class ContentReleaseSession:
-    schema: Literal[2]
+    schema: Literal[3]
     release_id: str
     created_at: str
     created_by: str
@@ -77,6 +78,7 @@ class ContentReleaseSession:
     idx_bump: int
     idx_repo: int
     idx_summary: int
+    idx_candidates: int
     return_to_summary: bool
 
 
@@ -110,7 +112,7 @@ def new_app_session(*, created_by: str, notes_path: Path | None) -> AppReleaseSe
 def new_content_session(*, created_by: str, notes_path: Path | None) -> ContentReleaseSession:
     now = datetime.now(tz=UTC).isoformat()
     return ContentReleaseSession(
-        schema=2,
+        schema=3,
         release_id=f"content-{uuid4().hex[:12]}",
         created_at=now,
         created_by=created_by,
@@ -128,5 +130,6 @@ def new_content_session(*, created_by: str, notes_path: Path | None) -> ContentR
         idx_bump=0,
         idx_repo=0,
         idx_summary=0,
+        idx_candidates=0,
         return_to_summary=False,
     )

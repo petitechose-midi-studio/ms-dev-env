@@ -9,6 +9,7 @@ from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 
 from .content_bom_step import run_content_bom_step
+from .content_candidates_step import run_content_candidates_step
 from .content_confirm_step import run_content_confirm_step
 from .content_contracts import ContentGuidedDependencies
 from .content_notes_step import run_content_notes_step
@@ -245,6 +246,18 @@ def run_guided_content_release_flow(
             release_repos=release_repos,
         )
 
+    def _step_candidates(
+        session: ContentReleaseSession,
+    ) -> Result[StepOutcome[ContentReleaseSession], ReleaseError]:
+        return run_content_candidates_step(
+            deps=deps,
+            workspace_root=workspace_root,
+            console=console,
+            dry_run=dry_run,
+            session=session,
+            release_repos=release_repos,
+        )
+
     def _handlers() -> dict[str, StepHandler[ContentReleaseSession]]:
         return {
             "product": _step_product,
@@ -255,6 +268,7 @@ def run_guided_content_release_flow(
             "tag": _step_tag,
             "summary": _step_summary,
             "notes": _step_notes,
+            "candidates": _step_candidates,
             "confirm": _step_confirm,
         }
 

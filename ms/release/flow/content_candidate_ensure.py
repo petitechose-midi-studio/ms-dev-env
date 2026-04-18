@@ -14,7 +14,36 @@ from ms.release.infra.github.run_watch import watch_run
 from ms.release.infra.github.workflows import dispatch_candidate_workflow
 
 from .content_candidate_planning import plan_content_candidates
-from .content_candidate_types import ContentCandidateTarget, EnsuredContentCandidate
+from .content_candidate_types import (
+    ContentCandidateAssessment,
+    ContentCandidateTarget,
+    EnsuredContentCandidate,
+)
+
+
+def assess_content_candidates(
+    *,
+    workspace_root: Path,
+    plan: ReleasePlan,
+) -> Result[tuple[ContentCandidateAssessment, ...], ReleaseError]:
+    planned = plan_content_candidates(
+        workspace_root=workspace_root,
+        pinned=plan.pinned,
+        tooling=plan.tooling,
+    )
+    if isinstance(planned, Err):
+        return planned
+
+    assessments: list[ContentCandidateAssessment] = []
+    for target in planned.value:
+        ready = _probe_content_candidate(
+            workspace_root=workspace_root,
+            target=target,
+        )
+        if isinstance(ready, Err):
+            return ready
+        assessments.append(ContentCandidateAssessment(target=target, available=ready.value))
+    return Ok(tuple(assessments))
 
 
 def ensure_content_candidates(

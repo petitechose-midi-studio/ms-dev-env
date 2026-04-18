@@ -27,6 +27,7 @@ from ms.release.domain.open_control_models import (
 )
 from ms.release.flow.app_prepare import AppPrepareResult
 from ms.release.flow.bom_promotion import BomPromotionResult
+from ms.release.flow.content_candidates import ContentCandidateAssessment, ContentCandidateTarget
 from ms.release.flow.guided.sessions import (
     AppReleaseSession,
     ContentReleaseSession,
@@ -59,6 +60,38 @@ def _tooling() -> ReleaseTooling:
         repo="petitechose-midi-studio/ms-dev-env",
         ref="main",
         sha="f" * 40,
+    )
+
+
+def _candidate_assessments(*, available: bool) -> tuple[ContentCandidateAssessment, ...]:
+    targets = (
+        ContentCandidateTarget(
+            id="loader-binaries",
+            label="loader",
+            producer_id="loader-binaries",
+            repo_slug="petitechose-midi-studio/loader",
+            workflow_file=".github/workflows/candidate.yml",
+            ref="main",
+            candidate_tag="rc-loader",
+            workflow_inputs=(),
+            expected_input_repos=(),
+            public_key_b64="pk",
+        ),
+        ContentCandidateTarget(
+            id="core-default-firmware",
+            label="core firmware",
+            producer_id="core-default-firmware",
+            repo_slug="petitechose-midi-studio/core",
+            workflow_file=".github/workflows/candidate.yml",
+            ref="main",
+            candidate_tag="rc-core",
+            workflow_inputs=(),
+            expected_input_repos=(),
+            public_key_b64="pk",
+        ),
+    )
+    return tuple(
+        ContentCandidateAssessment(target=target, available=available) for target in targets
     )
 
 
@@ -338,7 +371,9 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         if title == "Content Release Tag":
             return _sel("accept")
         if title == "Content Release Summary":
-            return _sel("start", index=9)
+            return _sel("start", index=10)
+        if title == "Content Release Candidates":
+            return _sel("continue", index=2)
         raise AssertionError(f"unexpected selector title: {title}")
 
     def fake_confirm(*args: object, **kwargs: object) -> bool:
@@ -349,6 +384,9 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
 
     def fake_ensure_content_candidates(*args: object, **kwargs: object):
         return Ok(())
+
+    def fake_assess_content_candidates(*args: object, **kwargs: object):
+        return Ok(_candidate_assessments(available=True))
 
     def fake_open_control(*args: object, **kwargs: object) -> OpenControlPreflightReport:
         return OpenControlPreflightReport(
@@ -385,6 +423,7 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr(content, "select_one", fake_select_one)
     monkeypatch.setattr(content, "confirm_yn", fake_confirm)
     monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
     monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
@@ -473,7 +512,8 @@ def test_guided_content_bom_promotion_updates_core_sha(
 
     selections = {
         "Content Release Tag": [_sel("accept")],
-        "Content Release Summary": [_sel("bom", index=6), _sel("start", index=9)],
+        "Content Release Summary": [_sel("bom", index=6), _sel("start", index=10)],
+        "Content Release Candidates": [_sel("continue", index=2)],
         "OpenControl BOM": [_sel("promote")],
     }
 
@@ -492,6 +532,9 @@ def test_guided_content_bom_promotion_updates_core_sha(
 
     def fake_ensure_content_candidates(*args: object, **kwargs: object):
         return Ok(())
+
+    def fake_assess_content_candidates(*args: object, **kwargs: object):
+        return Ok(_candidate_assessments(available=True))
 
     def fake_open_control(*args: object, **kwargs: object) -> OpenControlPreflightReport:
         core_sha = str(kwargs["core_sha"])
@@ -560,6 +603,7 @@ def test_guided_content_bom_promotion_updates_core_sha(
     monkeypatch.setattr(content, "select_one", fake_select_one)
     monkeypatch.setattr(content, "confirm_yn", fake_confirm)
     monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
     def fake_ensure_core_release_permissions(**_: object) -> Ok[None]:
@@ -591,6 +635,144 @@ def test_guided_content_bom_promotion_updates_core_sha(
     assert isinstance(plan_obj, ReleasePlan)
     assert plan_obj.pinned[2].repo.id == "core"
     assert plan_obj.pinned[2].sha == "9" * 40
+
+
+def test_guided_content_candidates_step_builds_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import ms.cli.release_guided_content as content
+
+    session = new_content_session(created_by="alice", notes_path=None)
+
+    def fake_preflight(*args: object, **kwargs: object):
+        return Ok("alice")
+
+    def fake_bootstrap(*args: object, **kwargs: object):
+        return Ok(session)
+
+    def fake_save_state(*args: object, **kwargs: object):
+        s = kwargs.get("session")
+        assert isinstance(s, ContentReleaseSession)
+        return Ok(s)
+
+    def fake_channel(*args: object, **kwargs: object):
+        return _sel("stable")
+
+    def fake_bump(*args: object, **kwargs: object):
+        return _sel("patch")
+
+    sha_map = {
+        "petitechose-midi-studio/loader": "1" * 40,
+        "open-control/bridge": "2" * 40,
+        "petitechose-midi-studio/core": "3" * 40,
+        "petitechose-midi-studio/plugin-bitwig": "4" * 40,
+    }
+
+    def fake_green(*args: object, **kwargs: object):
+        return Ok(_sel(sha_map[str(kwargs["repo_slug"])]))
+
+    def fake_plan(
+        *,
+        workspace_root: Path,
+        channel: ReleaseChannel,
+        bump: ReleaseBump,
+        tag_override: str | None,
+        pinned: tuple[PinnedRepo, ...],
+    ) -> Ok[ReleasePlan]:
+        del workspace_root, channel, bump, tag_override, pinned
+        return Ok(
+            ReleasePlan(
+                channel="stable",
+                tag="v9.9.9",
+                pinned=(),
+                tooling=_tooling(),
+                spec_path="release-specs/v9.9.9.json",
+                notes_path=None,
+                title="release(content): v9.9.9",
+            )
+        )
+
+    selections = {
+        "Content Release Tag": [_sel("accept")],
+        "Content Release Summary": [_sel("start", index=10)],
+        "Content Release Candidates": [_sel("ensure", index=3), _sel("continue", index=2)],
+    }
+
+    def fake_select_one(*args: object, **kwargs: object) -> SelectorResult[str]:
+        title = str(kwargs.get("title", ""))
+        choices = selections.get(title)
+        if not choices:
+            raise AssertionError(f"unexpected selector title: {title}")
+        return choices.pop(0)
+
+    def fake_confirm(*args: object, **kwargs: object) -> bool:
+        return True
+
+    def fake_ci_green(*args: object, **kwargs: object):
+        return Ok(None)
+
+    assess_calls = {"count": 0}
+
+    def fake_assess_content_candidates(*args: object, **kwargs: object):
+        assess_calls["count"] += 1
+        return Ok(_candidate_assessments(available=assess_calls["count"] > 1))
+
+    ensure_calls = {"count": 0}
+
+    def fake_ensure_content_candidates(*args: object, **kwargs: object):
+        ensure_calls["count"] += 1
+        return Ok(())
+
+    def fake_open_control(*args: object, **kwargs: object) -> OpenControlPreflightReport:
+        return OpenControlPreflightReport(
+            oc_sdk=OcSdkLoad(lock=_oc_sdk_lock(version="0.1.3"), source="git", error=None),
+            repos=(),
+            mismatches=(),
+            derived_lock=None,
+            comparison=BomStateComparison(repos=(), status="aligned", blockers=()),
+        )
+
+    def fake_prepare(*args: object, **kwargs: object):
+        return Ok(
+            PrMergeOutcome(
+                kind="merged_pr", url="https://example/pr/4", label="https://example/pr/4"
+            )
+        )
+
+    def fake_publish(*args: object, **kwargs: object):
+        return Ok("https://example/workflow/2")
+
+    def fake_clear(*args: object, **kwargs: object):
+        return Ok(None)
+
+    monkeypatch.setattr(content, "preflight_with_permission", fake_preflight)
+    monkeypatch.setattr(content, "bootstrap_content_session", fake_bootstrap)
+    monkeypatch.setattr(content, "save_content_state", fake_save_state)
+    monkeypatch.setattr(content, "select_channel", fake_channel)
+    monkeypatch.setattr(content, "select_bump", fake_bump)
+    monkeypatch.setattr(content, "select_green_commit", fake_green)
+    monkeypatch.setattr(content, "plan_release", fake_plan)
+    monkeypatch.setattr(content, "select_one", fake_select_one)
+    monkeypatch.setattr(content, "confirm_yn", fake_confirm)
+    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
+    monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
+    monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
+    monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
+    monkeypatch.setattr(content, "publish_distribution_release", fake_publish)
+    monkeypatch.setattr(content, "clear_content_session", fake_clear)
+
+    result = content.run_guided_content_release(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        notes_file=None,
+        watch=False,
+        dry_run=False,
+    )
+
+    assert isinstance(result, Ok)
+    assert assess_calls["count"] >= 2
+    assert ensure_calls["count"] == 2
 
 
 def test_release_guided_routes_by_product(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
