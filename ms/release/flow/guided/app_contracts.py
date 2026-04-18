@@ -7,6 +7,7 @@ from ms.core.result import Result
 from ms.output.console import ConsoleProtocol
 from ms.release.domain.models import AppReleasePlan, PinnedRepo
 from ms.release.errors import ReleaseError
+from ms.release.flow.app_publish import AppPublishResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
 from .menu_option import MenuOption
@@ -111,7 +112,7 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         notes_source_path: str | None,
         watch: bool,
         dry_run: bool,
-    ) -> Result[tuple[str, str], ReleaseError]: ...
+    ) -> Result[AppPublishResult, ReleaseError]: ...
 
     def print_notes_status(
         self,
