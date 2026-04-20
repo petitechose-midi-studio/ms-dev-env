@@ -12,6 +12,16 @@ This repo provides a single CLI, `ms`, that can:
 
 The end-user distribution/installer is tracked separately (see roadmap).
 
+## Release Role
+
+- `ms-dev-env` is the maintainer and orchestration workspace.
+- It provides the `ms` CLI used to prepare release inputs, verify candidate state, and orchestrate
+  controlled release publication.
+- It is not an end-user release surface and does not publish product binaries as a standalone
+  product repo.
+- Producer repos publish signed candidates for their own artifact families. End-user payload
+  publication remains centered on `petitechose-midi-studio/distribution`.
+
 ## Quickstart (dev)
 
 Prerequisite to *run* the CLI: `uv`.
