@@ -31,7 +31,7 @@ This is the long-term, modular direction for the sequencer engine.
 
 **Created:** 2026-01-07
 
-**Status (2026-01-29):** planned. No implementation work is scheduled until the end-user distribution (stable/beta/nightly + ms-manager/ms-updater) is solid.
+**Status (2026-01-29):** planned. No implementation work is scheduled until the end-user distribution (stable/beta + ms-manager/ms-updater) is solid.
 
 ## Overview
 

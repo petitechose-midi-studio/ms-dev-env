@@ -10,7 +10,7 @@ Authoritative sources:
 ## Concepts
 
 - End-user distribution lives in the dedicated repo `petitechose-midi-studio/distribution`.
-- Channels: `stable`, `beta`, `nightly`.
+- Channels: `stable`, `beta`.
 - A release bundle is described by a signed manifest (hashes + pinned SHAs).
 
 ## Typical commands

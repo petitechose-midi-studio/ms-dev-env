@@ -132,4 +132,4 @@ Notes:
 ## Roadmap
 
 - Internal work notes live in `docs/memories/`.
-- Distribution (stable/beta/nightly) + end-user installer plan: `docs/memories/setup-architecture/README.md`
+- Distribution (stable/beta) + end-user installer plan: `docs/memories/setup-architecture/README.md`
