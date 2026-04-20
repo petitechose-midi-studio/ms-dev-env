@@ -19,8 +19,8 @@ release_app = typer.Typer(
     invoke_without_command=True,
     help=(
         "Release orchestration.\n"
-        "Prefer `ms release content ...` for distribution/content releases.\n"
-        "Top-level commands (`ms release plan|prepare|publish|remove`) are kept for compatibility."
+        "Use `ms release content ...` for distribution/content releases.\n"
+        "Use `ms release app ...` for ms-manager releases."
     ),
 )
 
@@ -83,7 +83,7 @@ def guided_release_cmd(
     _run_guided_release(notes_file=notes_file, watch=watch, dry_run=dry_run)
 
 
-register_content_commands(top_level=release_app, namespace=release_content_app)
+register_content_commands(namespace=release_content_app)
 register_app_commands(namespace=release_product_app)
 register_bom_commands(namespace=release_app)
 register_candidate_commands(namespace=release_candidate_app)
