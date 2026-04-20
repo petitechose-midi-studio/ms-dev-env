@@ -41,8 +41,8 @@ def package_cmd(
 
 @dist_app.command("manifest")
 def manifest_cmd(
-    channel: str = typer.Option(..., "--channel", help="Channel: nightly|release"),
-    tag: str = typer.Option(..., "--tag", help="Release tag (e.g. nightly-2026-01-29, v0.1.0)"),
+    channel: str = typer.Option(..., "--channel", help="Channel: stable|beta"),
+    tag: str = typer.Option(..., "--tag", help="Release tag (e.g. v0.1.0-beta.1, v0.1.0)"),
     dist_dir: Path = typer.Option(Path("dist"), "--dist-dir", help="Directory of dist zips"),
     out: Path = typer.Option(Path("dist/manifest.json"), "--out", help="Output manifest path"),
     source_hash: str | None = typer.Option(

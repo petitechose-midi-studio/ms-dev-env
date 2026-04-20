@@ -34,15 +34,15 @@ def test_generate_manifest_includes_assets_and_repos_lock(tmp_path: Path) -> Non
     out_path = generate_manifest(
         workspace_root=tmp_path,
         dist_dir=tmp_path / "dist",
-        channel="nightly",
-        tag="nightly-2026-01-29",
+        channel="beta",
+        tag="v0.1.0-beta.1",
         out_path=tmp_path / "dist" / "manifest.json",
     )
 
     m = read_manifest(out_path)
     assert m["schema"] == 1
-    assert m["channel"] == "nightly"
-    assert m["tag"] == "nightly-2026-01-29"
+    assert m["channel"] == "beta"
+    assert m["tag"] == "v0.1.0-beta.1"
     assert isinstance(m["source_hash"], str)
 
     repos = cast(list[dict[str, object]], m["repos"])

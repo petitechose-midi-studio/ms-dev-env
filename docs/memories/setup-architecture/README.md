@@ -3,7 +3,7 @@
 Ce document décrit l'architecture d'installation pour :
 
 1) le dev environment (`ms-dev-env`, bootstrap via `uv` + `ms`)
-2) la distribution end-user (stable/beta/nightly + ms-manager + ms-updater)
+2) la distribution end-user (stable/beta + ms-manager + ms-updater)
 
 ## Principes
 
@@ -84,27 +84,26 @@ Il y a 2 workflows distincts :
 
 ### Objectif
 
-Un seul contrat, trois canaux: un manifest signé décrit exactement les assets installables.
+Un seul contrat, deux canaux publics: un manifest signé décrit exactement les assets installables.
 
 - Repo source-of-truth: `petitechose-midi-studio/distribution` (GitHub Releases + Pages).
 
 - Canaux:
-  - `nightly`: pré-release (automatique, skip si pas full green)
   - `beta`: pré-release (manual)
   - `stable`: release (manual)
+  - les builds edge restent hors distribution end-user et sont produits manuellement par les devs/maintainers si nécessaire
 
 ### Manifest (contrat end-user)
 
 Le manifest (schema=2) inclut :
 
-- `channel` (`stable|beta|nightly`) + `tag`
+- `channel` (`stable|beta`) + `tag`
 - `repos[]` (pins des SHAs pour audit)
 - `assets[]` (size + sha256) + `install_sets[]` (profiles)
 - signature Ed25519 (`manifest.json.sig`)
 
 Optimisation locked:
 - stable/beta: reuse par copie (tags self-contained)
-- nightly: reuse via `assets[].url` (même canal uniquement)
 
 ## Installer end-user (progressive implementation)
 
@@ -112,7 +111,7 @@ Optimisation locked:
 
 Une app end-user (`ms-manager`, Tauri) qui :
 
-- permet de choisir un canal (stable/beta/nightly) + une version (par défaut: stable + latest)
+- permet de choisir un canal (stable/beta) + une version (par défaut: stable + latest)
 - installe / met à jour / désinstalle les binaires finaux uniquement
 - gère l'intégration OS (raccourcis + bridge service)
 
