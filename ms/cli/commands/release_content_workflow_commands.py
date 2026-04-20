@@ -12,36 +12,6 @@ from ms.release.flow.candidate_workflow import CandidateFetchRequest, fetch_cand
 from ms.release.flow.content_candidate_planning import plan_content_candidates
 from ms.release.flow.content_spec import load_content_plan_from_spec
 
-
-def export_content_spec_cmd(
-    spec: Path = typer.Option(..., "--spec", help="Release spec JSON path."),
-    github_output: Path = typer.Option(..., "--github-output", help="GitHub output file path."),
-    repo_id: list[str] = typer.Option([], "--repo-id", help="Repo id to export as repo_<id>_sha."),
-    include_tooling: bool = typer.Option(False, "--include-tooling", help="Export tooling_sha."),
-) -> None:
-    plan = _load_plan(spec)
-    pinned_by_id = {pin.repo.id: pin for pin in plan.pinned}
-
-    lines: list[str] = []
-    if include_tooling:
-        lines.append(f"tooling_sha={plan.tooling.sha}")
-
-    for current_repo_id in repo_id:
-        pin = pinned_by_id.get(current_repo_id)
-        if pin is None:
-            exit_release(
-                f"missing repo id in spec: {current_repo_id}",
-                code=release_error_code("invalid_input"),
-            )
-        output_name = current_repo_id.replace("-", "_")
-        lines.append(f"repo_{output_name}_sha={pin.sha}")
-
-    github_output.parent.mkdir(parents=True, exist_ok=True)
-    with github_output.open("a", encoding="utf-8") as fh:
-        for line in lines:
-            fh.write(f"{line}\n")
-
-
 def fetch_content_candidate_cmd(
     spec: Path = typer.Option(..., "--spec", help="Release spec JSON path."),
     target_id: str = typer.Option(..., "--target-id", help="Content candidate target id."),
