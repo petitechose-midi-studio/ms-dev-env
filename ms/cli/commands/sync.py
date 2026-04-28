@@ -15,6 +15,7 @@ from ms.services.toolchains import ToolchainService
 
 def sync(
     tools: bool = typer.Option(False, "--tools", help="Sync tools only"),
+    test_tools: bool = typer.Option(False, "--test-tools", help="Sync unit-test tools only"),
     repos: bool = typer.Option(False, "--repos", help="Sync repos only"),
     profile: RepoProfile = typer.Option(
         RepoProfile.dev,
@@ -25,7 +26,7 @@ def sync(
 ) -> None:
     """Sync repos and/or tools."""
     ctx = build_context()
-    sync_all = not tools and not repos
+    sync_all = not tools and not test_tools and not repos
 
     if sync_all or repos:
         ctx.console.header("Repos")
@@ -40,6 +41,21 @@ def sync(
                 ctx.console.error(e.message)
                 if e.hint:
                     ctx.console.print(f"hint: {e.hint}", Style.DIM)
+                raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
+            case Ok(_):
+                pass
+
+    if test_tools:
+        ctx.console.header("Test Tools")
+        result = ToolchainService(
+            workspace=ctx.workspace,
+            platform=ctx.platform,
+            config=ctx.config,
+            console=ctx.console,
+        ).sync_unit_tests(dry_run=dry_run)
+        match result:
+            case Err(e):
+                ctx.console.error(e.message)
                 raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
             case Ok(_):
                 pass

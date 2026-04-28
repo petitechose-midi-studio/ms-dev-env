@@ -21,6 +21,28 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
     def sync_dev(
         self, *, dry_run: bool = False, force: bool = False
     ) -> Result[None, ToolchainError]:
+        tool_ids = tuple(
+            tool.spec.id
+            for tool in self._registry.tools_for_mode("dev")
+            if not is_system_tool(tool)
+        )
+        return self._sync_tools(tool_ids=tool_ids, dry_run=dry_run, force=force)
+
+    def sync_unit_tests(
+        self, *, dry_run: bool = False, force: bool = False
+    ) -> Result[None, ToolchainError]:
+        tool_ids = ["cmake", "ninja"]
+        if self._platform.platform.is_windows:
+            tool_ids.append("zig")
+        return self._sync_tools(tool_ids=tuple(tool_ids), dry_run=dry_run, force=force)
+
+    def _sync_tools(
+        self,
+        *,
+        tool_ids: tuple[str, ...],
+        dry_run: bool,
+        force: bool,
+    ) -> Result[None, ToolchainError]:
         pins_path = Path(__file__).resolve().parents[2] / "data" / "toolchains.toml"
         pins = ToolPins.load(pins_path)
 
@@ -34,8 +56,11 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
         installer = Installer()
         wrapper_gen = WrapperGenerator(self._paths.bin_dir)
 
-        for tool in self._registry.tools_for_mode("dev"):
-            if is_system_tool(tool):
+        for tool_id in tool_ids:
+            tool = self._registry.get_tool(tool_id)
+            if tool is None:
+                self._console.print(f"{tool_id}: unknown tool", Style.ERROR)
+                has_errors = True
                 continue
 
             if tool.spec.id == "platformio":
