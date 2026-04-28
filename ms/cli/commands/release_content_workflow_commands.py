@@ -12,6 +12,7 @@ from ms.release.flow.candidate_workflow import CandidateFetchRequest, fetch_cand
 from ms.release.flow.content_candidate_planning import plan_content_candidates
 from ms.release.flow.content_spec import load_content_plan_from_spec
 
+
 def fetch_content_candidate_cmd(
     spec: Path = typer.Option(..., "--spec", help="Release spec JSON path."),
     target_id: str = typer.Option(..., "--target-id", help="Content candidate target id."),
