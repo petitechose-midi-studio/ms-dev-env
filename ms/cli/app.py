@@ -20,6 +20,7 @@ from ms.cli.commands.self_cmd import self_app
 from ms.cli.commands.setup import setup
 from ms.cli.commands.status import status
 from ms.cli.commands.sync import sync
+from ms.cli.commands.test_cmd import test
 from ms.cli.commands.tools import tools
 from ms.cli.commands.upload_cmd import upload
 from ms.cli.commands.web_cmd import web
@@ -34,32 +35,59 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 
+WORKSPACE_PANEL = "Workspace"
+BUILD_PANEL = "Build & Run"
+DEVICE_PANEL = "Device"
+TOOLS_PANEL = "Tools"
+MAINTENANCE_PANEL = "Maintenance"
+RELEASE_PANEL = "Release"
 
 # Commands
-app.command("list")(list_apps)
-app.command()(build)
-app.command()(run)
-app.command()(web)
-app.command()(upload)
-app.command()(monitor)
-app.command()(check)
-app.command()(prereqs)
-app.command()(setup)
-app.command()(sync)
-app.command()(tools)
-app.command()(status)
-app.command()(clean)
-app.command()(use)
-app.command()(where)
-app.command()(forget)
-app.command()(wipe)
-app.command()(destroy)
+app.command(rich_help_panel=WORKSPACE_PANEL)(setup)
+app.command(rich_help_panel=WORKSPACE_PANEL)(sync)
+app.command(rich_help_panel=WORKSPACE_PANEL)(check)
+app.command(rich_help_panel=WORKSPACE_PANEL)(status)
+app.command("list", rich_help_panel=WORKSPACE_PANEL)(list_apps)
+app.command(rich_help_panel=WORKSPACE_PANEL)(where)
+app.command(rich_help_panel=WORKSPACE_PANEL)(use)
+app.command(rich_help_panel=WORKSPACE_PANEL)(forget)
+app.command(rich_help_panel=BUILD_PANEL)(build)
+app.command(rich_help_panel=BUILD_PANEL)(test)
+app.command(rich_help_panel=BUILD_PANEL)(run)
+app.command(rich_help_panel=BUILD_PANEL)(web)
+app.command(rich_help_panel=DEVICE_PANEL)(upload)
+app.command(rich_help_panel=DEVICE_PANEL)(monitor)
+app.command(rich_help_panel=TOOLS_PANEL)(prereqs)
+app.command(rich_help_panel=TOOLS_PANEL)(tools)
+app.command(rich_help_panel=MAINTENANCE_PANEL)(clean)
+app.command(rich_help_panel=MAINTENANCE_PANEL)(wipe)
+app.command(rich_help_panel=MAINTENANCE_PANEL)(destroy)
 
 # Sub-apps
-app.add_typer(self_app, name="self")
-app.add_typer(bridge_app, name="bridge")
-app.add_typer(dist_app, name="dist")
-app.add_typer(release_app, name="release")
+app.add_typer(
+    bridge_app,
+    name="bridge",
+    help="Run and manage the local bridge.",
+    rich_help_panel=TOOLS_PANEL,
+)
+app.add_typer(
+    self_app,
+    name="self",
+    help="Install or remove the ms CLI.",
+    rich_help_panel=MAINTENANCE_PANEL,
+)
+app.add_typer(
+    dist_app,
+    name="dist",
+    help="Distribution packaging utilities.",
+    rich_help_panel=RELEASE_PANEL,
+)
+app.add_typer(
+    release_app,
+    name="release",
+    help="Release orchestration.",
+    rich_help_panel=RELEASE_PANEL,
+)
 
 
 @app.callback()

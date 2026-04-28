@@ -8,6 +8,7 @@ This repo provides a single CLI, `ms`, that can:
 - sync all required git repos into `open-control/` and `midi-studio/`
 - build and run the native simulators (Windows/macOS/Linux)
 - build and serve the WASM simulators (browser)
+- run unit tests through the workspace CMake/CTest path
 - build/upload/monitor Teensy firmware (PlatformIO)
 
 The end-user distribution/installer is tracked separately (see roadmap).
@@ -73,6 +74,12 @@ uv run ms run bitwig
 uv run ms web core
 uv run ms web bitwig
 
+# Unit tests (CMake/CTest, workspace-pinned tools and test dependencies)
+uv run ms test core
+uv run ms test open-control-framework
+uv run ms test open-control-note
+uv run ms test all
+
 # Note: `ms run` / `ms web` auto-start a headless `oc-bridge` (dev) using `config.toml` ports.
 # For WASM, use the printed URL (it includes `bridgeWsPort=...`).
 
@@ -128,9 +135,7 @@ SDL2 is optional on macOS (the build can fetch it as a fallback).
 Windows:
 
 - Native builds (core/bitwig simulators) use bundled Zig + Ninja (no system GCC required).
-- For PlatformIO `native` tests, use the ms tool environment so `gcc/g++` resolve to Zig wrappers:
-  - `source tools/activate.sh`
-  - then `pio test -e native`
+- Unit tests use `uv run ms test ...` with bundled CMake, Ninja, and pinned test dependencies.
 
 Notes:
 

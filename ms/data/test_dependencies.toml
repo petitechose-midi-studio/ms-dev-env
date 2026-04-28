@@ -1,0 +1,5 @@
+[unity]
+version = "2.6.1"
+url = "https://github.com/ThrowTheSwitch/Unity/archive/cbcd08fa7de711053a3deec6339ee89cad5d2697.zip"
+sha256 = "08ed574d5d67c728f5049d457af6dd3ceaf64a637ab5efa42975155aec639777"
+strip_components = 1

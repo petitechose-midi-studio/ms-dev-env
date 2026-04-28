@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -49,12 +50,22 @@ def test_validate_workspace_bom_targets_runs_expected_steps(
     )
 
     assert isinstance(validated, Ok)
-    python_cmd = str(Path("/tmp/python"))
-    assert [target.key for target in validated.value] == ["core-release", "core-native-ci"]
+    platformio_python_cmd = str(Path("/tmp/python"))
+    ms_python_cmd = sys.executable
+    assert [target.key for target in validated.value] == ["core-release", "core-unit-tests"]
     core_root = tmp_path / "midi-studio" / "core"
     assert calls == [
-        ((python_cmd, "-m", "platformio", "run", "-e", "release"), core_root),
-        ((python_cmd, "-m", "platformio", "test", "-e", "native_ci"), core_root),
+        ((platformio_python_cmd, "-m", "platformio", "run", "-e", "release"), core_root),
+        (
+            (
+                ms_python_cmd,
+                "-c",
+                "from ms.cli.app import main; main()",
+                "test",
+                "core",
+            ),
+            tmp_path,
+        ),
     ]
 
 
