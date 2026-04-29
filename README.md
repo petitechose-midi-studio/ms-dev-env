@@ -103,13 +103,15 @@ uv run ms bridge
  uv run ms sync --repos --profile maintainer
 ```
 
-Optional: install `ms` globally (user-level) via `uv tool`:
+Optional: install user-level `ms`/`oc-*` launchers bound to this workspace:
 
 ```bash
 uv run ms setup --yes --install-cli --update-shell --remember-workspace
 ```
 
-After that you can run `ms ...` from anywhere.
+After that you can run `ms ...` from anywhere. The launcher delegates to
+`uv run --project <this-workspace>`, so it uses the repo environment instead of
+a separate `uv tool` environment.
 
 ## System dependencies (native builds)
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import typer
 
+from ms.cli.commands.self_cmd import install_repo_launchers
 from ms.cli.context import build_context
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
@@ -28,7 +29,7 @@ def setup(
     install_cli: bool = typer.Option(
         False,
         "--install-cli",
-        help="Install ms/oc-* globally via `uv tool` (editable)",
+        help="Install global ms/oc-* launchers bound to this workspace",
     ),
     update_shell: bool = typer.Option(
         False,
@@ -93,14 +94,15 @@ def setup(
                     ctx.console.success(f"default workspace set: {ctx.workspace.root}")
 
             if install_cli:
-                cmd = ["uv", "tool", "install", "-e", str(ctx.workspace.root)]
-                ctx.console.print(" ".join(cmd), Style.DIM)
-                if not dry_run:
-                    ires = run_silent(cmd, cwd=ctx.workspace.root, timeout=_UV_TOOL_TIMEOUT_SECONDS)
-                    if isinstance(ires, Err):
-                        ctx.console.error(str(ires.error))
-                        raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
-                    ctx.console.success("installed global CLI")
+                ires = install_repo_launchers(
+                    ctx.workspace.root,
+                    dry_run=dry_run,
+                    console=ctx.console,
+                )
+                if isinstance(ires, Err):
+                    ctx.console.error(ires.error)
+                    raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
+                ctx.console.success("installed global CLI launchers")
 
             if update_shell:
                 cmd = ["uv", "tool", "update-shell"]
