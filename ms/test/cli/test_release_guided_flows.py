@@ -824,9 +824,27 @@ def test_release_guided_routes_by_product(monkeypatch: pytest.MonkeyPatch, tmp_p
         calls.append("content")
         return Ok(None)
 
+    def fake_dependencies(*args: object, **kwargs: object):
+        calls.append("dependencies")
+        return Ok(None)
+
     monkeypatch.setattr(guided, "is_interactive_terminal", fake_tty)
     monkeypatch.setattr(guided, "run_guided_app_release", fake_app)
     monkeypatch.setattr(guided, "run_guided_content_release", fake_content)
+    monkeypatch.setattr(guided, "run_guided_dependencies_release", fake_dependencies)
+
+    def fake_select_dependencies(*args: object, **kwargs: object) -> SelectorResult[str]:
+        return _sel("dependencies")
+
+    monkeypatch.setattr(guided, "select_one", fake_select_dependencies)
+    res_dependencies = guided.run_guided_release(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        notes_file=None,
+        watch=False,
+        dry_run=True,
+    )
+    assert isinstance(res_dependencies, Ok)
 
     def fake_select_content(*args: object, **kwargs: object) -> SelectorResult[str]:
         return _sel("content")
@@ -854,4 +872,4 @@ def test_release_guided_routes_by_product(monkeypatch: pytest.MonkeyPatch, tmp_p
         dry_run=True,
     )
     assert isinstance(res_app, Ok)
-    assert calls == ["content", "app"]
+    assert calls == ["dependencies", "content", "app"]

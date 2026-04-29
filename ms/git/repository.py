@@ -234,6 +234,29 @@ class Repository:
             case Err(_):
                 return None
 
+    def head_sha(self) -> Result[str, GitError]:
+        """Get the current HEAD commit SHA."""
+        result = self._run(["rev-parse", "HEAD"])
+        match result:
+            case Ok(stdout):
+                sha = stdout.strip()
+                if len(sha) != 40:
+                    return Err(
+                        GitError(
+                            command="rev-parse HEAD",
+                            message=f"invalid HEAD sha: {sha}",
+                        )
+                    )
+                return Ok(sha)
+            case Err(e):
+                return Err(
+                    GitError(
+                        command="rev-parse HEAD",
+                        message=e.stderr.strip() or "failed to read HEAD sha",
+                        returncode=e.returncode,
+                    )
+                )
+
     def pull_ff(self) -> Result[str, GitError]:
         """Pull with fast-forward only.
 

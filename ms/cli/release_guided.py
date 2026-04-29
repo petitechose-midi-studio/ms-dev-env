@@ -5,6 +5,7 @@ from pathlib import Path
 from ms.cli.release_guided_app import run_guided_app_release
 from ms.cli.release_guided_common import to_guided_selection
 from ms.cli.release_guided_content import run_guided_content_release
+from ms.cli.release_guided_dependencies import run_guided_dependencies_release
 from ms.cli.selector import SelectorOption, SelectorResult, is_interactive_terminal, select_one
 from ms.core.result import Result
 from ms.output.console import ConsoleProtocol
@@ -92,6 +93,23 @@ def run_guided_release(
             dry_run: bool,
         ):
             return run_guided_content_release(
+                workspace_root=workspace_root,
+                console=console,
+                notes_file=notes_file,
+                watch=watch,
+                dry_run=dry_run,
+            )
+
+        def run_guided_dependencies_release(
+            self,
+            *,
+            workspace_root: Path,
+            console: ConsoleProtocol,
+            notes_file: Path | None,
+            watch: bool,
+            dry_run: bool,
+        ):
+            return run_guided_dependencies_release(
                 workspace_root=workspace_root,
                 console=console,
                 notes_file=notes_file,

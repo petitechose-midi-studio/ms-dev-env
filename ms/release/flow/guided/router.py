@@ -51,6 +51,16 @@ class GuidedRouterDependencies(Protocol):
         dry_run: bool,
     ) -> Result[None, ReleaseError]: ...
 
+    def run_guided_dependencies_release(
+        self,
+        *,
+        workspace_root: Path,
+        console: ConsoleProtocol,
+        notes_file: Path | None,
+        watch: bool,
+        dry_run: bool,
+    ) -> Result[None, ReleaseError]: ...
+
 
 def run_guided_release_flow(
     *,
@@ -74,6 +84,11 @@ def run_guided_release_flow(
         title="Release Product",
         subtitle="Choose release type",
         options=[
+            MenuOption(
+                value="dependencies",
+                label="dependencies",
+                detail="promote validated dev workspace dependencies",
+            ),
             MenuOption(value="app", label="app", detail="ms-manager desktop application"),
             MenuOption(
                 value="content",
@@ -89,6 +104,15 @@ def run_guided_release_flow(
 
     if product.value == "content":
         return deps.run_guided_content_release(
+            workspace_root=workspace_root,
+            console=console,
+            notes_file=notes_file,
+            watch=watch,
+            dry_run=dry_run,
+        )
+
+    if product.value == "dependencies":
+        return deps.run_guided_dependencies_release(
             workspace_root=workspace_root,
             console=console,
             notes_file=notes_file,

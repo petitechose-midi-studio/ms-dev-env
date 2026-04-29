@@ -39,6 +39,7 @@ from ms.release.infra.github.workflows import (
     dispatch_app_release_workflow,
     dispatch_candidate_workflow,
     dispatch_publish_workflow,
+    dispatch_release_alignment_workflow,
 )
 
 __all__ = [
@@ -61,6 +62,7 @@ __all__ = [
     "dispatch_app_candidate_workflow",
     "dispatch_app_release_workflow",
     "dispatch_publish_workflow",
+    "dispatch_release_alignment_workflow",
     "ensure_gh_auth",
     "ensure_gh_available",
     "fetch_green_head_shas",

@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 
 from ._gate import require_arch_checks_enabled
-from ._utils import iter_python_files, ms_root, read_tree
+from ._utils import iter_python_files, ms_root, read_tree, rel_key
 
 
 def _has_direct_subprocess_call(tree: ast.AST) -> list[int]:
@@ -47,7 +47,7 @@ def test_direct_subprocess_usage_is_constrained_to_allowlist() -> None:
         rel = file_path.relative_to(root)
         if rel.parts and rel.parts[0] == "test":
             continue
-        rel_str = str(rel)
+        rel_str = rel_key(rel)
         if rel_str in allowlist:
             continue
 

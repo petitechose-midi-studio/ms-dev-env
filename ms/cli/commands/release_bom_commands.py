@@ -10,14 +10,16 @@ from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.open_control_models import OPEN_CONTROL_NATIVE_CI_REPOS, BomRepoState
+from ms.release.flow.bom_validation import (
+    BomValidationTarget,
+    validate_workspace_bom_targets,
+)
 from ms.release.flow.bom_workflow import (
     BomSyncPreview,
     BomSyncResult,
-    BomValidationTarget,
     BomWorkspaceState,
     plan_workspace_bom_sync,
     sync_workspace_bom,
-    validate_workspace_bom_targets,
     verify_workspace_bom_files,
 )
 

@@ -10,6 +10,11 @@ on:
         description: "Build WASM outputs (Linux only)"
         type: boolean
         default: false
+      request_id:
+        description: "Internal dispatch correlation id"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -27,6 +32,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Write dispatch marker
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.request_id != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ms/dispatch
+          printf '%s\n' '${{ inputs.request_id }}' > ".ms/dispatch/${{ inputs.request_id }}.txt"
+
+      - name: Upload dispatch marker
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.request_id != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dispatch-${{ inputs.request_id }}
+          path: .ms/dispatch/${{ inputs.request_id }}.txt
+          if-no-files-found: error
 
       - name: Setup ms runtime
         uses: ./.github/actions/setup-ms-runtime
