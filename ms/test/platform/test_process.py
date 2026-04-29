@@ -71,6 +71,16 @@ class TestRun:
         assert isinstance(result, Err)
         assert "error msg" in result.error.stderr
 
+    def test_replaces_invalid_utf8_output(self, tmp_path: Path) -> None:
+        result = run(
+            ["python", "-c", "import sys; sys.stdout.buffer.write(b'prefix\\x90suffix')"],
+            cwd=tmp_path,
+        )
+
+        assert isinstance(result, Ok)
+        assert "prefix" in result.value
+        assert "suffix" in result.value
+
     def test_uses_cwd(self, tmp_path: Path) -> None:
         # Create a file in tmp_path
         (tmp_path / "test.txt").write_text("content")
