@@ -43,7 +43,7 @@ def validate_workspace_bom_targets(
         )
     )
     if not include_plugin_release:
-        targets = [target for target in targets if target.key != "plugin-bitwig-release"]
+        targets = [target for target in targets if not target.key.startswith("plugin-bitwig-")]
 
     return _run_validation_targets(targets=tuple(targets), env=runtime.value.env)
 
@@ -61,12 +61,29 @@ def validate_workspace_dev_targets(
             )
         )
 
+    runtime_command = tuple(runtime.value.command())
+    ms_command = (sys.executable, "-c", "from ms.cli.app import main; main()")
+    core_root = workspace_root / "midi-studio" / "core"
+    plugin_root = workspace_root / "midi-studio" / "plugin-bitwig"
+
     targets = (
         BomValidationTarget(
             key="core-dev",
             label="core dev",
-            cwd=workspace_root / "midi-studio" / "core",
-            command=(*tuple(runtime.value.command()), "run", "-e", "dev"),
+            cwd=core_root,
+            command=(*runtime_command, "run", "-e", "dev"),
+        ),
+        BomValidationTarget(
+            key="plugin-bitwig-dev",
+            label="plugin-bitwig dev",
+            cwd=plugin_root,
+            command=(*runtime_command, "run", "-e", "dev"),
+        ),
+        BomValidationTarget(
+            key="workspace-unit-tests",
+            label="workspace unit tests",
+            cwd=workspace_root,
+            command=(*ms_command, "test", "all"),
         ),
     )
     return _run_validation_targets(targets=targets, env=runtime.value.env)
@@ -120,6 +137,12 @@ def _validation_targets(
             label="plugin-bitwig release",
             cwd=plugin_root,
             command=(*command, "run", "-e", "release"),
+        ),
+        BomValidationTarget(
+            key="plugin-bitwig-unit-tests",
+            label="plugin-bitwig unit tests",
+            cwd=workspace_root,
+            command=(*ms_command, "test", "plugin-bitwig"),
         ),
     )
 

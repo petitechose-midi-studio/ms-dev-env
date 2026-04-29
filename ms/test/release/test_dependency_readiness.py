@@ -107,7 +107,7 @@ def test_assess_dependency_readiness_blocks_dependents_when_dependency_is_dirty(
 
     assert not report.is_ready
     assert report.by_node_id()["oc-framework"].status == "dirty"
-    assert report.by_node_id()["oc-framework"].detail == "unstaged=1"
+    assert report.by_node_id()["oc-framework"].detail == "unstaged=1\n  .M src/foo.cpp"
     assert report.by_node_id()["core"].status == "blocked_by_dependency"
 
 

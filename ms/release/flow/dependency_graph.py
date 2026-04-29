@@ -20,7 +20,13 @@ _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 DEFAULT_RELEASE_GRAPH_PATH = _DATA_DIR / "release_graph.toml"
 DEFAULT_REPOS_MANIFEST_PATH = _DATA_DIR / "repos.toml"
 _VALID_ROLES: frozenset[str] = frozenset(
-    {"bom_dependency", "bom_consumer", "release_consumer"}
+    {
+        "bom_dependency",
+        "bom_consumer",
+        "dev_dependency",
+        "release_producer",
+        "release_consumer",
+    }
 )
 
 

@@ -6,7 +6,12 @@ from ms.cli.release_guided_common import to_guided_selection
 from ms.cli.selector import SelectorOption, SelectorResult, select_one
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.release.domain.dependency_readiness_models import DependencyReadinessItem
+from ms.release.domain.config import MS_REPO_SLUG
+from ms.release.domain.dependency_graph_models import ReleaseGraph, ReleaseGraphNode
+from ms.release.domain.dependency_readiness_models import (
+    DependencyReadinessItem,
+    DependencyReadinessReport,
+)
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import promote_open_control_bom
 from ms.release.flow.bom_validation import validate_workspace_dev_targets
@@ -63,7 +68,7 @@ def run_guided_dependencies_release(
     if isinstance(graph, Err):
         return graph
 
-    readiness = assess_dependency_readiness(workspace_root=workspace_root, graph=graph.value)
+    readiness = _assess_guided_readiness(workspace_root=workspace_root, graph=graph.value)
     print_dependency_readiness_report(console=console, report=readiness)
     if not readiness.is_ready:
         blocker = _first_blocker(readiness.items)
@@ -161,7 +166,7 @@ def run_guided_dependencies_release(
         watched = watch_run(
             workspace_root=workspace_root,
             run_id=dispatched.value.id,
-            repo_slug="petitechose-midi-studio/ms-dev-env",
+            repo_slug=MS_REPO_SLUG,
             console=console,
             dry_run=False,
         )
@@ -169,6 +174,24 @@ def run_guided_dependencies_release(
             return watched
         console.success(f"Release Alignment passed: {dispatched.value.url}")
     return Ok(None)
+
+
+def _assess_guided_readiness(
+    *, workspace_root: Path, graph: ReleaseGraph
+) -> DependencyReadinessReport:
+    tooling_graph = ReleaseGraph(
+        nodes=(
+            ReleaseGraphNode(
+                id="ms-dev-env",
+                repo=MS_REPO_SLUG,
+                local_path=".",
+                role="release_producer",
+            ),
+        )
+    )
+    tooling = assess_dependency_readiness(workspace_root=workspace_root, graph=tooling_graph)
+    dependencies = assess_dependency_readiness(workspace_root=workspace_root, graph=graph)
+    return DependencyReadinessReport(items=(*tooling.items, *dependencies.items))
 
 
 def _first_blocker(items: tuple[DependencyReadinessItem, ...]) -> DependencyReadinessItem:

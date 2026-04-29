@@ -116,7 +116,7 @@ def test_validate_workspace_bom_targets_returns_repo_failed_on_build_error(
     assert validated.error.message == "core release failed"
 
 
-def test_validate_workspace_dev_targets_runs_core_dev_build(
+def test_validate_workspace_dev_targets_runs_dev_builds_and_unit_tests(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
     import ms.release.flow.bom_validation as workflow
@@ -152,10 +152,29 @@ def test_validate_workspace_dev_targets_runs_core_dev_build(
     validated = validate_workspace_dev_targets(workspace_root=tmp_path)
 
     assert isinstance(validated, Ok)
-    assert [target.key for target in validated.value] == ["core-dev"]
+    assert [target.key for target in validated.value] == [
+        "core-dev",
+        "plugin-bitwig-dev",
+        "workspace-unit-tests",
+    ]
+    ms_python_cmd = sys.executable
     assert calls == [
         (
             (str(Path("/tmp/python")), "-m", "platformio", "run", "-e", "dev"),
             tmp_path / "midi-studio" / "core",
-        )
+        ),
+        (
+            (str(Path("/tmp/python")), "-m", "platformio", "run", "-e", "dev"),
+            tmp_path / "midi-studio" / "plugin-bitwig",
+        ),
+        (
+            (
+                ms_python_cmd,
+                "-c",
+                "from ms.cli.app import main; main()",
+                "test",
+                "all",
+            ),
+            tmp_path,
+        ),
     ]
