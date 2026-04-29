@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -153,10 +154,12 @@ def validate_workspace_bom_targets(
         )
 
     runtime_command = tuple(runtime.value.command())
+    ms_command = (sys.executable, "-c", "from ms.cli.app import main; main()")
     targets = list(
         _validation_targets(
             workspace_root=workspace_root,
             command=runtime_command,
+            ms_command=ms_command,
         )
     )
     if not include_plugin_release:
@@ -233,7 +236,7 @@ def sync_workspace_bom(
 
 
 def _validation_targets(
-    *, workspace_root: Path, command: tuple[str, ...]
+    *, workspace_root: Path, command: tuple[str, ...], ms_command: tuple[str, ...]
 ) -> tuple[BomValidationTarget, ...]:
     core_root = workspace_root / "midi-studio" / "core"
     plugin_root = workspace_root / "midi-studio" / "plugin-bitwig"
@@ -246,10 +249,10 @@ def _validation_targets(
             command=(*command, "run", "-e", "release"),
         ),
         BomValidationTarget(
-            key="core-native-ci",
-            label="core native_ci",
-            cwd=core_root,
-            command=(*command, "test", "-e", "native_ci"),
+            key="core-unit-tests",
+            label="core unit tests",
+            cwd=workspace_root,
+            command=(*ms_command, "test", "core"),
         ),
         BomValidationTarget(
             key="plugin-bitwig-release",
