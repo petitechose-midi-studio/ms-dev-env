@@ -65,14 +65,17 @@ def test_guided_dependencies_blocks_on_readiness_report(
         return Ok(_empty_graph())
 
     def fake_readiness(**_: object) -> DependencyReadinessReport:
+        graph = _["graph"]
+        if isinstance(graph, ReleaseGraph) and not graph.nodes:
+            return DependencyReadinessReport(items=())
         return DependencyReadinessReport(
             items=(
                 DependencyReadinessItem(
-                    node_id="oc-note",
-                    repo="open-control/note",
-                    path=tmp_path / "open-control" / "note",
+                    node_id="ms-dev-env",
+                    repo="petitechose-midi-studio/ms-dev-env",
+                    path=tmp_path,
                     status="dirty",
-                    detail="unstaged=1",
+                    detail="unstaged=1\n  .M ms/foo.py",
                     hint="git status",
                 ),
             )
@@ -94,8 +97,9 @@ def test_guided_dependencies_blocks_on_readiness_report(
     assert isinstance(result, Err)
     assert result.error.message == "dependency promotion blocked"
     assert result.error.hint is not None
-    assert "open-control/note" in result.error.hint
-    assert "open-control/note: dirty" in console.text
+    assert "petitechose-midi-studio/ms-dev-env" in result.error.hint
+    assert "petitechose-midi-studio/ms-dev-env: dirty" in console.text
+    assert ".M ms/foo.py" in console.text
 
 
 def test_guided_dependencies_dry_run_prints_bom_plan_without_promoting(

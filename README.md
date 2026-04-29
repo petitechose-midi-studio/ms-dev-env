@@ -74,10 +74,14 @@ uv run ms run bitwig
 uv run ms web core
 uv run ms web bitwig
 
-# Unit tests (CMake/CTest, workspace-pinned tools and test dependencies)
+# Unit tests (unified Python/Rust/Node/CMake workflow)
+uv run ms test
+uv run ms test env
+uv run ms test app
+uv run ms test firmware
+uv run ms test ms-manager-svelte
+uv run ms test ms-manager-tauri
 uv run ms test core
-uv run ms test open-control-framework
-uv run ms test open-control-note
 uv run ms test all
 
 # Note: `ms run` / `ms web` auto-start a headless `oc-bridge` (dev) using `config.toml` ports.
@@ -135,7 +139,7 @@ SDL2 is optional on macOS (the build can fetch it as a fallback).
 Windows:
 
 - Native builds (core/bitwig simulators) use bundled Zig + Ninja (no system GCC required).
-- Unit tests use `uv run ms test ...` with bundled CMake, Ninja, and pinned test dependencies.
+- Unit tests use `uv run ms test ...` as the unified local path for Python, Rust, Node, and CMake targets.
 
 Notes:
 

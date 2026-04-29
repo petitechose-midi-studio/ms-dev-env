@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import time
 import tomllib
 from contextlib import suppress
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -28,22 +30,33 @@ _TEST_TIMEOUT_SECONDS = 20 * 60.0
 _TEST_DEPENDENCIES_PATH = Path(__file__).resolve().parents[1] / "data" / "test_dependencies.toml"
 
 
+class UnitTestRunner(Enum):
+    CMAKE = "cmake"
+    CARGO = "cargo"
+    CARGO_CHECK = "cargo-check"
+    NPM = "npm"
+    PYTEST = "pytest"
+
+
 @dataclass(frozen=True, slots=True)
 class UnitTestTarget:
     name: str
+    runner: UnitTestRunner
     source_dir: Path
     build_dir: Path
     label: str
     dependencies: tuple[str, ...] = ()
+    runner_args: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class UnitTestRun:
     name: str
+    runner: UnitTestRunner
     elapsed_seconds: float
     total_tests: int | None = None
     failed_tests: int | None = None
-    ctest_seconds: float | None = None
+    runner_seconds: float | None = None
     dry_run: bool = False
 
 
@@ -100,10 +113,24 @@ class _TestDependencyPin:
 
 
 class UnitTestService(BaseService):
-    """Run workspace unit tests through the single CMake/CTest path."""
+    """Run workspace tests through one guided CLI path."""
+
+    def target_groups(self) -> dict[str, tuple[str, ...]]:
+        return _target_groups(self._target_map())
 
     def available_targets(self) -> tuple[str, ...]:
-        return ("open-control-framework", "open-control-note", "core")
+        return tuple(self._target_map())
+
+    def available_groups(self) -> tuple[str, ...]:
+        return tuple(self.target_groups())
+
+    def list_entries(self) -> tuple[tuple[str, str, str], ...]:
+        entries: list[tuple[str, str, str]] = []
+        for group, targets in self.target_groups().items():
+            entries.append((group, "group", ", ".join(targets)))
+        for target in self._target_map().values():
+            entries.append((target.name, target.runner.value, str(target.source_dir)))
+        return tuple(entries)
 
     def run(
         self,
@@ -116,8 +143,8 @@ class UnitTestService(BaseService):
         if isinstance(targets_result, Err):
             return targets_result
 
-        if target == "all":
-            return self._run_superbuild(
+        if target in self.target_groups():
+            return self._run_group(
                 targets=targets_result.value,
                 dry_run=dry_run,
                 verbose=verbose,
@@ -143,6 +170,25 @@ class UnitTestService(BaseService):
         dry_run: bool,
         verbose: bool,
     ) -> Result[UnitTestRun, UnitTestError]:
+        if unit_target.runner in (UnitTestRunner.CARGO, UnitTestRunner.CARGO_CHECK):
+            return self._run_cargo_target(
+                unit_target=unit_target,
+                dry_run=dry_run,
+                verbose=verbose,
+            )
+        if unit_target.runner == UnitTestRunner.NPM:
+            return self._run_npm_target(
+                unit_target=unit_target,
+                dry_run=dry_run,
+                verbose=verbose,
+            )
+        if unit_target.runner == UnitTestRunner.PYTEST:
+            return self._run_pytest_target(
+                unit_target=unit_target,
+                dry_run=dry_run,
+                verbose=verbose,
+            )
+
         harness = unit_target.source_dir / "CMakeLists.txt"
         if not harness.exists():
             return Err(UnitTestHarnessMissing(target=unit_target.name, path=harness))
@@ -185,7 +231,60 @@ class UnitTestService(BaseService):
             verbose=verbose,
         )
 
-    def _run_superbuild(
+    def _run_group(
+        self,
+        *,
+        targets: tuple[UnitTestTarget, ...],
+        dry_run: bool,
+        verbose: bool,
+    ) -> Result[tuple[UnitTestRun, ...], UnitTestError]:
+        if all(target.runner == UnitTestRunner.CMAKE for target in targets):
+            return self._run_cmake_group(
+                targets=targets,
+                dry_run=dry_run,
+                verbose=verbose,
+            )
+
+        runs: list[UnitTestRun] = []
+        cmake_batch: list[UnitTestTarget] = []
+
+        def flush_cmake_batch() -> Result[None, UnitTestError]:
+            if not cmake_batch:
+                return Ok(None)
+            result = self._run_cmake_group(
+                targets=tuple(cmake_batch),
+                dry_run=dry_run,
+                verbose=verbose,
+            )
+            cmake_batch.clear()
+            if isinstance(result, Err):
+                return result
+            runs.extend(result.value)
+            return Ok(None)
+
+        for target in targets:
+            if target.runner == UnitTestRunner.CMAKE:
+                cmake_batch.append(target)
+                continue
+
+            flushed = flush_cmake_batch()
+            if isinstance(flushed, Err):
+                return flushed
+            run_result = self._run_single_target(
+                unit_target=target,
+                dry_run=dry_run,
+                verbose=verbose,
+            )
+            if isinstance(run_result, Err):
+                return run_result
+            runs.append(run_result.value)
+
+        flushed = flush_cmake_batch()
+        if isinstance(flushed, Err):
+            return flushed
+        return Ok(tuple(runs))
+
+    def _run_cmake_group(
         self,
         *,
         targets: tuple[UnitTestTarget, ...],
@@ -389,52 +488,307 @@ class UnitTestService(BaseService):
         return Ok(
             UnitTestRun(
                 name=unit_target.name,
+                runner=unit_target.runner,
                 elapsed_seconds=time.perf_counter() - started_at,
                 total_tests=summary.total_tests,
                 failed_tests=summary.failed_tests,
-                ctest_seconds=summary.ctest_seconds,
+                runner_seconds=summary.runner_seconds,
+                dry_run=dry_run,
+            )
+        )
+
+    def _run_cargo_target(
+        self,
+        *,
+        unit_target: UnitTestTarget,
+        dry_run: bool,
+        verbose: bool,
+    ) -> Result[UnitTestRun, UnitTestError]:
+        started_at = time.perf_counter()
+        cargo = shutil.which("cargo")
+        if cargo is None:
+            return Err(ToolMissing(tool_id="cargo", hint="Install Rust via https://rustup.rs/"))
+
+        args = [cargo, *(unit_target.runner_args or ("test", "--locked"))]
+        if verbose or dry_run:
+            self._console.print(" ".join(args), Style.DIM)
+        output = ""
+        if not dry_run:
+            tested = run(
+                args,
+                cwd=unit_target.source_dir,
+                env=self._base_env(),
+                timeout=_TEST_TIMEOUT_SECONDS,
+            )
+            if isinstance(tested, Err):
+                return Err(
+                    UnitTestFailed(
+                        target=unit_target.name,
+                        returncode=tested.error.returncode,
+                        output=_process_output(
+                            stdout=tested.error.stdout,
+                            stderr=tested.error.stderr,
+                        ),
+                    )
+                )
+            output = tested.value
+            if verbose and output:
+                self._console.print(output.rstrip(), Style.DIM)
+
+        summary = (
+            _parse_cargo_summary(output)
+            if unit_target.runner == UnitTestRunner.CARGO
+            else _CTestSummary(total_tests=None, failed_tests=None, runner_seconds=None)
+        )
+        return Ok(
+            UnitTestRun(
+                name=unit_target.name,
+                runner=unit_target.runner,
+                elapsed_seconds=time.perf_counter() - started_at,
+                total_tests=summary.total_tests,
+                failed_tests=summary.failed_tests,
+                runner_seconds=summary.runner_seconds,
+                dry_run=dry_run,
+            )
+        )
+
+    def _run_pytest_target(
+        self,
+        *,
+        unit_target: UnitTestTarget,
+        dry_run: bool,
+        verbose: bool,
+    ) -> Result[UnitTestRun, UnitTestError]:
+        started_at = time.perf_counter()
+        uv = shutil.which("uv")
+        if uv is None:
+            return Err(ToolMissing(tool_id="uv", hint="Install uv: https://docs.astral.sh/uv/"))
+
+        if unit_target.source_dir == self._workspace.root:
+            args = [uv, "run", "pytest", "-q"]
+        else:
+            args = [uv, "run", "--project", str(unit_target.source_dir), "pytest", "-q"]
+        if verbose:
+            args.remove("-q")
+
+        if verbose or dry_run:
+            self._console.print(" ".join(args), Style.DIM)
+        output = ""
+        if not dry_run:
+            env = self._base_env()
+            src_dir = unit_target.source_dir / "src"
+            if src_dir.exists():
+                env["PYTHONPATH"] = _join_env_path(str(src_dir), env.get("PYTHONPATH"))
+            tested = run(
+                args,
+                cwd=unit_target.source_dir,
+                env=env,
+                timeout=_TEST_TIMEOUT_SECONDS,
+            )
+            if isinstance(tested, Err):
+                return Err(
+                    UnitTestFailed(
+                        target=unit_target.name,
+                        returncode=tested.error.returncode,
+                        output=_process_output(
+                            stdout=tested.error.stdout,
+                            stderr=tested.error.stderr,
+                        ),
+                    )
+                )
+            output = tested.value
+            if verbose and output:
+                self._console.print(output.rstrip(), Style.DIM)
+
+        summary = _parse_pytest_summary(output)
+        return Ok(
+            UnitTestRun(
+                name=unit_target.name,
+                runner=unit_target.runner,
+                elapsed_seconds=time.perf_counter() - started_at,
+                total_tests=summary.total_tests,
+                failed_tests=summary.failed_tests,
+                runner_seconds=summary.runner_seconds,
+                dry_run=dry_run,
+            )
+        )
+
+    def _run_npm_target(
+        self,
+        *,
+        unit_target: UnitTestTarget,
+        dry_run: bool,
+        verbose: bool,
+    ) -> Result[UnitTestRun, UnitTestError]:
+        started_at = time.perf_counter()
+        npm = shutil.which("npm")
+        if npm is None:
+            return Err(ToolMissing(tool_id="npm", hint="Install Node.js and npm."))
+        if not unit_target.runner_args:
+            return Err(
+                UnitTestDependencyError(
+                    dependency=unit_target.name,
+                    message="npm test target is missing runner arguments",
+                )
+            )
+
+        args = [npm, *unit_target.runner_args]
+        if verbose or dry_run:
+            self._console.print(" ".join(args), Style.DIM)
+        output = ""
+        if not dry_run:
+            tested = run(
+                args,
+                cwd=unit_target.source_dir,
+                env=self._base_env(),
+                timeout=_TEST_TIMEOUT_SECONDS,
+            )
+            if isinstance(tested, Err):
+                return Err(
+                    UnitTestFailed(
+                        target=unit_target.name,
+                        returncode=tested.error.returncode,
+                        output=_process_output(
+                            stdout=tested.error.stdout,
+                            stderr=tested.error.stderr,
+                        ),
+                    )
+                )
+            output = tested.value
+            if verbose and output:
+                self._console.print(output.rstrip(), Style.DIM)
+
+        summary = _parse_npm_summary(output)
+        return Ok(
+            UnitTestRun(
+                name=unit_target.name,
+                runner=unit_target.runner,
+                elapsed_seconds=time.perf_counter() - started_at,
+                total_tests=summary.total_tests,
+                failed_tests=summary.failed_tests,
+                runner_seconds=summary.runner_seconds,
                 dry_run=dry_run,
             )
         )
 
     def _resolve_targets(self, target: str) -> Result[tuple[UnitTestTarget, ...], UnitTestError]:
-        build_root = self._workspace.build_dir / "tests" / self._toolchain_build_id()
-        targets = {
-            "open-control-framework": UnitTestTarget(
-                name="open-control-framework",
-                source_dir=self._workspace.open_control_dir / "framework",
-                build_dir=build_root / "open-control-framework",
-                label="open-control-framework",
-            ),
-            "open-control-note": UnitTestTarget(
-                name="open-control-note",
-                source_dir=self._workspace.open_control_dir / "note",
-                build_dir=build_root / "open-control-note",
-                label="open-control-note",
-                dependencies=("open-control-framework",),
-            ),
-            "core": UnitTestTarget(
-                name="core",
-                source_dir=self._workspace.midi_studio_dir / "core",
-                build_dir=build_root / "midi-studio-core",
-                label="core",
-                dependencies=("open-control-framework", "open-control-note"),
-            ),
-        }
+        targets = self._target_map()
+        groups = self.target_groups()
 
-        if target == "all":
-            return Ok(_topological_targets(targets))
+        if target in groups:
+            return Ok(_topological_targets({name: targets[name] for name in groups[target]}))
 
         selected = targets.get(target)
         if selected is None:
             return Err(
                 UnitTestTargetNotFound(
                     name=target,
-                    available=("all", *self.available_targets()),
+                    available=(*self.available_groups(), *self.available_targets()),
                 )
             )
 
         return Ok((selected,))
+
+    def _target_map(self) -> dict[str, UnitTestTarget]:
+        build_root = self._workspace.build_dir / "tests" / self._toolchain_build_id()
+        return {
+            "ms-dev-env": UnitTestTarget(
+                name="ms-dev-env",
+                runner=UnitTestRunner.PYTEST,
+                source_dir=self._workspace.root,
+                build_dir=build_root / "ms-dev-env",
+                label="ms-dev-env",
+            ),
+            "protocol-codegen": UnitTestTarget(
+                name="protocol-codegen",
+                runner=UnitTestRunner.PYTEST,
+                source_dir=self._workspace.open_control_dir / "protocol-codegen",
+                build_dir=build_root / "protocol-codegen",
+                label="protocol-codegen",
+            ),
+            "open-control-bridge": UnitTestTarget(
+                name="open-control-bridge",
+                runner=UnitTestRunner.CARGO,
+                source_dir=self._workspace.open_control_dir / "bridge",
+                build_dir=build_root / "open-control-bridge",
+                label="open-control-bridge",
+            ),
+            "midi-studio-loader": UnitTestTarget(
+                name="midi-studio-loader",
+                runner=UnitTestRunner.CARGO,
+                source_dir=self._workspace.midi_studio_dir / "loader",
+                build_dir=build_root / "midi-studio-loader",
+                label="midi-studio-loader",
+            ),
+            "ms-manager-svelte": UnitTestTarget(
+                name="ms-manager-svelte",
+                runner=UnitTestRunner.NPM,
+                source_dir=self._workspace.root / "ms-manager",
+                build_dir=build_root / "ms-manager-svelte",
+                label="ms-manager-svelte",
+                runner_args=("run", "check"),
+            ),
+            "ms-manager-node": UnitTestTarget(
+                name="ms-manager-node",
+                runner=UnitTestRunner.NPM,
+                source_dir=self._workspace.root / "ms-manager",
+                build_dir=build_root / "ms-manager-node",
+                label="ms-manager-node",
+                runner_args=("run", "test:tauri-versioning"),
+            ),
+            "ms-manager-core": UnitTestTarget(
+                name="ms-manager-core",
+                runner=UnitTestRunner.CARGO,
+                source_dir=self._workspace.root / "ms-manager" / "crates" / "ms-manager-core",
+                build_dir=build_root / "ms-manager-core",
+                label="ms-manager-core",
+            ),
+            "ms-manager-tauri": UnitTestTarget(
+                name="ms-manager-tauri",
+                runner=UnitTestRunner.CARGO_CHECK,
+                source_dir=self._workspace.root / "ms-manager" / "src-tauri",
+                build_dir=build_root / "ms-manager-tauri",
+                label="ms-manager-tauri",
+                runner_args=("check", "--locked"),
+            ),
+            "open-control-framework": UnitTestTarget(
+                name="open-control-framework",
+                runner=UnitTestRunner.CMAKE,
+                source_dir=self._workspace.open_control_dir / "framework",
+                build_dir=build_root / "open-control-framework",
+                label="open-control-framework",
+            ),
+            "open-control-note": UnitTestTarget(
+                name="open-control-note",
+                runner=UnitTestRunner.CMAKE,
+                source_dir=self._workspace.open_control_dir / "note",
+                build_dir=build_root / "open-control-note",
+                label="open-control-note",
+                dependencies=("open-control-framework",),
+            ),
+            "open-control-hal-midi": UnitTestTarget(
+                name="open-control-hal-midi",
+                runner=UnitTestRunner.CMAKE,
+                source_dir=self._workspace.open_control_dir / "hal-midi",
+                build_dir=build_root / "open-control-hal-midi",
+                label="open-control-hal-midi",
+            ),
+            "core": UnitTestTarget(
+                name="core",
+                runner=UnitTestRunner.CMAKE,
+                source_dir=self._workspace.midi_studio_dir / "core",
+                build_dir=build_root / "midi-studio-core",
+                label="core",
+                dependencies=("open-control-framework", "open-control-note"),
+            ),
+            "plugin-bitwig": UnitTestTarget(
+                name="plugin-bitwig",
+                runner=UnitTestRunner.CMAKE,
+                source_dir=self._workspace.midi_studio_dir / "plugin-bitwig",
+                build_dir=build_root / "midi-studio-plugin-bitwig",
+                label="plugin-bitwig",
+            ),
+        }
 
     def _base_env(self) -> dict[str, str]:
         env = os.environ.copy()
@@ -568,8 +922,13 @@ class UnitTestService(BaseService):
             "include(CTest)",
             "",
             'set(OC_FRAMEWORK_BUILD_TESTS ON CACHE BOOL "Build OpenControl framework tests" FORCE)',
+            'set(OC_HAL_MIDI_BUILD_TESTS ON CACHE BOOL "Build OpenControl HAL MIDI tests" FORCE)',
             'set(OC_NOTE_BUILD_TESTS ON CACHE BOOL "Build OpenControl note tests" FORCE)',
             'set(MS_CORE_BUILD_TESTS ON CACHE BOOL "Build MIDI Studio core tests" FORCE)',
+            (
+                'set(MS_PLUGIN_BITWIG_BUILD_TESTS ON CACHE BOOL '
+                '"Build MIDI Studio Bitwig plugin tests" FORCE)'
+            ),
             "",
         ]
         for target in targets:
@@ -641,8 +1000,40 @@ def _topological_targets(targets: dict[str, UnitTestTarget]) -> tuple[UnitTestTa
     return tuple(ordered)
 
 
+def _target_groups(targets: dict[str, UnitTestTarget]) -> dict[str, tuple[str, ...]]:
+    del targets
+    firmware = (
+        "open-control-framework",
+        "open-control-hal-midi",
+        "open-control-note",
+        "core",
+        "plugin-bitwig",
+    )
+    app = (
+        "open-control-bridge",
+        "midi-studio-loader",
+        "ms-manager-svelte",
+        "ms-manager-node",
+        "ms-manager-core",
+        "ms-manager-tauri",
+    )
+    env = ("ms-dev-env", "protocol-codegen")
+    return {
+        "all": (*env, *app, *firmware),
+        "env": env,
+        "app": app,
+        "firmware": firmware,
+    }
+
+
 def _cmake_path(path: Path) -> str:
     return path.resolve().as_posix()
+
+
+def _join_env_path(first: str, rest: str | None) -> str:
+    if not rest:
+        return first
+    return f"{first}{os.pathsep}{rest}"
 
 
 def load_test_dependency_pin(name: str) -> Result[_TestDependencyPin, UnitTestError]:
@@ -707,7 +1098,7 @@ def load_test_dependency_pin(name: str) -> Result[_TestDependencyPin, UnitTestEr
 class _CTestSummary:
     total_tests: int | None
     failed_tests: int | None
-    ctest_seconds: float | None
+    runner_seconds: float | None
 
 
 def _parse_ctest_summary(output: str) -> _CTestSummary:
@@ -729,7 +1120,84 @@ def _parse_ctest_summary(output: str) -> _CTestSummary:
     return _CTestSummary(
         total_tests=total_tests,
         failed_tests=failed_tests,
-        ctest_seconds=ctest_seconds,
+        runner_seconds=ctest_seconds,
+    )
+
+
+def _parse_pytest_summary(output: str) -> _CTestSummary:
+    total_tests: int | None = None
+    failed_tests: int | None = None
+    runner_seconds: float | None = None
+
+    summary_re = re.compile(
+        r"=*\s*(?:(?P<failed>\d+) failed,\s+)?(?P<passed>\d+) passed.*"
+        r"in (?P<seconds>[0-9.]+)s\s*=*"
+    )
+    for line in output.splitlines():
+        match = summary_re.search(line.strip())
+        if match is None:
+            continue
+        passed = int(match.group("passed"))
+        failed = int(match.group("failed") or 0)
+        total_tests = passed + failed
+        failed_tests = failed
+        runner_seconds = float(match.group("seconds"))
+
+    return _CTestSummary(
+        total_tests=total_tests,
+        failed_tests=failed_tests,
+        runner_seconds=runner_seconds,
+    )
+
+
+def _parse_cargo_summary(output: str) -> _CTestSummary:
+    passed_total = 0
+    failed_total = 0
+    saw_summary = False
+    runner_seconds: float | None = None
+
+    summary_re = re.compile(
+        r"test result: (?P<status>ok|FAILED)\. "
+        r"(?P<passed>\d+) passed; (?P<failed>\d+) failed; .* finished in "
+        r"(?P<seconds>[0-9.]+)s"
+    )
+    for line in output.splitlines():
+        match = summary_re.search(line.strip())
+        if match is None:
+            continue
+        saw_summary = True
+        passed_total += int(match.group("passed"))
+        failed_total += int(match.group("failed"))
+        seconds = float(match.group("seconds"))
+        runner_seconds = seconds if runner_seconds is None else runner_seconds + seconds
+
+    return _CTestSummary(
+        total_tests=(passed_total + failed_total if saw_summary else None),
+        failed_tests=(failed_total if saw_summary else None),
+        runner_seconds=runner_seconds,
+    )
+
+
+def _parse_npm_summary(output: str) -> _CTestSummary:
+    total_tests: int | None = None
+    failed_tests: int | None = None
+    runner_seconds: float | None = None
+
+    for line in output.splitlines():
+        stripped = line.strip()
+        parts = stripped.split()
+        with suppress(ValueError, IndexError):
+            if len(parts) >= 3 and parts[1] == "tests":
+                total_tests = int(parts[2])
+            elif len(parts) >= 3 and parts[1] == "fail":
+                failed_tests = int(parts[2])
+            elif len(parts) >= 3 and parts[1] == "duration_ms":
+                runner_seconds = float(parts[2]) / 1000.0
+
+    return _CTestSummary(
+        total_tests=total_tests,
+        failed_tests=failed_tests,
+        runner_seconds=runner_seconds,
     )
 
 
@@ -741,5 +1209,6 @@ def _print_output_tail(output: str, console: ConsoleProtocol) -> None:
     if not output.strip():
         return
     lines = [line for line in output.splitlines() if line.strip()]
-    tail = "\n".join(lines[-40:])
+    tail = "\n".join(lines[-120:])
+    console.print("runner output tail:", Style.DIM)
     console.print(tail, Style.DIM)

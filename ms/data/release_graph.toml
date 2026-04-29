@@ -1,7 +1,13 @@
 # Release dependency graph.
 #
-# This graph describes product/release ordering. It references repositories from
-# ms/data/repos.toml by GitHub slug and deliberately does not duplicate URLs.
+# This graph describes the dev/release readiness perimeter. It references
+# repositories from ms/data/repos.toml by GitHub slug and deliberately does not
+# duplicate URLs.
+
+[[nodes]]
+id = "oc-bridge"
+repo = "open-control/bridge"
+role = "release_producer"
 
 [[nodes]]
 id = "oc-framework"
@@ -18,22 +24,65 @@ depends_on = ["oc-framework"]
 id = "oc-hal-common"
 repo = "open-control/hal-common"
 role = "bom_dependency"
+depends_on = ["oc-framework"]
+
+[[nodes]]
+id = "oc-hal-midi"
+repo = "open-control/hal-midi"
+role = "dev_dependency"
+depends_on = ["oc-framework", "oc-hal-common"]
+
+[[nodes]]
+id = "oc-hal-net"
+repo = "open-control/hal-net"
+role = "dev_dependency"
+depends_on = ["oc-framework", "oc-hal-common"]
+
+[[nodes]]
+id = "oc-hal-sdl"
+repo = "open-control/hal-sdl"
+role = "dev_dependency"
+depends_on = ["oc-framework", "oc-hal-common"]
 
 [[nodes]]
 id = "oc-hal-teensy"
 repo = "open-control/hal-teensy"
 role = "bom_dependency"
-depends_on = ["oc-hal-common"]
+depends_on = ["oc-framework", "oc-hal-common"]
+
+[[nodes]]
+id = "oc-protocol-codegen"
+repo = "open-control/protocol-codegen"
+role = "dev_dependency"
 
 [[nodes]]
 id = "oc-ui-lvgl"
 repo = "open-control/ui-lvgl"
 role = "bom_dependency"
+depends_on = ["oc-framework"]
+
+[[nodes]]
+id = "oc-ui-lvgl-cli-tools"
+repo = "open-control/ui-lvgl-cli-tools"
+role = "dev_dependency"
+depends_on = ["oc-ui-lvgl"]
 
 [[nodes]]
 id = "oc-ui-lvgl-components"
 repo = "open-control/ui-lvgl-components"
 role = "bom_dependency"
+depends_on = ["oc-framework", "oc-ui-lvgl"]
+
+[[nodes]]
+id = "ms-loader"
+repo = "petitechose-midi-studio/loader"
+role = "release_producer"
+depends_on = ["oc-bridge"]
+
+[[nodes]]
+id = "ms-ui"
+repo = "petitechose-midi-studio/ui"
+role = "dev_dependency"
 depends_on = ["oc-ui-lvgl"]
 
 [[nodes]]
@@ -44,9 +93,23 @@ depends_on = [
   "oc-framework",
   "oc-note",
   "oc-hal-common",
+  "oc-hal-midi",
+  "oc-hal-net",
+  "oc-hal-sdl",
   "oc-hal-teensy",
   "oc-ui-lvgl",
   "oc-ui-lvgl-components",
+  "ms-ui",
 ]
-validations = ["core-dev", "core-tests", "core-release"]
+validations = ["core-dev", "core-release", "core-unit-tests"]
 
+[[nodes]]
+id = "plugin-bitwig"
+repo = "petitechose-midi-studio/plugin-bitwig"
+role = "release_consumer"
+depends_on = [
+  "core",
+  "ms-ui",
+  "oc-protocol-codegen",
+]
+validations = ["plugin-bitwig-dev", "plugin-bitwig-release", "plugin-bitwig-unit-tests"]

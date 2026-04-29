@@ -48,9 +48,43 @@ def test_unit_test_command_reports_success(
             assert verbose is False
             return Ok(())
 
+        def target_groups(self) -> dict[str, tuple[str, ...]]:
+            return {}
+
     monkeypatch.setattr(test_cmd, "UnitTestService", FakeUnitTestService)
 
     test_cmd.test(target="core", dry_run=True, verbose=False)
+
+
+def test_unit_test_command_lists_targets_without_target(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ms.cli.commands.test_cmd as test_cmd
+
+    ctx = _ctx(tmp_path)
+    monkeypatch.setattr(test_cmd, "build_context", lambda: ctx)
+
+    class FakeUnitTestService:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def list_entries(self) -> tuple[tuple[str, str, str], ...]:
+            return (
+                ("all", "group", "ms-dev-env, core"),
+                ("core", "cmake", str(tmp_path / "midi-studio" / "core")),
+            )
+
+    monkeypatch.setattr(test_cmd, "UnitTestService", FakeUnitTestService)
+
+    test_cmd.test(target=None)
+
+    console = ctx.console
+    assert isinstance(console, MockConsole)
+    assert "scopes" in console.text
+    assert "all" in console.text
+    assert "env, app, firmware" in console.text
+    assert "checks" in console.text
 
 
 def test_unit_test_command_exits_on_unknown_target(

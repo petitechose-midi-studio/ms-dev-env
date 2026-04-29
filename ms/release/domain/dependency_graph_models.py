@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-ReleaseGraphRole = Literal["bom_dependency", "bom_consumer", "release_consumer"]
+ReleaseGraphRole = Literal[
+    "bom_dependency",
+    "bom_consumer",
+    "dev_dependency",
+    "release_producer",
+    "release_consumer",
+]
 
 
 @dataclass(frozen=True, slots=True)

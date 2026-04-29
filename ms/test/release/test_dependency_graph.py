@@ -4,7 +4,12 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok
 from ms.release.domain.dependency_graph_models import ReleaseGraph, ReleaseGraphNode
-from ms.release.flow.dependency_graph import load_release_graph, topological_release_nodes
+from ms.release.flow.dependency_graph import (
+    DEFAULT_RELEASE_GRAPH_PATH,
+    DEFAULT_REPOS_MANIFEST_PATH,
+    load_release_graph,
+    topological_release_nodes,
+)
 
 
 def _write_repos(path: Path) -> None:
@@ -114,4 +119,50 @@ def test_topological_release_nodes_rejects_cycles() -> None:
     assert isinstance(sorted_nodes, Err)
     assert sorted_nodes.error.message == "cycle in release dependency graph"
     assert sorted_nodes.error.hint == "a -> b -> a"
+
+
+def test_default_release_graph_covers_dev_workspace_repos() -> None:
+    graph = load_release_graph(
+        graph_path=DEFAULT_RELEASE_GRAPH_PATH,
+        repos_manifest_path=DEFAULT_REPOS_MANIFEST_PATH,
+    )
+
+    assert isinstance(graph, Ok)
+    assert [node.id for node in graph.value.nodes] == [
+        "oc-bridge",
+        "oc-framework",
+        "oc-note",
+        "oc-hal-common",
+        "oc-hal-midi",
+        "oc-hal-net",
+        "oc-hal-sdl",
+        "oc-hal-teensy",
+        "oc-protocol-codegen",
+        "oc-ui-lvgl",
+        "oc-ui-lvgl-cli-tools",
+        "oc-ui-lvgl-components",
+        "ms-loader",
+        "ms-ui",
+        "core",
+        "plugin-bitwig",
+    ]
+
+    by_id = graph.value.by_id()
+    assert by_id["core"].depends_on == (
+        "oc-framework",
+        "oc-note",
+        "oc-hal-common",
+        "oc-hal-midi",
+        "oc-hal-net",
+        "oc-hal-sdl",
+        "oc-hal-teensy",
+        "oc-ui-lvgl",
+        "oc-ui-lvgl-components",
+        "ms-ui",
+    )
+    assert by_id["plugin-bitwig"].depends_on == (
+        "core",
+        "ms-ui",
+        "oc-protocol-codegen",
+    )
 
