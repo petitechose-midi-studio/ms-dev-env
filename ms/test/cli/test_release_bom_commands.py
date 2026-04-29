@@ -21,10 +21,10 @@ from ms.release.domain.open_control_models import (
     OcSdkLock,
     OcSdkPin,
 )
+from ms.release.flow.bom_validation import BomValidationTarget
 from ms.release.flow.bom_workflow import (
     BomSyncPreview,
     BomSyncResult,
-    BomValidationTarget,
     BomWorkspaceState,
 )
 

@@ -15,6 +15,9 @@ from ms.release.domain.config import (
     DIST_DEFAULT_BRANCH,
     DIST_PUBLISH_WORKFLOW,
     DIST_REPO_SLUG,
+    MS_DEFAULT_BRANCH,
+    MS_RELEASE_ALIGNMENT_WORKFLOW,
+    MS_REPO_SLUG,
 )
 from ms.release.domain.models import ReleaseChannel
 from ms.release.errors import ReleaseError
@@ -201,6 +204,24 @@ def dispatch_app_candidate_workflow(
         workflow_file=APP_CANDIDATE_WORKFLOW,
         ref=APP_DEFAULT_BRANCH,
         inputs=(("source_sha", source_sha), ("tooling_sha", tooling_sha)),
+        console=console,
+        dry_run=dry_run,
+    )
+
+
+def dispatch_release_alignment_workflow(
+    *,
+    workspace_root: Path,
+    build_wasm: bool,
+    console: ConsoleProtocol,
+    dry_run: bool,
+) -> Result[WorkflowRun, ReleaseError]:
+    return _dispatch_workflow(
+        workspace_root=workspace_root,
+        repo_slug=MS_REPO_SLUG,
+        workflow_file=MS_RELEASE_ALIGNMENT_WORKFLOW,
+        ref=MS_DEFAULT_BRANCH,
+        inputs=(("build_wasm", "true" if build_wasm else "false"),),
         console=console,
         dry_run=dry_run,
     )

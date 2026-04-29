@@ -27,6 +27,9 @@ from ms.release.domain.config import (
     DIST_PUBLISH_WORKFLOW,
     DIST_REPO_SLUG,
     DIST_SPEC_DIR,
+    MS_DEFAULT_BRANCH,
+    MS_RELEASE_ALIGNMENT_WORKFLOW,
+    MS_REPO_SLUG,
     RELEASE_REPOS,
 )
 from ms.release.domain.models import (
@@ -63,6 +66,9 @@ __all__ = [
     "DIST_PUBLISH_WORKFLOW",
     "DIST_REPO_SLUG",
     "DIST_SPEC_DIR",
+    "MS_DEFAULT_BRANCH",
+    "MS_RELEASE_ALIGNMENT_WORKFLOW",
+    "MS_REPO_SLUG",
     "RELEASE_REPOS",
     "AppReleasePlan",
     "DistributionRelease",

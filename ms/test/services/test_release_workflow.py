@@ -66,6 +66,52 @@ def test_dispatch_publish_workflow_matches_request_id(
     )
 
 
+def test_dispatch_release_alignment_workflow_uses_ms_dev_env_workflow(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(workflow_mod, "uuid4", lambda: UUID("12345678-1234-5678-1234-567812345678"))
+
+    calls: list[list[str]] = []
+
+    def fake_run(cmd: list[str], *, cwd: Path, timeout: float | None = None):
+        del cwd
+        del timeout
+        calls.append(cmd)
+        if cmd[:3] == ["gh", "workflow", "run"]:
+            return Ok("")
+        if cmd[:2] == ["gh", "api"]:
+            payload = {"artifacts": [_dispatch_artifact(run_id=401, request_id="ms-123456781234")]}
+            return Ok(json.dumps(payload))
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(workflow_mod, "run_gh_process", fake_run)
+    monkeypatch.setattr(lookup_mod, "run_gh_process", fake_run)
+
+    result = workflow_mod.dispatch_release_alignment_workflow(
+        workspace_root=tmp_path,
+        build_wasm=False,
+        console=MockConsole(),
+        dry_run=False,
+    )
+
+    assert isinstance(result, Ok)
+    assert result.value.id == 401
+    dispatch = calls[0]
+    assert dispatch[:7] == [
+        "gh",
+        "workflow",
+        "run",
+        "integration.yml",
+        "--repo",
+        "petitechose-midi-studio/ms-dev-env",
+        "--ref",
+    ]
+    assert "main" in dispatch
+    assert "-f" in dispatch
+    assert "build_wasm=false" in dispatch
+    assert "request_id=ms-123456781234" in dispatch
+
+
 def test_dispatch_publish_workflow_retries_until_match(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

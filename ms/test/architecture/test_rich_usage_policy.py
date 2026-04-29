@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ._gate import require_arch_checks_enabled
-from ._utils import iter_python_files, matches_prefix, ms_root, parse_imports
+from ._utils import iter_python_files, matches_prefix, ms_root, parse_imports, rel_key
 
 
 def test_direct_rich_imports_are_limited_to_approved_modules() -> None:
@@ -23,7 +23,7 @@ def test_direct_rich_imports_are_limited_to_approved_modules() -> None:
         rel = file_path.relative_to(root)
         if rel.parts and rel.parts[0] == "test":
             continue
-        rel_str = str(rel)
+        rel_str = rel_key(rel)
 
         for item in parse_imports(file_path):
             if not (matches_prefix(item.module, "rich") or item.module == "rich"):

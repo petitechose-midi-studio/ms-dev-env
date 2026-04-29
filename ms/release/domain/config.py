@@ -8,6 +8,7 @@ DIST_DEFAULT_BRANCH = "main"
 
 MS_REPO_SLUG = "petitechose-midi-studio/ms-dev-env"
 MS_DEFAULT_BRANCH = "main"
+MS_RELEASE_ALIGNMENT_WORKFLOW = "integration.yml"
 
 CORE_REPO_SLUG = "petitechose-midi-studio/core"
 CORE_LOCAL_DIR = "midi-studio/core"

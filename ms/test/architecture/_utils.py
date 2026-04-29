@@ -61,5 +61,9 @@ def count_lines(path: Path) -> int:
     return sum(1 for _ in path.open("r", encoding="utf-8"))
 
 
+def rel_key(path: Path) -> str:
+    return path.as_posix()
+
+
 def matches_prefix(module: str, prefix: str) -> bool:
     return module == prefix or module.startswith(prefix + ".")
