@@ -4,15 +4,21 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.output.console import ConsoleProtocol
+from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.config import CORE_DEFAULT_BRANCH, CORE_REPO_SLUG
 from ms.release.domain.open_control_models import BomPromotionItem, BomPromotionPlan
 from ms.release.errors import ReleaseError
+from ms.release.flow.bom_validation import validate_workspace_bom_targets
 from ms.release.flow.bom_workflow import (
     BomSyncPreview,
     BomSyncResult,
     plan_workspace_bom_sync,
     sync_workspace_bom,
+)
+from ms.release.flow.core_dependency_pins import (
+    CoreDependencyPinPlan,
+    plan_core_dependency_pin_sync,
+    sync_core_dependency_pins,
 )
 from ms.release.infra.github.client import get_ref_head_sha
 from ms.release.infra.open_control import OC_SDK_LOCK_FILE
@@ -32,6 +38,7 @@ from ms.release.infra.repos.core import open_pr as core_open_pr
 class BomPromotionPrepared:
     core_root: Path
     preview: BomSyncPreview
+    core_pin_plan: CoreDependencyPinPlan
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +53,8 @@ def prepare_bom_promotion(
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[BomPromotionPrepared, ReleaseError]:
+    console.header("Dependency promotion")
+    console.print("Checking core workspace", Style.DIM)
     core_repo = ensure_core_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
     if isinstance(core_repo, Err):
         return core_repo
@@ -59,6 +68,7 @@ def prepare_bom_promotion(
     if isinstance(pulled, Err):
         return pulled
 
+    console.print("Planning OpenControl BOM changes", Style.DIM)
     preview = plan_workspace_bom_sync(workspace_root=workspace_root, allow_dirty_workspace=False)
     if isinstance(preview, Err):
         return preview
@@ -74,7 +84,21 @@ def prepare_bom_promotion(
             )
         )
 
-    return Ok(BomPromotionPrepared(core_root=core_root, preview=preview.value))
+    console.print("Planning core CI/runtime pins", Style.DIM)
+    core_pin_plan = plan_core_dependency_pin_sync(
+        workspace_root=workspace_root,
+        core_root=core_root,
+    )
+    if isinstance(core_pin_plan, Err):
+        return core_pin_plan
+
+    return Ok(
+        BomPromotionPrepared(
+            core_root=core_root,
+            preview=preview.value,
+            core_pin_plan=core_pin_plan.value,
+        )
+    )
 
 
 def apply_bom_promotion(
@@ -82,17 +106,20 @@ def apply_bom_promotion(
     workspace_root: Path,
     core_root: Path,
     plan: BomPromotionPlan,
+    core_pin_plan: CoreDependencyPinPlan,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[BomPromotionApplied, ReleaseError]:
+    console.print("Snapshotting core dependency files", Style.DIM)
     snapshot = _snapshot_bom_files(core_root=core_root)
     if isinstance(snapshot, Err):
         return snapshot
 
+    console.print("Writing OpenControl BOM files", Style.DIM)
     synced = sync_workspace_bom(
         workspace_root=workspace_root,
         allow_dirty_workspace=False,
-        validate_targets=True,
+        validate_targets=False,
         include_plugin_release=True,
     )
     if isinstance(synced, Err):
@@ -101,7 +128,36 @@ def apply_bom_promotion(
             return restored
         return synced
 
-    branch = _branch_name(plan=plan)
+    console.print("Writing core CI/runtime pins", Style.DIM)
+    core_pins = sync_core_dependency_pins(workspace_root=workspace_root, core_root=core_root)
+    if isinstance(core_pins, Err):
+        restored = _restore_bom_files(snapshot=snapshot.value)
+        if isinstance(restored, Err):
+            return restored
+        return core_pins
+
+    console.print("Validating release targets", Style.DIM)
+    validations = validate_workspace_bom_targets(
+        workspace_root=workspace_root,
+        include_plugin_release=True,
+        console=console,
+    )
+    if isinstance(validations, Err):
+        restored = _restore_bom_files(snapshot=snapshot.value)
+        if isinstance(restored, Err):
+            return restored
+        return validations
+
+    combined_sync = BomSyncResult(
+        before=synced.value.before,
+        plan=synced.value.plan,
+        written=(*synced.value.written, *core_pins.value.written),
+        after=synced.value.after,
+        validations=validations.value,
+    )
+
+    branch = _branch_name(plan=plan, core_pin_plan=core_pin_plan)
+    console.print(f"Creating promotion branch: {branch}", Style.DIM)
     created = core_create_branch(
         repo_root=core_root,
         branch=branch,
@@ -114,7 +170,7 @@ def apply_bom_promotion(
             return restored
         return created
 
-    return Ok(BomPromotionApplied(branch=branch, synced=synced.value))
+    return Ok(BomPromotionApplied(branch=branch, synced=combined_sync))
 
 
 def publish_bom_promotion_pr(
@@ -123,11 +179,13 @@ def publish_bom_promotion_pr(
     core_root: Path,
     branch: str,
     plan: BomPromotionPlan,
+    core_pin_plan: CoreDependencyPinPlan,
     written: tuple[Path, ...],
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[str, ReleaseError]:
-    title = f"release(core): promote OpenControl BOM to v{plan.next_version}"
+    title = _pr_title(plan=plan, core_pin_plan=core_pin_plan)
+    console.print(f"Committing dependency promotion: {title}", Style.DIM)
     committed = core_commit_and_push(
         repo_root=core_root,
         branch=branch,
@@ -139,17 +197,19 @@ def publish_bom_promotion_pr(
     if isinstance(committed, Err):
         return _with_branch_hint(error=committed.error, branch=branch)
 
+    console.print("Opening core dependency PR", Style.DIM)
     pr = core_open_pr(
         workspace_root=workspace_root,
         branch=branch,
         title=title,
-        body=_build_pr_body(plan=plan),
+        body=_build_pr_body(plan=plan, core_pin_plan=core_pin_plan),
         console=console,
         dry_run=dry_run,
     )
     if isinstance(pr, Err):
         return _with_branch_hint(error=pr.error, branch=branch)
 
+    console.print("Merging core dependency PR", Style.DIM)
     merged = core_merge_pr(
         workspace_root=workspace_root,
         pr_url=pr.value,
@@ -196,22 +256,42 @@ def finalize_bom_promotion(
     return Ok(head.value)
 
 
-def _branch_name(*, plan: BomPromotionPlan) -> str:
+def _branch_name(*, plan: BomPromotionPlan, core_pin_plan: CoreDependencyPinPlan) -> str:
     changed = next((item for item in plan.items if item.changed), None)
-    suffix = changed.to_sha[:8] if changed is not None else "current"
+    if changed is not None:
+        suffix = changed.to_sha[:8]
+    else:
+        pin = next((item for item in core_pin_plan.items if item.changed), None)
+        suffix = pin.to_sha[:8] if pin is not None else "current"
     return f"release/oc-sdk-v{plan.next_version}-{suffix}"
 
 
-def _build_pr_body(*, plan: BomPromotionPlan) -> str:
+def _pr_title(*, plan: BomPromotionPlan, core_pin_plan: CoreDependencyPinPlan) -> str:
+    if plan.requires_write:
+        return f"release(core): promote OpenControl BOM to v{plan.next_version}"
+    if core_pin_plan.requires_write:
+        return "release(core): promote dependency pins"
+    return f"release(core): confirm OpenControl BOM v{plan.next_version}"
+
+
+def _build_pr_body(*, plan: BomPromotionPlan, core_pin_plan: CoreDependencyPinPlan) -> str:
     lines = [
-        "Promote OpenControl BOM to the current workspace heads.",
+        "Promote core dependency pins to the current workspace heads.",
         "",
         f"oc-sdk.version: {plan.current_version} -> {plan.next_version}",
         "",
-        "Changed pins:",
+        "Changed OpenControl BOM pins:",
     ]
     changed = [item for item in plan.items if item.changed]
     lines.extend(_render_item(item) for item in (changed or list(plan.items)))
+    pin_changes = [item for item in core_pin_plan.items if item.changed]
+    if pin_changes:
+        lines.extend(("", "Changed core CI/runtime pins:"))
+        lines.extend(
+            f"- {item.key}: "
+            f"{item.from_sha[:12] if item.from_sha else 'unset'} -> {item.to_sha[:12]}"
+            for item in pin_changes
+        )
     return "\n".join(lines)
 
 
@@ -260,6 +340,8 @@ def _bom_files(*, core_root: Path) -> tuple[Path, ...]:
     return (
         core_root / OC_SDK_LOCK_FILE,
         core_root / OC_NATIVE_SDK_FILE,
+        core_root / "platformio.ini",
+        core_root / ".github" / "workflows" / "ci.yml",
     )
 
 

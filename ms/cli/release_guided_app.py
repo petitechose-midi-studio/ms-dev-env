@@ -219,6 +219,7 @@ def run_guided_app_release(
             notes_source_path: str | None,
             watch: bool,
             dry_run: bool,
+            remote_coherence_checked: bool = False,
         ) -> Result[AppPublishResult, ReleaseError]:
             return publish_app_release(
                 workspace_root=workspace_root,
@@ -230,6 +231,7 @@ def run_guided_app_release(
                 notes_source_path=notes_source_path,
                 watch=watch,
                 dry_run=dry_run,
+                remote_coherence_checked=remote_coherence_checked,
             )
 
         def print_notes_status(

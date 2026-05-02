@@ -5,6 +5,7 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import config
+from ms.release.domain.models import ReleaseTooling
 from ms.release.domain.notes import AppPublishNotes
 from ms.release.errors import ReleaseError
 from ms.release.infra.artifacts.notes_writer import load_external_notes_file
@@ -12,6 +13,7 @@ from ms.release.infra.github.run_watch import watch_run
 from ms.release.infra.github.workflows import dispatch_app_release_workflow
 
 from .app_candidate_ensure import AppPublishResult, ensure_app_candidate
+from .remote_coherence import assert_release_remote_coherence
 
 
 def publish_app_release(
@@ -25,6 +27,7 @@ def publish_app_release(
     notes_source_path: str | None,
     watch: bool,
     dry_run: bool,
+    remote_coherence_checked: bool = False,
 ) -> Result[AppPublishResult, ReleaseError]:
     if notes_markdown is not None:
         source_label = notes_source_path or "(unknown source)"
@@ -35,6 +38,21 @@ def publish_app_release(
         )
     else:
         console.print("release notes: automatic notes only", Style.DIM)
+
+    if not remote_coherence_checked:
+        coherence = assert_release_remote_coherence(
+            workspace_root=workspace_root,
+            console=console,
+            pinned=(),
+            tooling=ReleaseTooling(
+                repo=config.MS_REPO_SLUG,
+                ref=config.MS_DEFAULT_BRANCH,
+                sha=tooling_sha,
+            ),
+            dry_run=dry_run,
+        )
+        if isinstance(coherence, Err):
+            return coherence
 
     candidate = ensure_app_candidate(
         workspace_root=workspace_root,

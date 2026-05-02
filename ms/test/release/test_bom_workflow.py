@@ -7,6 +7,7 @@ from pytest import MonkeyPatch
 
 from ms.core.platformio_runtime import PlatformioRuntime
 from ms.core.result import Err, Ok
+from ms.output.console import MockConsole
 from ms.platform.process import ProcessError
 from ms.release.flow.bom_validation import (
     validate_workspace_bom_targets,
@@ -148,6 +149,7 @@ def test_validate_workspace_dev_targets_runs_dev_builds_and_unit_tests(
 
     monkeypatch.setattr(workflow, "resolve_platformio_runtime", fake_resolve_platformio_runtime)
     monkeypatch.setattr(workflow, "run_process", fake_run_process)
+    console = MockConsole()
 
     validated = validate_workspace_dev_targets(workspace_root=tmp_path)
 
@@ -178,3 +180,13 @@ def test_validate_workspace_dev_targets_runs_dev_builds_and_unit_tests(
             tmp_path,
         ),
     ]
+
+    validated_with_console = validate_workspace_dev_targets(
+        workspace_root=tmp_path,
+        console=console,
+    )
+
+    assert isinstance(validated_with_console, Ok)
+    assert "Validation" in console.messages
+    assert any("[1/3] running core dev" in message for message in console.messages)
+    assert any("OK workspace unit tests" in message for message in console.messages)

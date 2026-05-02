@@ -49,7 +49,10 @@ def promote_open_control_bom(
     if isinstance(prepared, Err):
         return prepared
 
-    if not prepared.value.preview.plan.requires_write:
+    if (
+        not prepared.value.preview.plan.requires_write
+        and not prepared.value.core_pin_plan.requires_write
+    ):
         return _already_merged_bom_result(
             workspace_root=workspace_root,
             plan=prepared.value.preview.plan,
@@ -59,6 +62,7 @@ def promote_open_control_bom(
         workspace_root=workspace_root,
         core_root=prepared.value.core_root,
         plan=prepared.value.preview.plan,
+        core_pin_plan=prepared.value.core_pin_plan,
         console=console,
         dry_run=dry_run,
     )
@@ -70,6 +74,7 @@ def promote_open_control_bom(
         core_root=prepared.value.core_root,
         branch=applied.value.branch,
         plan=applied.value.synced.plan,
+        core_pin_plan=prepared.value.core_pin_plan,
         written=applied.value.synced.written,
         console=console,
         dry_run=dry_run,

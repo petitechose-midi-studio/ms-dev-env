@@ -39,6 +39,10 @@ def _parse_view_payload(*, payload: str, pr_url: str) -> Result[dict[str, object
     return Ok(data)
 
 
+def _normalized_state(value: object) -> str | None:
+    return value.upper() if isinstance(value, str) else None
+
+
 def wait_until_mergeable(
     *,
     workspace_root: Path,
@@ -76,8 +80,10 @@ def wait_until_mergeable(
         if isinstance(parsed, Err):
             return parsed
 
-        state = parsed.value.get("state")
+        state = _normalized_state(parsed.value.get("state"))
         merge_state = parsed.value.get("mergeStateStatus")
+        if state == "MERGED":
+            return Ok(None)
         if isinstance(state, str) and state != "OPEN":
             return Err(
                 ReleaseError(
@@ -136,9 +142,9 @@ def wait_until_merged(
         if isinstance(parsed, Err):
             return parsed
 
-        state = parsed.value.get("state")
+        state = _normalized_state(parsed.value.get("state"))
         merged_at = parsed.value.get("mergedAt")
-        merged = (isinstance(state, str) and state == "MERGED") or (
+        merged = state == "MERGED" or (
             isinstance(merged_at, str) and merged_at.strip() != ""
         )
         if merged:

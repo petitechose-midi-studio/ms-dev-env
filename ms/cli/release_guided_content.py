@@ -286,6 +286,7 @@ def run_guided_content_release(
             plan: ReleasePlan,
             watch: bool,
             dry_run: bool,
+            remote_coherence_checked: bool = False,
         ) -> Result[str, ReleaseError]:
             return publish_distribution_release(
                 workspace_root=workspace_root,
@@ -293,6 +294,7 @@ def run_guided_content_release(
                 plan=plan,
                 watch=watch,
                 dry_run=dry_run,
+                remote_coherence_checked=remote_coherence_checked,
             )
 
         def print_notes_status(

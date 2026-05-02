@@ -85,6 +85,7 @@ def app_publish_cmd(
         notes_source_path=notes.value.source_path,
         watch=watch,
         dry_run=dry_run,
+        remote_coherence_checked=True,
     )
     if isinstance(run, Err):
         exit_release(run.error.message, code=ErrorCode.NETWORK_ERROR)

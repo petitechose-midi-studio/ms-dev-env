@@ -7,6 +7,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
 from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
+from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
 from .content_bom_step import assess_content_bom
 from .content_contracts import ContentGuidedDependencies
@@ -16,6 +17,7 @@ from .content_release_dispatch import (
     ensure_open_control_clean,
 )
 from .fsm import FINISH, StepOutcome, advance
+from .menu_option import MenuOption
 from .sessions import ContentReleaseSession
 
 
@@ -68,14 +70,49 @@ def run_content_confirm_step(
     if isinstance(clean, Err):
         return clean
 
+    coherence = assert_release_remote_coherence(
+        workspace_root=workspace_root,
+        console=console,
+        pinned=planned.value.pinned,
+        tooling=planned.value.tooling,
+        dry_run=dry_run,
+    )
+    if isinstance(coherence, Err):
+        return coherence
+
+    effective_watch = watch
+    if not watch and not dry_run:
+        watch_choice = deps.select_menu(
+            title="Release Watch",
+            subtitle="Watch the publish workflow after dispatch?",
+            options=[
+                MenuOption(
+                    value="watch",
+                    label="Watch workflow",
+                    detail="wait for the GitHub Actions run to complete",
+                ),
+                MenuOption(
+                    value="skip",
+                    label="Skip watch",
+                    detail="dispatch and finish immediately",
+                ),
+            ],
+            initial_index=0,
+            allow_back=False,
+        )
+        if watch_choice.action == "cancel":
+            return Err(ReleaseError(kind="invalid_input", message="release watch cancelled"))
+        effective_watch = watch_choice.value == "watch"
+
     dispatched = dispatch_content_release(
         deps=deps,
         workspace_root=workspace_root,
         console=console,
-        watch=watch,
+        watch=effective_watch,
         dry_run=dry_run,
         session=session,
         plan=planned.value,
+        remote_coherence_checked=True,
     )
     if isinstance(dispatched, Err):
         return dispatched

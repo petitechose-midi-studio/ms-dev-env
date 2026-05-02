@@ -78,6 +78,7 @@ def publish_cmd(
         plan=prepared.plan,
         watch=watch,
         dry_run=dry_run,
+        remote_coherence_checked=True,
     )
     if isinstance(run, Err):
         exit_release(run.error.message, code=ErrorCode.NETWORK_ERROR)
