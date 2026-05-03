@@ -343,3 +343,124 @@ def test_guided_dependencies_prompts_for_watch_when_not_preselected(
         "dispatch",
         "watch",
     ]
+
+
+def test_guided_dependencies_aligned_path_can_watch_release_alignment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import ms.cli.release_guided_dependencies as deps
+    from ms.cli.selector import SelectorResult
+
+    calls: list[str] = []
+
+    def fake_permission(**kwargs: object) -> Ok[None]:
+        calls.append(f"permission:{kwargs.get('require_write')}")
+        return Ok(None)
+
+    def fake_graph(**_: object) -> Ok[ReleaseGraph]:
+        return Ok(_empty_graph())
+
+    def fake_readiness(**_: object) -> DependencyReadinessReport:
+        return DependencyReadinessReport(items=())
+
+    def fake_dev_validation(**_: object) -> Ok[tuple[object, ...]]:
+        calls.append("dev")
+        return Ok(())
+
+    def fake_plan(**_: object) -> Ok[BomSyncPreview]:
+        return Ok(_preview(requires_write=False))
+
+    def fake_select_menu(**_: object) -> SelectorResult[str]:
+        calls.append("select")
+        return SelectorResult(action="select", value="watch", index=0)
+
+    def fake_promote(**_: object) -> Err[ReleaseError]:
+        calls.append("promote")
+        return Err(ReleaseError(kind="repo_failed", message="should not promote"))
+
+    def fake_dispatch(**_: object) -> Ok[WorkflowRun]:
+        calls.append("dispatch")
+        return Ok(WorkflowRun(id=42, url="https://example.test/run/42", request_id="req"))
+
+    def fake_watch(**_: object) -> Ok[None]:
+        calls.append("watch")
+        return Ok(None)
+
+    monkeypatch.setattr(deps, "ensure_core_release_permissions", fake_permission)
+    monkeypatch.setattr(deps, "load_release_graph", fake_graph)
+    monkeypatch.setattr(deps, "assess_dependency_readiness", fake_readiness)
+    monkeypatch.setattr(deps, "validate_workspace_dev_targets", fake_dev_validation)
+    monkeypatch.setattr(deps, "plan_workspace_bom_sync", fake_plan)
+    monkeypatch.setattr(deps, "plan_core_dependency_pin_sync", _fake_core_pin_plan)
+    monkeypatch.setattr(deps, "_select_menu", fake_select_menu)
+    monkeypatch.setattr(deps, "promote_open_control_bom", fake_promote)
+    monkeypatch.setattr(deps, "dispatch_release_alignment_workflow", fake_dispatch)
+    monkeypatch.setattr(deps, "watch_run", fake_watch)
+
+    console = MockConsole()
+    result = deps.run_guided_dependencies_release(
+        workspace_root=tmp_path,
+        console=console,
+        notes_file=None,
+        watch=False,
+        dry_run=False,
+    )
+
+    assert isinstance(result, Ok)
+    assert calls == ["permission:False", "dev", "select", "dispatch", "watch"]
+    assert "Core dependency pins already match the dev workspace" in console.text
+    assert "Release Alignment passed" in console.text
+
+
+def test_guided_dependencies_aligned_path_can_skip_release_alignment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import ms.cli.release_guided_dependencies as deps
+    from ms.cli.selector import SelectorResult
+
+    calls: list[str] = []
+
+    def fake_permission(**kwargs: object) -> Ok[None]:
+        calls.append(f"permission:{kwargs.get('require_write')}")
+        return Ok(None)
+
+    def fake_graph(**_: object) -> Ok[ReleaseGraph]:
+        return Ok(_empty_graph())
+
+    def fake_readiness(**_: object) -> DependencyReadinessReport:
+        return DependencyReadinessReport(items=())
+
+    def fake_dev_validation(**_: object) -> Ok[tuple[object, ...]]:
+        calls.append("dev")
+        return Ok(())
+
+    def fake_plan(**_: object) -> Ok[BomSyncPreview]:
+        return Ok(_preview(requires_write=False))
+
+    def fake_select_menu(**_: object) -> SelectorResult[str]:
+        calls.append("select")
+        return SelectorResult(action="select", value="skip", index=1)
+
+    def fake_dispatch(**_: object) -> Err[ReleaseError]:
+        calls.append("dispatch")
+        return Err(ReleaseError(kind="workflow_failed", message="should not dispatch"))
+
+    monkeypatch.setattr(deps, "ensure_core_release_permissions", fake_permission)
+    monkeypatch.setattr(deps, "load_release_graph", fake_graph)
+    monkeypatch.setattr(deps, "assess_dependency_readiness", fake_readiness)
+    monkeypatch.setattr(deps, "validate_workspace_dev_targets", fake_dev_validation)
+    monkeypatch.setattr(deps, "plan_workspace_bom_sync", fake_plan)
+    monkeypatch.setattr(deps, "plan_core_dependency_pin_sync", _fake_core_pin_plan)
+    monkeypatch.setattr(deps, "_select_menu", fake_select_menu)
+    monkeypatch.setattr(deps, "dispatch_release_alignment_workflow", fake_dispatch)
+
+    result = deps.run_guided_dependencies_release(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        notes_file=None,
+        watch=False,
+        dry_run=False,
+    )
+
+    assert isinstance(result, Ok)
+    assert calls == ["permission:False", "dev", "select"]

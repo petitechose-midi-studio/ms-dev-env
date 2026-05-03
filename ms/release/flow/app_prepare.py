@@ -249,6 +249,7 @@ def prepare_app_release_distribution(
         pinned=plan.pinned,
         tooling=plan.tooling,
         dry_run=dry_run,
+        verify_ci=False,
     )
     if isinstance(coherence, Err):
         return coherence

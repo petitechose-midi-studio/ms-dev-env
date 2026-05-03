@@ -76,6 +76,7 @@ def run_content_confirm_step(
         pinned=planned.value.pinned,
         tooling=planned.value.tooling,
         dry_run=dry_run,
+        verify_ci=False,
     )
     if isinstance(coherence, Err):
         return coherence

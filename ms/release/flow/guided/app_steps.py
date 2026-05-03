@@ -246,6 +246,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             pinned=pinned.value,
             tooling=app_session_tooling(tooling_sha=tooling_sha),
             dry_run=dry_run,
+            verify_ci=False,
         )
         if isinstance(coherence, Err):
             return coherence
