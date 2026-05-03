@@ -84,6 +84,7 @@ def validate_bom_targets_cmd(
     validated = validate_workspace_bom_targets(
         workspace_root=ctx.workspace.root,
         include_plugin_release=include_plugin_release,
+        console=ctx.console,
     )
     if isinstance(validated, Err):
         exit_release(validated.error.pretty(), code=release_error_code(validated.error.kind))
@@ -140,6 +141,7 @@ def sync_bom_cmd(
         allow_dirty_workspace=allow_dirty_workspace,
         validate_targets=validate_targets,
         include_plugin_release=include_plugin_release,
+        console=ctx.console,
     )
     if isinstance(synced, Err):
         exit_release(synced.error.pretty(), code=release_error_code(synced.error.kind))

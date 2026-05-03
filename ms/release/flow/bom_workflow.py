@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.output.console import ConsoleProtocol
 from ms.release.domain.open_control_models import (
     BomPromotionPlan,
     BomStateComparison,
@@ -134,6 +135,7 @@ def sync_workspace_bom(
     allow_dirty_workspace: bool = False,
     validate_targets: bool = True,
     include_plugin_release: bool = True,
+    console: ConsoleProtocol | None = None,
 ) -> Result[BomSyncResult, ReleaseError]:
     preview = plan_workspace_bom_sync(
         workspace_root=workspace_root,
@@ -161,6 +163,7 @@ def sync_workspace_bom(
         validated = validate_workspace_bom_targets(
             workspace_root=workspace_root,
             include_plugin_release=include_plugin_release,
+            console=console,
         )
         if isinstance(validated, Err):
             return validated

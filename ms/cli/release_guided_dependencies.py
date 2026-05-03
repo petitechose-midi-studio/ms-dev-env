@@ -16,6 +16,10 @@ from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import promote_open_control_bom
 from ms.release.flow.bom_validation import validate_workspace_dev_targets
 from ms.release.flow.bom_workflow import plan_workspace_bom_sync
+from ms.release.flow.core_dependency_pins import (
+    CoreDependencyPinPlan,
+    plan_core_dependency_pin_sync,
+)
 from ms.release.flow.dependency_graph import load_release_graph
 from ms.release.flow.dependency_readiness import assess_dependency_readiness
 from ms.release.flow.guided.router import MenuOption
@@ -54,6 +58,27 @@ def run_guided_dependencies_release(
     watch: bool,
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
+    return run_dependencies_release(
+        workspace_root=workspace_root,
+        console=console,
+        notes_file=notes_file,
+        watch=watch,
+        dry_run=dry_run,
+        promote=False,
+        interactive=True,
+    )
+
+
+def run_dependencies_release(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    notes_file: Path | None,
+    watch: bool,
+    dry_run: bool,
+    promote: bool,
+    interactive: bool,
+) -> Result[None, ReleaseError]:
     del notes_file
 
     auth = ensure_core_release_permissions(
@@ -68,6 +93,7 @@ def run_guided_dependencies_release(
     if isinstance(graph, Err):
         return graph
 
+    console.print("Checking pushed heads for every dependency repo", Style.DIM)
     readiness = _assess_guided_readiness(workspace_root=workspace_root, graph=graph.value)
     print_dependency_readiness_report(console=console, report=readiness)
     if not readiness.is_ready:
@@ -83,17 +109,28 @@ def run_guided_dependencies_release(
     if dry_run:
         console.print("dev validation skipped in dry-run", Style.DIM)
     else:
-        dev_validated = validate_workspace_dev_targets(workspace_root=workspace_root)
+        console.print("Validating dev workspace targets", Style.DIM)
+        dev_validated = validate_workspace_dev_targets(
+            workspace_root=workspace_root,
+            console=console,
+        )
         if isinstance(dev_validated, Err):
             return dev_validated
-        for validation in dev_validated.value:
-            console.success(validation.label)
 
+    console.print("Planning core dependency promotion", Style.DIM)
     preview = plan_workspace_bom_sync(workspace_root=workspace_root)
     if isinstance(preview, Err):
         return preview
-    if not preview.value.plan.requires_write:
-        console.success("OpenControl BOM already matches the dev workspace")
+
+    core_pin_plan = plan_core_dependency_pin_sync(
+        workspace_root=workspace_root,
+        core_root=preview.value.state.core_root,
+    )
+    if isinstance(core_pin_plan, Err):
+        return core_pin_plan
+
+    if not preview.value.plan.requires_write and not core_pin_plan.value.requires_write:
+        console.success("Core dependency pins already match the dev workspace")
         return Ok(None)
 
     console.header("BOM promotion plan")
@@ -105,33 +142,38 @@ def run_guided_dependencies_release(
         if item.changed:
             before = item.from_sha[:12] if item.from_sha is not None else "unset"
             console.print(f"{item.repo}: {before} -> {item.to_sha[:12]}")
+    _print_core_pin_plan(console=console, plan=core_pin_plan.value)
 
     if dry_run:
         console.success("dependency promotion dry-run completed")
         return Ok(None)
 
-    choice = to_guided_selection(
-        _select_menu(
-            title="Dependency Promotion",
-            subtitle="Create and merge a core BOM PR from the validated dev workspace",
-            options=[
-                MenuOption(
-                    value="promote",
-                    label="Promote BOM",
-                    detail="create, validate, and merge the core BOM PR",
-                ),
-                MenuOption(
-                    value="cancel",
-                    label="Cancel",
-                    detail="leave the workspace unchanged",
-                ),
-            ],
-            initial_index=0,
-            allow_back=True,
+    if interactive:
+        choice = to_guided_selection(
+            _select_menu(
+                title="Dependency Promotion",
+                subtitle="Create and merge a core dependency PR from the validated dev workspace",
+                options=[
+                    MenuOption(
+                        value="promote",
+                        label="Promote dependencies",
+                        detail="create, validate, and merge the core dependency PR",
+                    ),
+                    MenuOption(
+                        value="cancel",
+                        label="Cancel",
+                        detail="leave the workspace unchanged",
+                    ),
+                ],
+                initial_index=0,
+                allow_back=True,
+            )
         )
-    )
-    if choice.action in {"cancel", "back"} or choice.value == "cancel":
-        return Err(ReleaseError(kind="invalid_input", message="dependency promotion cancelled"))
+        if choice.action in {"cancel", "back"} or choice.value == "cancel":
+            return Err(ReleaseError(kind="invalid_input", message="dependency promotion cancelled"))
+    elif not promote:
+        console.warning("dependency promotion planned; rerun with --promote to apply it")
+        return Ok(None)
 
     allowed = ensure_core_release_permissions(
         workspace_root=workspace_root,
@@ -141,6 +183,7 @@ def run_guided_dependencies_release(
     if isinstance(allowed, Err):
         return allowed
 
+    console.print("Promoting dependencies through core PR", Style.DIM)
     promoted = promote_open_control_bom(
         workspace_root=workspace_root,
         console=console,
@@ -154,7 +197,38 @@ def run_guided_dependencies_release(
     else:
         console.success(f"Core BOM already aligned on main: {promoted.value.merged_core_sha[:12]}")
 
-    if watch:
+    should_watch = watch
+    if interactive and not watch:
+        watch_choice = to_guided_selection(
+            _select_menu(
+                title="Release Alignment",
+                subtitle="Run and watch the deterministic release-alignment workflow?",
+                options=[
+                    MenuOption(
+                        value="watch",
+                        label="Watch Release Alignment",
+                        detail="dispatch the workflow and wait for completion",
+                    ),
+                    MenuOption(
+                        value="skip",
+                        label="Skip watch",
+                        detail="finish after dependency promotion",
+                    ),
+                ],
+                initial_index=0,
+                allow_back=False,
+            )
+        )
+        if watch_choice.action == "cancel":
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message="release alignment watch cancelled",
+                )
+            )
+        should_watch = watch_choice.value == "watch"
+
+    if should_watch:
         dispatched = dispatch_release_alignment_workflow(
             workspace_root=workspace_root,
             build_wasm=False,
@@ -205,3 +279,13 @@ def _blocker_hint(item: DependencyReadinessItem) -> str:
     if item.hint:
         parts.append(item.hint)
     return "\n".join(parts)
+
+
+def _print_core_pin_plan(*, console: ConsoleProtocol, plan: CoreDependencyPinPlan) -> None:
+    changed = [item for item in plan.items if item.changed]
+    if not changed:
+        return
+    console.header("Core CI/runtime pin plan")
+    for item in changed:
+        before = item.from_sha[:12] if item.from_sha is not None else "unset"
+        console.print(f"{item.key}: {before} -> {item.to_sha[:12]}")

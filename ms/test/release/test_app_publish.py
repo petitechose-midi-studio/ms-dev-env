@@ -192,7 +192,15 @@ def test_publish_app_release_reuses_ready_candidate_without_candidate_watch(
         watched_runs.append(run_id)
         return Ok(None)
 
+    def fake_assert_release_remote_coherence(**_: object) -> Ok[object]:
+        return Ok(None)
+
     monkeypatch.setattr(app_publish, "ensure_app_candidate", fake_ensure_app_candidate)
+    monkeypatch.setattr(
+        app_publish,
+        "assert_release_remote_coherence",
+        fake_assert_release_remote_coherence,
+    )
     monkeypatch.setattr(
         app_publish,
         "dispatch_app_release_workflow",
@@ -262,7 +270,15 @@ def test_publish_app_release_watches_candidate_run_when_dispatched(
         watched_runs.append(run_id)
         return Ok(None)
 
+    def fake_assert_release_remote_coherence(**_: object) -> Ok[object]:
+        return Ok(None)
+
     monkeypatch.setattr(app_publish, "ensure_app_candidate", fake_ensure_app_candidate)
+    monkeypatch.setattr(
+        app_publish,
+        "assert_release_remote_coherence",
+        fake_assert_release_remote_coherence,
+    )
     monkeypatch.setattr(
         app_publish,
         "dispatch_app_release_workflow",
@@ -287,3 +303,54 @@ def test_publish_app_release_watches_candidate_run_when_dispatched(
     assert published.value.candidate.run is not None
     assert published.value.candidate.run.url == "https://example.test/run/61"
     assert published.value.release.url == "https://example.test/run/62"
+
+
+def test_publish_app_release_fails_before_dispatch_when_tooling_is_not_on_main(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    import ms.release.flow.app_publish as app_publish
+
+    calls: list[str] = []
+
+    def fake_assert_release_remote_coherence(**_: object) -> Err[ReleaseError]:
+        calls.append("tooling")
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="release tooling SHA is not reachable from ms-dev-env main",
+            )
+        )
+
+    def fake_ensure_app_candidate(**_: object) -> Ok[EnsuredAppCandidate]:
+        calls.append("candidate")
+        return Ok(
+            EnsuredAppCandidate(
+                candidate_tag="rc-demo",
+                release_url="https://example.test/candidate",
+                run=None,
+            )
+        )
+
+    monkeypatch.setattr(
+        app_publish,
+        "assert_release_remote_coherence",
+        fake_assert_release_remote_coherence,
+    )
+    monkeypatch.setattr(app_publish, "ensure_app_candidate", fake_ensure_app_candidate)
+
+    published = publish_app_release(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        tag="v1.2.3",
+        source_sha="b" * 40,
+        tooling_sha="f" * 40,
+        notes_markdown=None,
+        notes_source_path=None,
+        watch=True,
+        dry_run=False,
+    )
+
+    assert isinstance(published, Err)
+    assert published.error.message == "release tooling SHA is not reachable from ms-dev-env main"
+    assert calls == ["tooling"]

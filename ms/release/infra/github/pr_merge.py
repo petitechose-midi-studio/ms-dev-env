@@ -19,6 +19,10 @@ def _is_auto_merge_disabled(stderr: str | None) -> bool:
     )
 
 
+def _is_already_merged(stderr: str | None) -> bool:
+    return "already merged" in stderr.lower() if stderr else False
+
+
 def create_pull_request(
     *,
     workspace_root: Path,
@@ -104,6 +108,14 @@ def merge_pull_request(
     merged = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(merged, Err):
         e = merged.error
+        if _is_already_merged(e.stderr):
+            console.print("PR already merged; verifying final state", Style.DIM)
+            return wait_until_merged(
+                workspace_root=workspace_root,
+                repo_slug=repo_slug,
+                pr_url=pr_url,
+                repo_label=repo_label,
+            )
         if allow_auto_merge_fallback and _is_auto_merge_disabled(e.stderr):
             console.print(
                 "auto-merge disabled for repo; falling back to direct merge after checks",
@@ -132,6 +144,14 @@ def merge_pull_request(
             direct = run_gh_process(direct_cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
             if isinstance(direct, Err):
                 de = direct.error
+                if _is_already_merged(de.stderr):
+                    console.print("PR already merged; verifying final state", Style.DIM)
+                    return wait_until_merged(
+                        workspace_root=workspace_root,
+                        repo_slug=repo_slug,
+                        pr_url=pr_url,
+                        repo_label=repo_label,
+                    )
                 return Err(
                     ReleaseError(
                         kind="repo_failed",

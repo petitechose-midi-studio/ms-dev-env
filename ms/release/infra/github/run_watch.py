@@ -31,7 +31,16 @@ def watch_run(
             ReleaseError(
                 kind="workflow_failed",
                 message="workflow run failed",
-                hint=e.stderr.strip() or None,
+                hint=_failure_hint(stderr=e.stderr, repo_slug=repo_slug, run_id=run_id),
             )
         )
     return Ok(None)
+
+
+def _failure_hint(*, stderr: str, repo_slug: str, run_id: int) -> str:
+    lines: list[str] = []
+    if stderr.strip():
+        lines.append(stderr.strip())
+    lines.append(f"https://github.com/{repo_slug}/actions/runs/{run_id}")
+    lines.append(f"Inspect failed logs: gh run view {run_id} --repo {repo_slug} --log-failed")
+    return "\n".join(lines)

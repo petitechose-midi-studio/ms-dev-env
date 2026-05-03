@@ -7,11 +7,16 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
 from ms.release.domain.models import PinnedRepo, ReleaseRepo
 from ms.release.errors import ReleaseError
+from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
 from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
 from .app_notes_step import run_app_notes_step
 from .app_pins import pinned_app_repo
-from .app_release_dispatch import dispatch_app_release, validate_app_confirm_inputs
+from .app_release_dispatch import (
+    app_session_tooling,
+    dispatch_app_release,
+    validate_app_confirm_inputs,
+)
 from .app_summary_options import build_app_summary_options
 from .fsm import FINISH, StepHandler, StepOutcome, advance, run_state_machine
 from .menu_option import MenuOption
@@ -235,11 +240,45 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             return valid
         tag, version, repo_sha, tooling_sha = valid.value
 
+        coherence = assert_release_remote_coherence(
+            workspace_root=workspace_root,
+            console=console,
+            pinned=pinned.value,
+            tooling=app_session_tooling(tooling_sha=tooling_sha),
+            dry_run=dry_run,
+        )
+        if isinstance(coherence, Err):
+            return coherence
+
+        effective_watch = watch
+        if not watch and not dry_run:
+            watch_choice = deps.select_menu(
+                title="Release Watch",
+                subtitle="Watch candidate/release workflows after dispatch?",
+                options=[
+                    MenuOption(
+                        value="watch",
+                        label="Watch workflows",
+                        detail="wait for GitHub Actions runs to complete",
+                    ),
+                    MenuOption(
+                        value="skip",
+                        label="Skip watch",
+                        detail="dispatch and finish immediately",
+                    ),
+                ],
+                initial_index=0,
+                allow_back=False,
+            )
+            if watch_choice.action == "cancel":
+                return Err(ReleaseError(kind="invalid_input", message="release watch cancelled"))
+            effective_watch = watch_choice.value == "watch"
+
         dispatched = dispatch_app_release(
             deps=deps,
             workspace_root=workspace_root,
             console=console,
-            watch=watch,
+            watch=effective_watch,
             dry_run=dry_run,
             session=s,
             pinned=pinned.value,
@@ -247,6 +286,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             version=version,
             repo_sha=repo_sha,
             tooling_sha=tooling_sha,
+            remote_coherence_checked=True,
         )
         if isinstance(dispatched, Err):
             return dispatched

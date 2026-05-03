@@ -70,6 +70,10 @@ def _tooling() -> ReleaseTooling:
     )
 
 
+def _fake_remote_coherence(**_: object) -> Ok[object]:
+    return Ok(None)
+
+
 def _candidate_assessments(*, available: bool) -> tuple[ContentCandidateAssessment, ...]:
     targets = (
         ContentCandidateTarget(
@@ -108,6 +112,8 @@ def _candidate_assessments(*, available: bool) -> tuple[ContentCandidateAssessme
 
 def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import ms.cli.release_guided_app as app
+    import ms.release.flow.guided.app_release_dispatch as app_dispatch
+    import ms.release.flow.guided.app_steps as app_steps
 
     session = new_app_session(created_by="alice", notes_path=None)
     session = replace(
@@ -155,6 +161,8 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
         if title == "App Release Summary":
             summary_calls["count"] += 1
             return _sel("start", index=5)
+        if title == "Release Watch":
+            return _sel("skip")
         raise AssertionError(f"unexpected selector title: {title}")
 
     def fake_confirm(*args: object, **kwargs: object) -> bool:
@@ -210,19 +218,22 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     monkeypatch.setattr(app, "prepare_app_pr", fake_prepare)
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
+    monkeypatch.setattr(app_dispatch, "assert_release_remote_coherence", _fake_remote_coherence)
+    monkeypatch.setattr(app_steps, "assert_release_remote_coherence", _fake_remote_coherence)
 
     result = app.run_guided_app_release(
         workspace_root=tmp_path,
         console=MockConsole(),
         notes_file=None,
         watch=False,
-        dry_run=True,
+        dry_run=False,
     )
 
     assert isinstance(result, Ok)
     assert summary_calls["count"] == 1
     assert published["tag"] == "v1.2.3"
     assert published["source_sha"] == "b" * 40
+    assert published["watch"] is False
     assert published["notes_markdown"] == "hello notes"
     assert published["notes_source_path"] == "/tmp/notes.md"
 
@@ -231,6 +242,8 @@ def test_guided_app_summary_edit_recomputes_tag(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import ms.cli.release_guided_app as app
+    import ms.release.flow.guided.app_release_dispatch as app_dispatch
+    import ms.release.flow.guided.app_steps as app_steps
 
     session = new_app_session(created_by="alice", notes_path=None)
 
@@ -329,6 +342,8 @@ def test_guided_app_summary_edit_recomputes_tag(
     monkeypatch.setattr(app, "prepare_app_pr", fake_prepare)
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
+    monkeypatch.setattr(app_dispatch, "assert_release_remote_coherence", _fake_remote_coherence)
+    monkeypatch.setattr(app_steps, "assert_release_remote_coherence", _fake_remote_coherence)
 
     result = app.run_guided_app_release(
         workspace_root=tmp_path,
@@ -345,6 +360,8 @@ def test_guided_app_summary_edit_recomputes_tag(
 
 def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import ms.cli.release_guided_content as content
+    import ms.release.flow.guided.content_confirm_step as content_confirm
+    import ms.release.flow.guided.content_release_dispatch as content_dispatch
 
     session = new_content_session(created_by="alice", notes_path=None)
 
@@ -462,6 +479,16 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
     monkeypatch.setattr(content, "publish_distribution_release", fake_publish)
     monkeypatch.setattr(content, "clear_content_session", fake_clear)
+    monkeypatch.setattr(
+        content_dispatch,
+        "assert_release_remote_coherence",
+        _fake_remote_coherence,
+    )
+    monkeypatch.setattr(
+        content_confirm,
+        "assert_release_remote_coherence",
+        _fake_remote_coherence,
+    )
 
     result = content.run_guided_content_release(
         workspace_root=tmp_path,
@@ -488,6 +515,8 @@ def test_guided_content_bom_promotion_updates_core_sha(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import ms.cli.release_guided_content as content
+    import ms.release.flow.guided.content_confirm_step as content_confirm
+    import ms.release.flow.guided.content_release_dispatch as content_dispatch
 
     session = new_content_session(created_by="alice", notes_path=None)
 
@@ -548,6 +577,7 @@ def test_guided_content_bom_promotion_updates_core_sha(
         "Content Release Summary": [_sel("bom", index=6), _sel("start", index=10)],
         "Content Release Candidates": [_sel("continue", index=2)],
         "OpenControl BOM": [_sel("promote")],
+        "Release Watch": [_sel("skip")],
     }
 
     def fake_select_one(*args: object, **kwargs: object) -> SelectorResult[str]:
@@ -651,6 +681,16 @@ def test_guided_content_bom_promotion_updates_core_sha(
     monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
     monkeypatch.setattr(content, "publish_distribution_release", fake_publish)
     monkeypatch.setattr(content, "clear_content_session", fake_clear)
+    monkeypatch.setattr(
+        content_dispatch,
+        "assert_release_remote_coherence",
+        _fake_remote_coherence,
+    )
+    monkeypatch.setattr(
+        content_confirm,
+        "assert_release_remote_coherence",
+        _fake_remote_coherence,
+    )
 
     result = content.run_guided_content_release(
         workspace_root=tmp_path,
@@ -668,12 +708,15 @@ def test_guided_content_bom_promotion_updates_core_sha(
     assert isinstance(plan_obj, ReleasePlan)
     assert plan_obj.pinned[2].repo.id == "core"
     assert plan_obj.pinned[2].sha == "9" * 40
+    assert published["watch"] is False
 
 
 def test_guided_content_candidates_step_builds_missing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import ms.cli.release_guided_content as content
+    import ms.release.flow.guided.content_confirm_step as content_confirm
+    import ms.release.flow.guided.content_release_dispatch as content_dispatch
 
     session = new_content_session(created_by="alice", notes_path=None)
 
@@ -729,6 +772,7 @@ def test_guided_content_candidates_step_builds_missing(
         "Content Release Tag": [_sel("accept")],
         "Content Release Summary": [_sel("start", index=10)],
         "Content Release Candidates": [_sel("ensure", index=3), _sel("continue", index=2)],
+        "Release Watch": [_sel("skip")],
     }
 
     def fake_select_one(*args: object, **kwargs: object) -> SelectorResult[str]:
@@ -794,6 +838,16 @@ def test_guided_content_candidates_step_builds_missing(
     monkeypatch.setattr(content, "prepare_distribution_pr", fake_prepare)
     monkeypatch.setattr(content, "publish_distribution_release", fake_publish)
     monkeypatch.setattr(content, "clear_content_session", fake_clear)
+    monkeypatch.setattr(
+        content_dispatch,
+        "assert_release_remote_coherence",
+        _fake_remote_coherence,
+    )
+    monkeypatch.setattr(
+        content_confirm,
+        "assert_release_remote_coherence",
+        _fake_remote_coherence,
+    )
 
     result = content.run_guided_content_release(
         workspace_root=tmp_path,

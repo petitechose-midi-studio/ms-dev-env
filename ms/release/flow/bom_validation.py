@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.platformio_runtime import resolve_platformio_runtime
 from ms.core.result import Err, Ok, Result
+from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
 from ms.release.errors import ReleaseError
 
@@ -21,7 +23,10 @@ class BomValidationTarget:
 
 
 def validate_workspace_bom_targets(
-    *, workspace_root: Path, include_plugin_release: bool = True
+    *,
+    workspace_root: Path,
+    include_plugin_release: bool = True,
+    console: ConsoleProtocol | None = None,
 ) -> Result[tuple[BomValidationTarget, ...], ReleaseError]:
     runtime = resolve_platformio_runtime(workspace_root)
     if isinstance(runtime, Err):
@@ -45,11 +50,11 @@ def validate_workspace_bom_targets(
     if not include_plugin_release:
         targets = [target for target in targets if not target.key.startswith("plugin-bitwig-")]
 
-    return _run_validation_targets(targets=tuple(targets), env=runtime.value.env)
+    return _run_validation_targets(targets=tuple(targets), env=runtime.value.env, console=console)
 
 
 def validate_workspace_dev_targets(
-    *, workspace_root: Path
+    *, workspace_root: Path, console: ConsoleProtocol | None = None
 ) -> Result[tuple[BomValidationTarget, ...], ReleaseError]:
     runtime = resolve_platformio_runtime(workspace_root)
     if isinstance(runtime, Err):
@@ -86,21 +91,35 @@ def validate_workspace_dev_targets(
             command=(*ms_command, "test", "all"),
         ),
     )
-    return _run_validation_targets(targets=targets, env=runtime.value.env)
+    return _run_validation_targets(targets=targets, env=runtime.value.env, console=console)
 
 
 def _run_validation_targets(
-    *, targets: tuple[BomValidationTarget, ...], env: dict[str, str]
+    *,
+    targets: tuple[BomValidationTarget, ...],
+    env: dict[str, str],
+    console: ConsoleProtocol | None,
 ) -> Result[tuple[BomValidationTarget, ...], ReleaseError]:
     validated: list[BomValidationTarget] = []
-    for target in targets:
+    if console is not None:
+        console.header("Validation")
+    total = len(targets)
+    for index, target in enumerate(targets, start=1):
+        if console is not None:
+            console.print(f"[{index}/{total}] running {target.label}", Style.INFO)
+            console.print(f"cwd: {target.cwd}", Style.DIM)
+            console.print(f"cmd: {_format_command(target.command)}", Style.DIM)
+        started_at = time.perf_counter()
         result = run_process(
             list(target.command),
             cwd=target.cwd,
             env=env,
             timeout=_PLATFORMIO_TIMEOUT_SECONDS,
         )
+        elapsed = time.perf_counter() - started_at
         if isinstance(result, Err):
+            if console is not None:
+                console.error(f"{target.label} failed after {elapsed:.1f}s")
             return Err(
                 ReleaseError(
                     kind="repo_failed",
@@ -108,6 +127,8 @@ def _run_validation_targets(
                     hint=_process_hint(result.error.stdout, result.error.stderr),
                 )
             )
+        if console is not None:
+            console.success(f"{target.label} ({elapsed:.1f}s)")
         validated.append(target)
 
     return Ok(tuple(validated))
@@ -158,6 +179,10 @@ def _process_hint(stdout: str, stderr: str) -> str | None:
     if len(hint) > 300:
         return hint[:297] + "..."
     return hint
+
+
+def _format_command(command: tuple[str, ...]) -> str:
+    return " ".join(command)
 
 
 __all__ = [

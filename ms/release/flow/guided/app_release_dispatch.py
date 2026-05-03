@@ -4,8 +4,10 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
-from ms.release.domain.models import PinnedRepo
+from ms.release.domain import config
+from ms.release.domain.models import PinnedRepo, ReleaseTooling
 from ms.release.errors import ReleaseError
+from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
 from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
 from .sessions import AppReleaseSession
@@ -42,7 +44,19 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
     version: str,
     repo_sha: str,
     tooling_sha: str,
+    remote_coherence_checked: bool = False,
 ) -> Result[None, ReleaseError]:
+    if not remote_coherence_checked:
+        coherence = assert_release_remote_coherence(
+            workspace_root=workspace_root,
+            console=console,
+            pinned=pinned,
+            tooling=app_session_tooling(tooling_sha=tooling_sha),
+            dry_run=dry_run,
+        )
+        if isinstance(coherence, Err):
+            return coherence
+
     prepared = deps.prepare_app_pr(
         workspace_root=workspace_root,
         console=console,
@@ -75,6 +89,7 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
         notes_source_path=session.notes_path,
         watch=watch,
         dry_run=dry_run,
+        remote_coherence_checked=True,
     )
     if isinstance(run, Err):
         return run
@@ -93,3 +108,7 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
     if isinstance(cleared, Err):
         return cleared
     return Ok(None)
+
+
+def app_session_tooling(*, tooling_sha: str) -> ReleaseTooling:
+    return ReleaseTooling(repo=config.MS_REPO_SLUG, ref=config.MS_DEFAULT_BRANCH, sha=tooling_sha)

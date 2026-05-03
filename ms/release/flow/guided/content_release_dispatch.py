@@ -7,6 +7,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleasePlan
 from ms.release.errors import ReleaseError
+from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
 from .content_contracts import ContentGuidedDependencies
 from .sessions import ContentReleaseSession
@@ -60,6 +61,7 @@ def dispatch_content_release(
     dry_run: bool,
     session: ContentReleaseSession,
     plan: ReleasePlan,
+    remote_coherence_checked: bool = False,
 ) -> Result[None, ReleaseError]:
     deps.print_notes_status(
         console=console,
@@ -68,6 +70,17 @@ def dispatch_content_release(
         notes_sha256=session.notes_sha256,
         auto_label="notes: automatic notes only",
     )
+
+    if not remote_coherence_checked:
+        coherence = assert_release_remote_coherence(
+            workspace_root=workspace_root,
+            console=console,
+            pinned=plan.pinned,
+            tooling=plan.tooling,
+            dry_run=dry_run,
+        )
+        if isinstance(coherence, Err):
+            return coherence
 
     candidates = deps.ensure_content_candidates(
         workspace_root=workspace_root,
@@ -97,6 +110,7 @@ def dispatch_content_release(
         plan=plan,
         watch=watch,
         dry_run=dry_run,
+        remote_coherence_checked=True,
     )
     if isinstance(run, Err):
         return run

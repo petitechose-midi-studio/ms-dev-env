@@ -24,6 +24,7 @@ from ms.release.flow.bom_workflow import (
     BomSyncResult,
     BomWorkspaceState,
 )
+from ms.release.flow.core_dependency_pins import CoreDependencyPinPlan, CoreDependencyPinSyncResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
 
@@ -57,6 +58,27 @@ def _workspace_state(*, root: Path, status: BomComparisonStatus) -> BomWorkspace
         ),
         comparison=BomStateComparison(repos=repos, status=status, blockers=()),
     )
+
+
+def _core_pin_plan(*, requires_write: bool = False) -> CoreDependencyPinPlan:
+    from ms.release.flow.core_dependency_pins import CoreDependencyPinItem
+
+    return CoreDependencyPinPlan(
+        items=(
+            CoreDependencyPinItem(
+                key="ci.MIDI_STUDIO_UI_SHA",
+                path=Path("/tmp/core/.github/workflows/ci.yml"),
+                from_sha="1" * 40,
+                to_sha=("2" * 40 if requires_write else "1" * 40),
+                changed=requires_write,
+            ),
+        ),
+        requires_write=requires_write,
+    )
+
+
+def _fake_core_pin_plan(**_: object) -> Ok[CoreDependencyPinPlan]:
+    return Ok(_core_pin_plan())
 
 
 def test_promote_open_control_bom_returns_already_merged_when_no_write_needed(
@@ -99,6 +121,11 @@ def test_promote_open_control_bom_returns_already_merged_when_no_write_needed(
     monkeypatch.setattr(promotion_steps, "ensure_clean_core_repo", fake_ok_none)
     monkeypatch.setattr(promotion_steps, "core_checkout_main_and_pull", fake_ok_none)
     monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(
+        promotion_steps,
+        "plan_core_dependency_pin_sync",
+        _fake_core_pin_plan,
+    )
     monkeypatch.setattr(promotion, "get_ref_head_sha", fake_get_ref_head_sha)
 
     result = promote_open_control_bom(
@@ -168,6 +195,14 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
         calls.append("sync")
         return Ok(synced)
 
+    def fake_sync_core_dependency_pins(**_: object) -> Ok[CoreDependencyPinSyncResult]:
+        calls.append("pins")
+        return Ok(CoreDependencyPinSyncResult(plan=_core_pin_plan(), written=()))
+
+    def fake_validate_workspace_bom_targets(**_: object) -> Ok[tuple[object, ...]]:
+        calls.append("validate")
+        return Ok(())
+
     def fake_core_commit_and_push(*, message: str, **_: object) -> Ok[str]:
         calls.append(f"commit:{message}")
         return Ok("b" * 40)
@@ -192,8 +227,23 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
         fake_core_checkout_main_and_pull,
     )
     monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(
+        promotion_steps,
+        "plan_core_dependency_pin_sync",
+        _fake_core_pin_plan,
+    )
     monkeypatch.setattr(promotion_steps, "core_create_branch", fake_core_create_branch)
     monkeypatch.setattr(promotion_steps, "sync_workspace_bom", fake_sync_workspace_bom)
+    monkeypatch.setattr(
+        promotion_steps,
+        "sync_core_dependency_pins",
+        fake_sync_core_dependency_pins,
+    )
+    monkeypatch.setattr(
+        promotion_steps,
+        "validate_workspace_bom_targets",
+        fake_validate_workspace_bom_targets,
+    )
     monkeypatch.setattr(promotion_steps, "core_commit_and_push", fake_core_commit_and_push)
     monkeypatch.setattr(promotion_steps, "core_open_pr", fake_core_open_pr)
     monkeypatch.setattr(promotion_steps, "core_merge_pr", fake_core_merge_pr)
@@ -216,6 +266,8 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
         "clean",
         "pull",
         "sync",
+        "pins",
+        "validate",
         "branch:release/oc-sdk-v0.1.4-99999999",
         "commit:release(core): promote OpenControl BOM to v0.1.4",
         "pr:release(core): promote OpenControl BOM to v0.1.4",
@@ -289,6 +341,11 @@ def test_promote_open_control_bom_restores_main_when_sync_fails(
         fake_core_checkout_main_and_pull,
     )
     monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(
+        promotion_steps,
+        "plan_core_dependency_pin_sync",
+        _fake_core_pin_plan,
+    )
     monkeypatch.setattr(promotion_steps, "sync_workspace_bom", fake_sync_workspace_bom)
 
     result = promote_open_control_bom(
