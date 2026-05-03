@@ -112,8 +112,8 @@ def _candidate_assessments(*, available: bool) -> tuple[ContentCandidateAssessme
 
 def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     import ms.cli.release_guided_app as app
+    import ms.release.flow.guided.app_confirm_step as app_confirm
     import ms.release.flow.guided.app_release_dispatch as app_dispatch
-    import ms.release.flow.guided.app_steps as app_steps
 
     session = new_app_session(created_by="alice", notes_path=None)
     session = replace(
@@ -219,7 +219,7 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
     monkeypatch.setattr(app_dispatch, "assert_release_remote_coherence", _fake_remote_coherence)
-    monkeypatch.setattr(app_steps, "assert_release_remote_coherence", _fake_remote_coherence)
+    monkeypatch.setattr(app_confirm, "assert_release_remote_coherence", _fake_remote_coherence)
 
     result = app.run_guided_app_release(
         workspace_root=tmp_path,
@@ -242,8 +242,8 @@ def test_guided_app_summary_edit_recomputes_tag(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     import ms.cli.release_guided_app as app
+    import ms.release.flow.guided.app_confirm_step as app_confirm
     import ms.release.flow.guided.app_release_dispatch as app_dispatch
-    import ms.release.flow.guided.app_steps as app_steps
 
     session = new_app_session(created_by="alice", notes_path=None)
 
@@ -343,7 +343,7 @@ def test_guided_app_summary_edit_recomputes_tag(
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
     monkeypatch.setattr(app_dispatch, "assert_release_remote_coherence", _fake_remote_coherence)
-    monkeypatch.setattr(app_steps, "assert_release_remote_coherence", _fake_remote_coherence)
+    monkeypatch.setattr(app_confirm, "assert_release_remote_coherence", _fake_remote_coherence)
 
     result = app.run_guided_app_release(
         workspace_root=tmp_path,

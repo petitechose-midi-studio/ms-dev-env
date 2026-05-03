@@ -9,72 +9,55 @@ from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
-from .content_bom_step import assess_content_bom
-from .content_contracts import ContentGuidedDependencies
-from .content_plan_state import resolve_content_release_plan
-from .content_release_dispatch import (
-    dispatch_content_release,
-    ensure_open_control_clean,
+from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
+from .app_pins import pinned_app_repo
+from .app_release_dispatch import (
+    app_session_tooling,
+    dispatch_app_release,
+    validate_app_confirm_inputs,
 )
 from .fsm import FINISH, StepOutcome, advance
 from .menu_option import MenuOption
-from .sessions import ContentReleaseSession
+from .sessions import AppReleaseSession
 
 
-def run_content_confirm_step(
+def run_app_confirm_step[PrepareT: AppPrepareResultLike](
     *,
-    deps: ContentGuidedDependencies,
+    session: AppReleaseSession,
     workspace_root: Path,
     console: ConsoleProtocol,
     watch: bool,
     dry_run: bool,
-    session: ContentReleaseSession,
-    release_repos: tuple[ReleaseRepo, ...],
-) -> Result[StepOutcome[ContentReleaseSession], ReleaseError]:
-    bom = assess_content_bom(
-        deps=deps,
-        workspace_root=workspace_root,
-        session=session,
-        release_repos=release_repos,
-    )
-    if bom.status != "aligned":
-        console.warning(f"OpenControl BOM not ready: {bom.detail}")
-        return Ok(advance(replace(session, step="bom", return_to_summary=True)))
-
-    approved = deps.confirm(prompt=f"Publish content {session.tag or 'unset'}")
+    app_release_repo: ReleaseRepo,
+    deps: AppGuidedDependencies[PrepareT],
+) -> Result[StepOutcome[AppReleaseSession], ReleaseError]:
+    source = session.repo_sha[:12] if session.repo_sha else "unset"
+    approved = deps.confirm(prompt=f"Publish {session.tag} from {source}")
     if not approved:
         return Ok(advance(replace(session, step="summary")))
 
-    planned = resolve_content_release_plan(
-        deps=deps,
-        workspace_root=workspace_root,
-        session=session,
-        release_repos=release_repos,
-    )
-    if isinstance(planned, Err):
-        return planned
+    pinned = pinned_app_repo(app_release_repo=app_release_repo, session=session)
+    if isinstance(pinned, Err):
+        return pinned
 
     green = deps.ensure_ci_green(
         workspace_root=workspace_root,
-        pinned=planned.value.pinned,
+        pinned=pinned.value,
         allow_non_green=False,
     )
     if isinstance(green, Err):
         return green
 
-    clean = ensure_open_control_clean(
-        deps=deps,
-        workspace_root=workspace_root,
-        pinned=planned.value.pinned,
-    )
-    if isinstance(clean, Err):
-        return clean
+    valid = validate_app_confirm_inputs(session)
+    if isinstance(valid, Err):
+        return valid
+    tag, version, repo_sha, tooling_sha = valid.value
 
     coherence = assert_release_remote_coherence(
         workspace_root=workspace_root,
         console=console,
-        pinned=planned.value.pinned,
-        tooling=planned.value.tooling,
+        pinned=pinned.value,
+        tooling=app_session_tooling(tooling_sha=tooling_sha),
         dry_run=dry_run,
         verify_ci=False,
     )
@@ -85,12 +68,12 @@ def run_content_confirm_step(
     if not watch and not dry_run:
         watch_choice = deps.select_menu(
             title="Release Watch",
-            subtitle="Watch the publish workflow after dispatch?",
+            subtitle="Watch candidate/release workflows after dispatch?",
             options=[
                 MenuOption(
                     value="watch",
-                    label="Watch workflow",
-                    detail="wait for the GitHub Actions run to complete",
+                    label="Watch workflows",
+                    detail="wait for GitHub Actions runs to complete",
                 ),
                 MenuOption(
                     value="skip",
@@ -105,14 +88,18 @@ def run_content_confirm_step(
             return Err(ReleaseError(kind="invalid_input", message="release watch cancelled"))
         effective_watch = watch_choice.value == "watch"
 
-    dispatched = dispatch_content_release(
+    dispatched = dispatch_app_release(
         deps=deps,
         workspace_root=workspace_root,
         console=console,
         watch=effective_watch,
         dry_run=dry_run,
         session=session,
-        plan=planned.value,
+        pinned=pinned.value,
+        tag=tag,
+        version=version,
+        repo_sha=repo_sha,
+        tooling_sha=tooling_sha,
         remote_coherence_checked=True,
     )
     if isinstance(dispatched, Err):

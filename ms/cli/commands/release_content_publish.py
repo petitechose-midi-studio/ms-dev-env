@@ -4,7 +4,11 @@ from pathlib import Path
 
 import typer
 
-from ms.cli.commands.release_common import ensure_release_permissions_or_exit, exit_release
+from ms.cli.commands.release_common import (
+    ensure_release_permissions_or_exit,
+    exit_release,
+    release_error_code,
+)
 from ms.cli.context import build_context
 from ms.core.errors import ErrorCode
 from ms.core.result import Err
@@ -81,7 +85,7 @@ def publish_cmd(
         remote_coherence_checked=True,
     )
     if isinstance(run, Err):
-        exit_release(run.error.message, code=ErrorCode.NETWORK_ERROR)
+        exit_release(run.error.pretty(), code=release_error_code(run.error.kind))
 
     ctx.console.success(f"Workflow run: {run.value}")
     ctx.console.print(

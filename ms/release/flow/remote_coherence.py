@@ -52,12 +52,14 @@ def assert_release_remote_coherence(
     pinned: tuple[PinnedRepo, ...],
     tooling: ReleaseTooling,
     dry_run: bool,
+    verify_ci: bool = True,
 ) -> Result[RemoteCoherenceReport, ReleaseError]:
     report = assess_release_remote_coherence(
         workspace_root=workspace_root,
         pinned=pinned,
         tooling=tooling,
         dry_run=dry_run,
+        verify_ci=verify_ci,
     )
     if isinstance(report, Err):
         return report
@@ -84,6 +86,7 @@ def assess_release_remote_coherence(
     pinned: tuple[PinnedRepo, ...],
     tooling: ReleaseTooling,
     dry_run: bool,
+    verify_ci: bool = True,
 ) -> Result[RemoteCoherenceReport, ReleaseError]:
     items: list[RemoteCoherenceItem] = []
 
@@ -97,7 +100,11 @@ def assess_release_remote_coherence(
     items.append(tooling_item.value)
 
     for pinned_repo in pinned:
-        item = _assess_pinned_repo(workspace_root=workspace_root, pinned=pinned_repo)
+        item = _assess_pinned_repo(
+            workspace_root=workspace_root,
+            pinned=pinned_repo,
+            verify_ci=verify_ci,
+        )
         if isinstance(item, Err):
             return item
         items.append(item.value)
@@ -192,7 +199,7 @@ def _assess_tooling(
 
 
 def _assess_pinned_repo(
-    *, workspace_root: Path, pinned: PinnedRepo
+    *, workspace_root: Path, pinned: PinnedRepo, verify_ci: bool
 ) -> Result[RemoteCoherenceItem, ReleaseError]:
     readiness = probe_release_readiness(
         workspace_root=workspace_root,
@@ -228,7 +235,7 @@ def _assess_pinned_repo(
         )
 
     workflow = pinned.repo.required_ci_workflow_file
-    if workflow is not None:
+    if verify_ci and workflow is not None:
         green = is_ci_green_for_sha(
             workspace_root=workspace_root,
             repo=pinned.repo.slug,
@@ -255,7 +262,7 @@ def _assess_pinned_repo(
 
     detail = "target SHA is fetchable"
     if workflow is not None:
-        detail = f"{detail} and CI-green"
+        detail = f"{detail} and CI-green" if verify_ci else f"{detail}; CI already checked"
     if local is not None and remote is not None and local != remote:
         detail = f"{detail}; local HEAD differs from remote HEAD"
     if remote is not None and pinned.sha != remote:

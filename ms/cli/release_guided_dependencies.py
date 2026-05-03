@@ -131,7 +131,15 @@ def run_dependencies_release(
 
     if not preview.value.plan.requires_write and not core_pin_plan.value.requires_write:
         console.success("Core dependency pins already match the dev workspace")
-        return Ok(None)
+        if dry_run:
+            return Ok(None)
+        return _maybe_watch_release_alignment(
+            workspace_root=workspace_root,
+            console=console,
+            watch=watch,
+            interactive=interactive,
+            dry_run=False,
+        )
 
     console.header("BOM promotion plan")
     console.print(
@@ -197,6 +205,23 @@ def run_dependencies_release(
     else:
         console.success(f"Core BOM already aligned on main: {promoted.value.merged_core_sha[:12]}")
 
+    return _maybe_watch_release_alignment(
+        workspace_root=workspace_root,
+        console=console,
+        watch=watch,
+        interactive=interactive,
+        dry_run=False,
+    )
+
+
+def _maybe_watch_release_alignment(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    watch: bool,
+    interactive: bool,
+    dry_run: bool,
+) -> Result[None, ReleaseError]:
     should_watch = watch
     if interactive and not watch:
         watch_choice = to_guided_selection(
@@ -212,7 +237,7 @@ def run_dependencies_release(
                     MenuOption(
                         value="skip",
                         label="Skip watch",
-                        detail="finish after dependency promotion",
+                        detail="finish without release-alignment watch",
                     ),
                 ],
                 initial_index=0,
@@ -228,25 +253,27 @@ def run_dependencies_release(
             )
         should_watch = watch_choice.value == "watch"
 
-    if should_watch:
-        dispatched = dispatch_release_alignment_workflow(
-            workspace_root=workspace_root,
-            build_wasm=False,
-            console=console,
-            dry_run=False,
-        )
-        if isinstance(dispatched, Err):
-            return dispatched
-        watched = watch_run(
-            workspace_root=workspace_root,
-            run_id=dispatched.value.id,
-            repo_slug=MS_REPO_SLUG,
-            console=console,
-            dry_run=False,
-        )
-        if isinstance(watched, Err):
-            return watched
-        console.success(f"Release Alignment passed: {dispatched.value.url}")
+    if not should_watch:
+        return Ok(None)
+
+    dispatched = dispatch_release_alignment_workflow(
+        workspace_root=workspace_root,
+        build_wasm=False,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(dispatched, Err):
+        return dispatched
+    watched = watch_run(
+        workspace_root=workspace_root,
+        run_id=dispatched.value.id,
+        repo_slug=MS_REPO_SLUG,
+        console=console,
+        dry_run=dry_run,
+    )
+    if isinstance(watched, Err):
+        return watched
+    console.success(f"Release Alignment passed: {dispatched.value.url}")
     return Ok(None)
 
 

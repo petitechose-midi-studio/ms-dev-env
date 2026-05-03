@@ -54,7 +54,7 @@ def _run_guided_release(*, notes_file: Path | None, watch: bool, dry_run: bool) 
         dry_run=dry_run,
     )
     if isinstance(run, Err):
-        exit_release(run.error.message, code=release_error_code(run.error.kind))
+        exit_release(run.error.pretty(), code=release_error_code(run.error.kind))
 
 
 @release_app.callback()
