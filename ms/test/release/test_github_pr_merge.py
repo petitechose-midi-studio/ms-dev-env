@@ -129,10 +129,6 @@ def test_merge_pull_request_reports_disabled_auto_merge(
 
     def fake_run_gh_process(cmd: list[str], **_: object) -> Ok[str] | Err[ProcessError]:
         calls.append(" ".join(cmd))
-        if cmd[:3] == ["gh", "pr", "view"]:
-            return Ok('{"reviewDecision":"REVIEW_REQUIRED"}')
-        if cmd[:3] == ["gh", "pr", "review"]:
-            return Ok("")
         if "--auto" in cmd:
             return Err(
                 ProcessError(
@@ -155,8 +151,17 @@ def test_merge_pull_request_reports_disabled_auto_merge(
         calls.append("merged")
         return Ok(None)
 
+    def fake_approve_pull_request_if_required(**_: object) -> Ok[None]:
+        calls.append("approve")
+        return Ok(None)
+
     monkeypatch.setattr(pr_merge, "run_gh_process", fake_run_gh_process)
     monkeypatch.setattr(pr_merge, "wait_until_merged", fake_wait_until_merged)
+    monkeypatch.setattr(
+        pr_merge,
+        "approve_pull_request_if_required",
+        fake_approve_pull_request_if_required,
+    )
 
     result = merge_pull_request(
         workspace_root=tmp_path,
@@ -175,18 +180,7 @@ def test_merge_pull_request_reports_disabled_auto_merge(
         "PR: https://example.invalid/pr/1"
     )
     assert calls == [
-        " ".join(
-            (
-                "gh pr view https://example.invalid/pr/1 --repo owner/repo",
-                "--json reviewDecision",
-            )
-        ),
-        " ".join(
-            (
-                "gh pr review https://example.invalid/pr/1 --repo owner/repo",
-                "--approve --body Approved by ms release after local release preflight.",
-            )
-        ),
+        "approve",
         " ".join(
             (
                 "gh pr merge https://example.invalid/pr/1 --repo owner/repo",
@@ -196,7 +190,7 @@ def test_merge_pull_request_reports_disabled_auto_merge(
     ]
 
 
-def test_merge_pull_request_skips_approval_when_review_not_required(
+def test_merge_pull_request_approves_before_queueing_auto_merge(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -206,16 +200,23 @@ def test_merge_pull_request_skips_approval_when_review_not_required(
 
     def fake_run_gh_process(cmd: list[str], **_: object) -> Ok[str]:
         calls.append(" ".join(cmd))
-        if cmd[:3] == ["gh", "pr", "view"]:
-            return Ok('{"reviewDecision":"APPROVED"}')
         return Ok("")
 
     def fake_wait_until_merged(**_: object) -> Ok[None]:
         calls.append("merged")
         return Ok(None)
 
+    def fake_approve_pull_request_if_required(**_: object) -> Ok[None]:
+        calls.append("approve")
+        return Ok(None)
+
     monkeypatch.setattr(pr_merge, "run_gh_process", fake_run_gh_process)
     monkeypatch.setattr(pr_merge, "wait_until_merged", fake_wait_until_merged)
+    monkeypatch.setattr(
+        pr_merge,
+        "approve_pull_request_if_required",
+        fake_approve_pull_request_if_required,
+    )
 
     result = merge_pull_request(
         workspace_root=tmp_path,
@@ -229,12 +230,7 @@ def test_merge_pull_request_skips_approval_when_review_not_required(
 
     assert isinstance(result, Ok)
     assert calls == [
-        " ".join(
-            (
-                "gh pr view https://example.invalid/pr/1 --repo owner/repo",
-                "--json reviewDecision",
-            )
-        ),
+        "approve",
         " ".join(
             (
                 "gh pr merge https://example.invalid/pr/1 --repo owner/repo",
@@ -243,41 +239,3 @@ def test_merge_pull_request_skips_approval_when_review_not_required(
         ),
         "merged",
     ]
-
-
-def test_merge_pull_request_reports_self_approval_when_review_required(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    import ms.release.infra.github.pr_merge as pr_merge
-
-    def fake_run_gh_process(cmd: list[str], **_: object) -> Ok[str] | Err[ProcessError]:
-        if cmd[:3] == ["gh", "pr", "view"]:
-            return Ok('{"reviewDecision":"REVIEW_REQUIRED"}')
-        return Err(
-            ProcessError(
-                command=tuple(cmd),
-                returncode=1,
-                stdout="",
-                stderr="GraphQL: Can not approve your own pull request",
-            )
-        )
-
-    monkeypatch.setattr(pr_merge, "run_gh_process", fake_run_gh_process)
-
-    result = merge_pull_request(
-        workspace_root=tmp_path,
-        repo_slug="owner/repo",
-        pr_url="https://example.invalid/pr/1",
-        repo_label="core",
-        delete_branch=True,
-        console=MockConsole(),
-        dry_run=False,
-    )
-
-    assert isinstance(result, Err)
-    assert result.error.message == "core PR requires approval from a different GitHub identity"
-    assert result.error.hint == (
-        "Configure the release GitHub App so the PR is authored by the app, "
-        "then approve with the maintainer account. PR: https://example.invalid/pr/1"
-    )
