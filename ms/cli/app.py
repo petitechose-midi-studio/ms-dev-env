@@ -23,6 +23,7 @@ from ms.cli.commands.sync import sync
 from ms.cli.commands.test_cmd import test
 from ms.cli.commands.tools import tools
 from ms.cli.commands.upload_cmd import upload
+from ms.cli.commands.ux import ux_app
 from ms.cli.commands.web_cmd import web
 from ms.cli.commands.wipe import destroy, wipe
 from ms.cli.commands.workspace import forget, use, where
@@ -87,6 +88,12 @@ app.add_typer(
     name="release",
     help="Release orchestration.",
     rich_help_panel=RELEASE_PANEL,
+)
+app.add_typer(
+    ux_app,
+    name="ux",
+    help="Run app UX workflows.",
+    rich_help_panel=BUILD_PANEL,
 )
 
 
