@@ -299,13 +299,13 @@ def _select_workflow_tree(
             SelectorOption(
                 value=_TreeChoice(kind="current", path=current or "."),
                 label="./",
-                detail=f"Selected: {current or '.'} | Workflows: {count}",
+                detail=_workflow_count_label(count),
             ),
             *[
                 SelectorOption(
                     value=_TreeChoice(kind="folder", path=group.path),
                     label=f"{Path(group.path).name}/",
-                    detail=f"Selected: {group.path}/ | Workflows: {group.workflow_count}",
+                    detail=_workflow_count_label(group.workflow_count),
                 )
                 for group in groups
             ],
@@ -314,7 +314,7 @@ def _select_workflow_tree(
             SelectorOption(
                 value=_TreeChoice(kind="file", path=workflow.relative_path),
                 label=workflow.name,
-                detail=f"Selected: {workflow.relative_path} | Workflows: 1",
+                detail=_workflow_count_label(1),
             )
             for workflow in files
         )
@@ -323,7 +323,7 @@ def _select_workflow_tree(
         result = select_one_with_run(
             title=f"ms ux {verb}",
             subtitle=(
-                f"Current: {label} | Workflows: {count}. "
+                f"{label} | {_workflow_count_label(count)}. "
                 "Enter opens folders/files; Ctrl+Enter/r runs highlighted."
             ),
             options=options,
@@ -347,6 +347,11 @@ def _select_workflow_tree(
             current = result.value.path
             continue
         return result.value.path
+
+
+def _workflow_count_label(count: int) -> str:
+    suffix = "" if count == 1 else "s"
+    return f"{count} workflow{suffix}"
 
 
 def _parent(path: str) -> str:

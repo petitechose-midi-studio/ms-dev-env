@@ -88,7 +88,9 @@ uv run ms test all
 uv run ms ux
 uv run ms ux list core
 uv run ms ux run core --all
-uv run ms ux run core --select sequencer-undo-redo-step-toggle
+uv run ms ux run core --select smoke
+uv run ms ux run core --select sequencer/undo-redo
+uv run ms ux run core --select sequencer/undo-redo/step-toggle.ux
 uv run ms ux report core
 
 # Note: `ms run` / `ms web` auto-start a headless `oc-bridge` (dev) using `config.toml` ports.
@@ -109,6 +111,9 @@ uv run ms bridge
  # Maintainer: sync all repos (includes ms-manager + distribution + examples)
  uv run ms sync --repos --profile maintainer
 ```
+
+`--select` accepts a workflow file, a folder, or a unique workflow basename. Folder selections
+only replay workflows inside that subtree; they do not fall back to the full suite.
 
 Optional: install user-level `ms`/`oc-*` launchers bound to this workspace:
 
