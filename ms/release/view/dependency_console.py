@@ -31,14 +31,7 @@ def print_dependency_readiness_report(
                 console.print(f"cmd: {action.command}", Style.DIM)
         return
 
-    console.success(f"READY {report.ready_count}/{len(report.items)} repo(s)")
-    for item in report.items:
-        if item.status == "ok":
-            sha = item.sha[:12] if item.sha is not None else "unknown"
-            console.success(f"{item.repo}: ready ({sha})")
-            continue
-
-        _print_blocking_item(console=console, item=item)
+    console.success(f"READY {report.ready_count}/{len(report.items)} repo(s) clean/fetchable")
 
 
 def _print_blocking_item(*, console: ConsoleProtocol, item: DependencyReadinessItem) -> None:
