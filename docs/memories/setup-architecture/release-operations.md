@@ -41,6 +41,10 @@ Release PR merges must respect GitHub branch protections. Repositories in the re
 fall back to a direct/admin merge when auto-merge is unavailable. If GitHub cannot queue the PR, the
 command fails with the PR URL and the repository setting that must be fixed.
 
+`ms test ms-dev-env` is the local preflight for tooling changes. It enables the same strict
+architecture checks that CI runs, so release tooling layering/import regressions fail locally before
+the branch is pushed. The dedicated CI architecture job remains as the remote double-check.
+
 For a fully unattended PR + terminal approval flow, the PR author and approver must be separate
 GitHub identities. The target architecture is:
 

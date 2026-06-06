@@ -47,6 +47,7 @@ class UnitTestTarget:
     label: str
     dependencies: tuple[str, ...] = ()
     runner_args: tuple[str, ...] = ()
+    env_vars: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -575,7 +576,7 @@ class UnitTestService(BaseService):
             self._console.print(" ".join(args), Style.DIM)
         output = ""
         if not dry_run:
-            env = self._base_env()
+            env = self._target_env(unit_target)
             src_dir = unit_target.source_dir / "src"
             if src_dir.exists():
                 env["PYTHONPATH"] = _join_env_path(str(src_dir), env.get("PYTHONPATH"))
@@ -698,6 +699,7 @@ class UnitTestService(BaseService):
                 source_dir=self._workspace.root,
                 build_dir=build_root / "ms-dev-env",
                 label="ms-dev-env",
+                env_vars=(("MS_ARCH_CHECKS", "1"), ("MS_ARCH_STRICT", "1")),
             ),
             "protocol-codegen": UnitTestTarget(
                 name="protocol-codegen",
@@ -794,6 +796,11 @@ class UnitTestService(BaseService):
         env = os.environ.copy()
         env.update(self._registry.get_env_vars())
         env.update(self._workspace.platformio_env_vars())
+        return env
+
+    def _target_env(self, target: UnitTestTarget) -> dict[str, str]:
+        env = self._base_env()
+        env.update(dict(target.env_vars))
         return env
 
     def _get_tool_path(self, tool_id: str) -> Result[Path, UnitTestError]:
