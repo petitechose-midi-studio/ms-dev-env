@@ -24,6 +24,13 @@ class SelectorResult[T]:
     index: int
 
 
+@dataclass(frozen=True, slots=True)
+class SelectorRunResult[T]:
+    action: Literal["select", "run", "back", "cancel"]
+    value: T | None
+    index: int
+
+
 _COMMIT_LABEL = re.compile(r"^([0-9a-f]{7,40})\s{2,}(.*)$")
 
 
@@ -57,6 +64,8 @@ def _read_key() -> str:
         ch = msvcrt.getwch()
         if ch in ("\r", "\n"):
             return "enter"
+        if ch in ("r", "R"):
+            return "run"
         if ch in ("\x08", "\x7f"):
             return "back"
         if ch in ("q", "Q"):
@@ -80,6 +89,8 @@ def _read_key() -> str:
         ch = sys.stdin.read(1)
         if ch in ("\r", "\n"):
             return "enter"
+        if ch in ("\x12", "r", "R"):
+            return "run"
         if ch in ("\x08", "\x7f"):
             return "back"
         if ch in ("q", "Q"):
@@ -252,7 +263,12 @@ def _render_commits(*, options: list[SelectorOption[object]], index: int) -> Non
 
 
 def _render(
-    *, title: str, subtitle: str | None, options: list[SelectorOption[object]], index: int
+    *,
+    title: str,
+    subtitle: str | None,
+    options: list[SelectorOption[object]],
+    index: int,
+    run_current_label: str | None,
 ) -> None:
     _clear()
     _print_header(title=title, subtitle=subtitle)
@@ -273,6 +289,8 @@ def _render(
         + _paint("q", "1", "97")
         + ": cancel"
     )
+    if run_current_label is not None:
+        keys_line += ", " + _paint("r", "1", "97") + f": {run_current_label}"
     print(keys_line)
     sys.stdout.flush()
 
@@ -285,6 +303,47 @@ def select_one[T](
     initial_index: int = 0,
     allow_back: bool,
 ) -> SelectorResult[T]:
+    result = _select_one(
+        title=title,
+        options=options,
+        subtitle=subtitle,
+        initial_index=initial_index,
+        allow_back=allow_back,
+        run_current_label=None,
+    )
+    if result.action == "run":
+        raise RuntimeError("internal selector error: unexpected run action")
+    return SelectorResult(action=result.action, value=result.value, index=result.index)
+
+
+def select_one_with_run[T](
+    *,
+    title: str,
+    options: list[SelectorOption[T]],
+    subtitle: str | None = None,
+    initial_index: int = 0,
+    allow_back: bool,
+    run_current_label: str,
+) -> SelectorRunResult[T]:
+    return _select_one(
+        title=title,
+        options=options,
+        subtitle=subtitle,
+        initial_index=initial_index,
+        allow_back=allow_back,
+        run_current_label=run_current_label,
+    )
+
+
+def _select_one[T](
+    *,
+    title: str,
+    options: list[SelectorOption[T]],
+    subtitle: str | None,
+    initial_index: int,
+    allow_back: bool,
+    run_current_label: str | None,
+) -> SelectorRunResult[T]:
     if not options:
         raise ValueError("selector requires at least one option")
     if not is_interactive_terminal():
@@ -296,7 +355,13 @@ def select_one[T](
         casted: list[SelectorOption[object]] = [
             SelectorOption(value=o.value, label=o.label, detail=o.detail) for o in options
         ]
-        _render(title=title, subtitle=subtitle, options=casted, index=idx)
+        _render(
+            title=title,
+            subtitle=subtitle,
+            options=casted,
+            index=idx,
+            run_current_label=run_current_label,
+        )
         key = _read_key()
 
         if key == "up":
@@ -307,11 +372,13 @@ def select_one[T](
             continue
         if key == "enter":
             chosen = options[idx]
-            return SelectorResult(action="select", value=chosen.value, index=idx)
+            return SelectorRunResult(action="select", value=chosen.value, index=idx)
+        if key == "run" and run_current_label is not None:
+            return SelectorRunResult(action="run", value=None, index=idx)
         if key == "back" and allow_back:
-            return SelectorResult(action="back", value=None, index=idx)
+            return SelectorRunResult(action="back", value=None, index=idx)
         if key == "cancel":
-            return SelectorResult(action="cancel", value=None, index=idx)
+            return SelectorRunResult(action="cancel", value=None, index=idx)
 
 
 def confirm_yn(*, prompt: str) -> bool:

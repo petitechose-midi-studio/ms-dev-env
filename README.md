@@ -84,6 +84,13 @@ uv run ms test ms-manager-tauri
 uv run ms test core
 uv run ms test all
 
+# SDL UX workflows (Core scripts + captures stay in the Core repo)
+uv run ms ux
+uv run ms ux list core
+uv run ms ux run core --all
+uv run ms ux run core --select sequencer-undo-redo-step-toggle
+uv run ms ux report core
+
 # Note: `ms run` / `ms web` auto-start a headless `oc-bridge` (dev) using `config.toml` ports.
 # For WASM, use the printed URL (it includes `bridgeWsPort=...`).
 
