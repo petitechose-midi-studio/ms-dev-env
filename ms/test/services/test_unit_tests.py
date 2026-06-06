@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from ms.core.result import Err
+from ms.core.result import Err, Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import detect
@@ -103,3 +103,41 @@ def test_ms_manager_targets_cover_svelte_node_and_tauri(tmp_path: Path) -> None:
     assert entries["ms-manager-node"] == "npm"
     assert entries["ms-manager-core"] == "cargo"
     assert entries["ms-manager-tauri"] == "cargo-check"
+
+
+def test_ms_dev_env_target_enables_strict_architecture_checks(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    service = UnitTestService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+    )
+    captured_env: dict[str, str] = {}
+
+    def fake_which(name: str) -> str | None:
+        return name if name == "uv" else None
+
+    monkeypatch.setattr(unit_tests.shutil, "which", fake_which)
+
+    def fake_run(
+        _cmd: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
+    ) -> Ok[str]:
+        del cwd, timeout
+        if env is not None:
+            captured_env.update(env)
+        return Ok("============================== 6 passed in 1.23s ==============================")
+
+    monkeypatch.setattr(unit_tests, "run", fake_run)
+
+    result = service.run(target="ms-dev-env")
+
+    assert not isinstance(result, Err)
+    assert captured_env["MS_ARCH_CHECKS"] == "1"
+    assert captured_env["MS_ARCH_STRICT"] == "1"
