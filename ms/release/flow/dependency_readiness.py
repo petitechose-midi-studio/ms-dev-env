@@ -18,6 +18,8 @@ from ms.release.infra.github.client import get_ref_head_sha
 class ReadinessRepository(Protocol):
     def exists(self) -> bool: ...
 
+    def fetch(self) -> Result[str, GitError]: ...
+
     def status(self) -> Result[GitStatus, GitError]: ...
 
     def current_branch(self) -> str | None: ...
@@ -35,6 +37,8 @@ def assess_dependency_readiness(
     graph: ReleaseGraph,
     repo_factory: RepoFactory = Repository,
     fetchable_checker: FetchableChecker | None = None,
+    enforce_expected_branch: bool = False,
+    refresh_remotes: bool = False,
 ) -> DependencyReadinessReport:
     def default_fetchable_checker(repo: str, sha: str) -> Result[bool, ReleaseError]:
         return is_commit_fetchable(
@@ -53,6 +57,8 @@ def assess_dependency_readiness(
             node=node,
             repo_factory=repo_factory,
             fetchable_checker=checker,
+            enforce_expected_branch=enforce_expected_branch,
+            refresh_remotes=refresh_remotes,
         )
 
         blocked_by = [
@@ -93,6 +99,8 @@ def _assess_node(
     node: ReleaseGraphNode,
     repo_factory: RepoFactory,
     fetchable_checker: FetchableChecker,
+    enforce_expected_branch: bool,
+    refresh_remotes: bool,
 ) -> DependencyReadinessItem:
     path = workspace_root / node.local_path
     repo = repo_factory(path)
@@ -105,6 +113,18 @@ def _assess_node(
             detail=f"repository is unavailable: {path}",
             hint="Run: uv run ms sync --repos",
         )
+
+    if refresh_remotes:
+        fetched = repo.fetch()
+        if isinstance(fetched, Err):
+            return DependencyReadinessItem(
+                node_id=node.id,
+                repo=node.repo,
+                path=path,
+                status="repo_failed",
+                detail=fetched.error.message,
+                hint=f"Fetch repository before promotion: git -C {path} fetch",
+            )
 
     status = repo.status()
     if isinstance(status, Err):
@@ -154,6 +174,23 @@ def _assess_node(
             hint="Checkout a branch or explicitly promote a published SHA in a later guided flow.",
         )
 
+    expected_branch = node.expected_branch if enforce_expected_branch else None
+    if expected_branch is not None and branch != expected_branch:
+        return DependencyReadinessItem(
+            node_id=node.id,
+            repo=node.repo,
+            path=path,
+            status="wrong_branch",
+            sha=sha,
+            branch=branch,
+            detail=f"branch {branch} is not release branch {expected_branch}",
+            hint=(
+                "Merge this branch if its changes are required, then switch to the "
+                f"release branch before promotion: "
+                f"git -C {path} switch {expected_branch}"
+            ),
+        )
+
     if status.value.upstream is None:
         return DependencyReadinessItem(
             node_id=node.id,
@@ -166,6 +203,22 @@ def _assess_node(
             hint=f"Set an upstream or push the branch: git -C {path} push -u origin {branch}",
         )
 
+    expected_upstream = f"origin/{expected_branch}" if expected_branch is not None else None
+    if expected_upstream is not None and status.value.upstream != expected_upstream:
+        return DependencyReadinessItem(
+            node_id=node.id,
+            repo=node.repo,
+            path=path,
+            status="wrong_upstream",
+            sha=sha,
+            branch=branch,
+            detail=f"{branch} tracks {status.value.upstream}, expected {expected_upstream}",
+            hint=(
+                f"Track the canonical release branch before promotion: "
+                f"git -C {path} branch --set-upstream-to={expected_upstream} {branch}"
+            ),
+        )
+
     if status.value.ahead and status.value.behind:
         return DependencyReadinessItem(
             node_id=node.id,
@@ -176,6 +229,21 @@ def _assess_node(
             branch=branch,
             detail=f"{branch} is ahead {status.value.ahead} and behind {status.value.behind}",
             hint=f"Resolve divergence before promotion: git -C {path} status",
+        )
+
+    if expected_branch is not None and status.value.ahead:
+        return DependencyReadinessItem(
+            node_id=node.id,
+            repo=node.repo,
+            path=path,
+            status="ahead_remote",
+            sha=sha,
+            branch=branch,
+            detail=f"{branch} is ahead of {status.value.upstream} by {status.value.ahead}",
+            hint=(
+                "Publish and merge this repository's release branch before promotion, "
+                "then rerun: uv run ms release dependencies --dry-run"
+            ),
         )
 
     fetchable = fetchable_checker(node.repo, sha)

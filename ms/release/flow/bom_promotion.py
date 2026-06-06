@@ -61,7 +61,7 @@ def promote_open_control_bom(
     applied = apply_bom_promotion(
         workspace_root=workspace_root,
         core_root=prepared.value.core_root,
-        plan=prepared.value.preview.plan,
+        preview=prepared.value.preview,
         core_pin_plan=prepared.value.core_pin_plan,
         console=console,
         dry_run=dry_run,

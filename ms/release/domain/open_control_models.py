@@ -80,6 +80,7 @@ class OpenControlPreflightReport:
 
 
 BomComparisonStatus = Literal["aligned", "promotion_required", "blocked"]
+BomPromotionSource = Literal["workspace", "github"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +110,7 @@ class BomPromotionItem:
 
 @dataclass(frozen=True, slots=True)
 class BomPromotionPlan:
-    source: Literal["workspace"]
+    source: BomPromotionSource
     current_version: str
     next_version: str
     items: tuple[BomPromotionItem, ...]

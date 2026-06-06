@@ -12,6 +12,7 @@ from ms.release.domain.open_control_models import (
     OpenControlRepoState,
 )
 from ms.release.flow.bom import (
+    collect_github_bom_state,
     collect_workspace_bom_state,
     compare_bom_state,
     load_bom_lock_from_file,
@@ -20,6 +21,7 @@ from ms.release.flow.bom import (
     sync_bom_files,
     verify_bom_files,
 )
+from ms.release.flow.bom_workflow import plan_github_bom_sync
 
 
 def _lock(version: str, sha_prefix: str) -> OcSdkLock:
@@ -70,6 +72,50 @@ def test_collect_workspace_bom_state_includes_note(tmp_path: Path) -> None:
     repos = collect_workspace_bom_state(workspace_root=workspace_root)
     assert isinstance(repos, Ok)
     assert tuple(repo.repo for repo in repos.value) == OPEN_CONTROL_BOM_REPOS
+
+
+def test_collect_github_bom_state_uses_remote_refs_without_local_repos(tmp_path: Path) -> None:
+    def resolve(repo: str, ref: str) -> Ok[str]:
+        index = OPEN_CONTROL_BOM_REPOS.index(repo.removeprefix("open-control/")) + 1
+        assert ref == "main"
+        return Ok(f"{index:x}" * 40)
+
+    repos = collect_github_bom_state(workspace_root=tmp_path, ref_resolver=resolve)
+
+    assert isinstance(repos, Ok)
+    assert tuple(repo.repo for repo in repos.value) == OPEN_CONTROL_BOM_REPOS
+    assert all(repo.exists for repo in repos.value)
+    assert all(not repo.dirty for repo in repos.value)
+    assert repos.value[0].head_sha == "1" * 40
+
+
+def test_plan_github_bom_sync_uses_remote_refs_instead_of_workspace(tmp_path: Path) -> None:
+    core_root = tmp_path / "midi-studio" / "core"
+    core_root.mkdir(parents=True)
+    current_lock = _lock("0.1.2", "a")
+    initial_plan = plan_bom_promotion(
+        current_lock=current_lock,
+        workspace_repos=_workspace_repos(current_lock),
+    )
+    assert isinstance(initial_plan, Ok)
+    written = sync_bom_files(core_root=core_root, plan=initial_plan.value)
+    assert isinstance(written, Ok)
+
+    def resolve(repo: str, ref: str) -> Ok[str]:
+        assert repo.startswith("open-control/")
+        assert ref == "main"
+        repo_name = repo.removeprefix("open-control/")
+        current = current_lock.pins_by_repo()[repo_name]
+        return Ok(("b" + current[1:]) if repo_name == "note" else current)
+
+    plan = plan_github_bom_sync(workspace_root=tmp_path, ref_resolver=resolve)
+
+    assert isinstance(plan, Ok)
+    assert plan.value.plan.source == "github"
+    note_item = next(item for item in plan.value.plan.items if item.repo == "note")
+    assert note_item.from_sha == current_lock.pins_by_repo()["note"]
+    assert note_item.to_sha == "b" + current_lock.pins_by_repo()["note"][1:]
+    assert plan.value.plan.requires_write
 
 
 def test_load_bom_lock_from_file_parses_note_pin(tmp_path: Path) -> None:

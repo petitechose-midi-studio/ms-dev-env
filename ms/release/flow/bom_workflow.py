@@ -13,6 +13,8 @@ from ms.release.domain.open_control_models import (
 )
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom import (
+    RefResolver,
+    collect_github_bom_state,
     collect_workspace_bom_state,
     compare_bom_state,
     load_bom_state_from_core,
@@ -84,6 +86,49 @@ def inspect_workspace_bom(
     )
 
 
+def inspect_github_bom(
+    *,
+    workspace_root: Path,
+    ref_resolver: RefResolver | None = None,
+) -> Result[BomWorkspaceState, ReleaseError]:
+    core_root = workspace_root / "midi-studio" / "core"
+    if not core_root.is_dir():
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="midi-studio/core workspace missing",
+                hint="Run: uv run ms sync --repos",
+            )
+        )
+
+    state = load_bom_state_from_core(core_root=core_root)
+    if isinstance(state, Err):
+        return state
+
+    github_repos = collect_github_bom_state(
+        workspace_root=workspace_root,
+        ref_resolver=ref_resolver,
+    )
+    if isinstance(github_repos, Err):
+        return github_repos
+
+    bom_lock, derived_lock = state.value
+    comparison = compare_bom_state(
+        bom_lock=bom_lock,
+        workspace_repos=github_repos.value,
+        derived_lock=derived_lock,
+        allow_dirty_workspace=False,
+    )
+    return Ok(
+        BomWorkspaceState(
+            core_root=core_root,
+            bom_lock=bom_lock,
+            derived_lock=derived_lock,
+            comparison=comparison,
+        )
+    )
+
+
 def plan_workspace_bom_sync(
     *, workspace_root: Path, allow_dirty_workspace: bool = False
 ) -> Result[BomSyncPreview, ReleaseError]:
@@ -109,12 +154,65 @@ def plan_workspace_bom_sync(
     return Ok(BomSyncPreview(state=inspected.value, plan=plan.value))
 
 
+def plan_github_bom_sync(
+    *,
+    workspace_root: Path,
+    ref_resolver: RefResolver | None = None,
+) -> Result[BomSyncPreview, ReleaseError]:
+    inspected = inspect_github_bom(
+        workspace_root=workspace_root,
+        ref_resolver=ref_resolver,
+    )
+    if isinstance(inspected, Err):
+        return inspected
+
+    github_repos = collect_github_bom_state(
+        workspace_root=workspace_root,
+        ref_resolver=ref_resolver,
+    )
+    if isinstance(github_repos, Err):
+        return github_repos
+
+    plan = plan_bom_promotion(
+        current_lock=inspected.value.bom_lock,
+        workspace_repos=github_repos.value,
+        allow_dirty_workspace=False,
+        source="github",
+    )
+    if isinstance(plan, Err):
+        return plan
+
+    return Ok(BomSyncPreview(state=inspected.value, plan=plan.value))
+
+
 def verify_workspace_bom_files(
     *, workspace_root: Path, allow_dirty_workspace: bool = False
 ) -> Result[BomWorkspaceState, ReleaseError]:
     inspected = inspect_workspace_bom(
         workspace_root=workspace_root,
         allow_dirty_workspace=allow_dirty_workspace,
+    )
+    if isinstance(inspected, Err):
+        return inspected
+
+    verified = verify_bom_files(
+        bom_lock=inspected.value.bom_lock,
+        derived_lock=inspected.value.derived_lock,
+    )
+    if isinstance(verified, Err):
+        return verified
+
+    return inspected
+
+
+def verify_github_bom_files(
+    *,
+    workspace_root: Path,
+    ref_resolver: RefResolver | None = None,
+) -> Result[BomWorkspaceState, ReleaseError]:
+    inspected = inspect_github_bom(
+        workspace_root=workspace_root,
+        ref_resolver=ref_resolver,
     )
     if isinstance(inspected, Err):
         return inspected

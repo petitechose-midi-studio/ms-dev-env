@@ -22,9 +22,15 @@ class _FakeRepo:
     )
     branch: str | None = "main"
     sha: str = "a" * 40
+    fetch_error: GitError | None = None
 
     def exists(self) -> bool:
         return self.present
+
+    def fetch(self) -> Result[str, GitError]:
+        if self.fetch_error is not None:
+            return Err(self.fetch_error)
+        return Ok("")
 
     def status(self) -> Result[GitStatus, GitError]:
         if isinstance(self.repo_status, GitError):
@@ -82,6 +88,163 @@ def test_assess_dependency_readiness_returns_ready_when_repos_are_clean_and_fetc
     assert report.is_ready
     assert [item.status for item in report.items] == ["ok", "ok"]
     assert report.by_node_id()["core"].sha == "b" * 40
+
+
+def test_assess_dependency_readiness_allows_feature_branch_without_branch_policy(
+    tmp_path: Path,
+) -> None:
+    feature = GitStatus(branch="feature/demo", upstream="origin/feature/demo")
+
+    report = assess_dependency_readiness(
+        workspace_root=tmp_path,
+        graph=ReleaseGraph(
+            nodes=(
+                ReleaseGraphNode(
+                    id="oc-framework",
+                    repo="open-control/framework",
+                    local_path="open-control/framework",
+                    role="bom_dependency",
+                    expected_branch="main",
+                ),
+            )
+        ),
+        repo_factory=_factory(
+            {
+                "framework": _FakeRepo(
+                    repo_status=feature,
+                    branch="feature/demo",
+                )
+            }
+        ),
+        fetchable_checker=_fetchable,
+    )
+
+    assert report.is_ready
+    assert report.by_node_id()["oc-framework"].status == "ok"
+
+
+def test_assess_dependency_readiness_blocks_feature_branch_when_policy_is_enforced(
+    tmp_path: Path,
+) -> None:
+    feature = GitStatus(branch="feature/demo", upstream="origin/feature/demo")
+
+    report = assess_dependency_readiness(
+        workspace_root=tmp_path,
+        graph=ReleaseGraph(
+            nodes=(
+                ReleaseGraphNode(
+                    id="oc-framework",
+                    repo="open-control/framework",
+                    local_path="open-control/framework",
+                    role="bom_dependency",
+                    expected_branch="main",
+                ),
+            )
+        ),
+        repo_factory=_factory(
+            {
+                "framework": _FakeRepo(
+                    repo_status=feature,
+                    branch="feature/demo",
+                )
+            }
+        ),
+        fetchable_checker=_fetchable,
+        enforce_expected_branch=True,
+    )
+
+    item = report.by_node_id()["oc-framework"]
+    assert not report.is_ready
+    assert item.status == "wrong_branch"
+    assert item.detail == "branch feature/demo is not release branch main"
+
+
+def test_assess_dependency_readiness_blocks_non_canonical_release_upstream(
+    tmp_path: Path,
+) -> None:
+    fork_main = GitStatus(branch="main", upstream="fork/main")
+
+    report = assess_dependency_readiness(
+        workspace_root=tmp_path,
+        graph=ReleaseGraph(
+            nodes=(
+                ReleaseGraphNode(
+                    id="oc-framework",
+                    repo="open-control/framework",
+                    local_path="open-control/framework",
+                    role="bom_dependency",
+                    expected_branch="main",
+                ),
+            )
+        ),
+        repo_factory=_factory({"framework": _FakeRepo(repo_status=fork_main)}),
+        fetchable_checker=_fetchable,
+        enforce_expected_branch=True,
+    )
+
+    item = report.by_node_id()["oc-framework"]
+    assert not report.is_ready
+    assert item.status == "wrong_upstream"
+    assert item.detail == "main tracks fork/main, expected origin/main"
+
+
+def test_assess_dependency_readiness_blocks_release_branch_ahead_of_remote(
+    tmp_path: Path,
+) -> None:
+    ahead = GitStatus(branch="main", upstream="origin/main", ahead=1)
+
+    report = assess_dependency_readiness(
+        workspace_root=tmp_path,
+        graph=ReleaseGraph(
+            nodes=(
+                ReleaseGraphNode(
+                    id="oc-framework",
+                    repo="open-control/framework",
+                    local_path="open-control/framework",
+                    role="bom_dependency",
+                    expected_branch="main",
+                ),
+            )
+        ),
+        repo_factory=_factory({"framework": _FakeRepo(repo_status=ahead)}),
+        fetchable_checker=_fetchable,
+        enforce_expected_branch=True,
+    )
+
+    item = report.by_node_id()["oc-framework"]
+    assert not report.is_ready
+    assert item.status == "ahead_remote"
+    assert item.detail == "main is ahead of origin/main by 1"
+
+
+def test_assess_dependency_readiness_can_refresh_remotes_before_status(
+    tmp_path: Path,
+) -> None:
+    fetch_error = GitError(command="fetch", message="network failed")
+
+    report = assess_dependency_readiness(
+        workspace_root=tmp_path,
+        graph=ReleaseGraph(
+            nodes=(
+                ReleaseGraphNode(
+                    id="oc-framework",
+                    repo="open-control/framework",
+                    local_path="open-control/framework",
+                    role="bom_dependency",
+                    expected_branch="main",
+                ),
+            )
+        ),
+        repo_factory=_factory({"framework": _FakeRepo(fetch_error=fetch_error)}),
+        fetchable_checker=_fetchable,
+        enforce_expected_branch=True,
+        refresh_remotes=True,
+    )
+
+    item = report.by_node_id()["oc-framework"]
+    assert not report.is_ready
+    assert item.status == "repo_failed"
+    assert item.detail == "network failed"
 
 
 def test_assess_dependency_readiness_blocks_dependents_when_dependency_is_dirty(

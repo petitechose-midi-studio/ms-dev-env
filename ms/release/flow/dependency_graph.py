@@ -178,6 +178,7 @@ def _parse_node(
             repo=repo,
             local_path=spec.path,
             role=cast("ReleaseGraphRole", role),
+            expected_branch=spec.branch,
             depends_on=depends_on.value,
             validations=validations.value,
         )

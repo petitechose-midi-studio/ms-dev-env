@@ -15,7 +15,7 @@ from ms.release.domain.dependency_readiness_models import (
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import promote_open_control_bom
 from ms.release.flow.bom_validation import validate_workspace_dev_targets
-from ms.release.flow.bom_workflow import plan_workspace_bom_sync
+from ms.release.flow.bom_workflow import plan_github_bom_sync
 from ms.release.flow.core_dependency_pins import (
     CoreDependencyPinPlan,
     plan_core_dependency_pin_sync,
@@ -93,7 +93,7 @@ def run_dependencies_release(
     if isinstance(graph, Err):
         return graph
 
-    console.print("Checking pushed heads for every dependency repo", Style.DIM)
+    console.print("Checking release-branch heads for every dependency repo", Style.DIM)
     readiness = _assess_guided_readiness(workspace_root=workspace_root, graph=graph.value)
     print_dependency_readiness_report(console=console, report=readiness)
     if not readiness.is_ready:
@@ -118,13 +118,14 @@ def run_dependencies_release(
             return dev_validated
 
     console.print("Planning core dependency promotion", Style.DIM)
-    preview = plan_workspace_bom_sync(workspace_root=workspace_root)
+    preview = plan_github_bom_sync(workspace_root=workspace_root)
     if isinstance(preview, Err):
         return preview
 
     core_pin_plan = plan_core_dependency_pin_sync(
         workspace_root=workspace_root,
         core_root=preview.value.state.core_root,
+        source="github",
     )
     if isinstance(core_pin_plan, Err):
         return core_pin_plan
@@ -142,6 +143,7 @@ def run_dependencies_release(
         )
 
     console.header("BOM promotion plan")
+    console.print(f"source: {preview.value.plan.source}", Style.DIM)
     console.print(
         f"version: {preview.value.plan.current_version} -> {preview.value.plan.next_version}",
         Style.DIM,
@@ -287,11 +289,22 @@ def _assess_guided_readiness(
                 repo=MS_REPO_SLUG,
                 local_path=".",
                 role="release_producer",
+                expected_branch="main",
             ),
         )
     )
-    tooling = assess_dependency_readiness(workspace_root=workspace_root, graph=tooling_graph)
-    dependencies = assess_dependency_readiness(workspace_root=workspace_root, graph=graph)
+    tooling = assess_dependency_readiness(
+        workspace_root=workspace_root,
+        graph=tooling_graph,
+        enforce_expected_branch=True,
+        refresh_remotes=True,
+    )
+    dependencies = assess_dependency_readiness(
+        workspace_root=workspace_root,
+        graph=graph,
+        enforce_expected_branch=True,
+        refresh_remotes=True,
+    )
     return DependencyReadinessReport(items=(*tooling.items, *dependencies.items))
 
 

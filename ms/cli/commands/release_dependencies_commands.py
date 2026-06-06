@@ -25,7 +25,7 @@ def dependencies_cmd(
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without mutating."),
 ) -> None:
-    """Check pushed dependency heads and optionally promote core dependency pins."""
+    """Check release-branch dependency heads and optionally promote core dependency pins."""
 
     ctx = build_context()
     run = run_dependencies_release(

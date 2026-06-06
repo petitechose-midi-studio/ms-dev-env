@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -8,6 +9,7 @@ from ms.release.domain.open_control_models import (
     OPEN_CONTROL_NATIVE_CI_REPOS,
     BomPromotionItem,
     BomPromotionPlan,
+    BomPromotionSource,
     BomRepoState,
     BomStateComparison,
     DerivedBomLock,
@@ -18,6 +20,7 @@ from ms.release.domain.open_control_models import (
 )
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_native_ci import load_native_ci_bom as load_native_ci_bom_from_files
+from ms.release.infra.github.client import get_ref_head_sha
 from ms.release.infra.open_control import (
     OC_SDK_LOCK_FILE,
     collect_open_control_repos,
@@ -29,11 +32,39 @@ from ms.release.infra.open_control_writer import (
     write_oc_sdk_ini,
 )
 
+RefResolver = Callable[[str, str], Result[str, ReleaseError]]
+GITHUB_BOM_REF = "main"
+
 
 def collect_workspace_bom_state(
     *, workspace_root: Path
 ) -> Result[tuple[OpenControlRepoState, ...], ReleaseError]:
     return Ok(collect_open_control_repos(workspace_root=workspace_root))
+
+
+def collect_github_bom_state(
+    *,
+    workspace_root: Path,
+    ref: str = GITHUB_BOM_REF,
+    ref_resolver: RefResolver | None = None,
+) -> Result[tuple[OpenControlRepoState, ...], ReleaseError]:
+    resolver = ref_resolver or _github_ref_resolver(workspace_root=workspace_root)
+    states: list[OpenControlRepoState] = []
+    for repo in OPEN_CONTROL_BOM_REPOS:
+        slug = f"open-control/{repo}"
+        resolved = resolver(slug, ref)
+        if isinstance(resolved, Err):
+            return resolved
+        states.append(
+            OpenControlRepoState(
+                repo=repo,
+                path=workspace_root / "open-control" / repo,
+                exists=True,
+                head_sha=resolved.value,
+                dirty=False,
+            )
+        )
+    return Ok(tuple(states))
 
 
 def load_bom_lock_from_file(*, path: Path) -> Result[OcSdkLock, ReleaseError]:
@@ -125,6 +156,7 @@ def plan_bom_promotion(
     current_lock: OcSdkLock,
     workspace_repos: tuple[OpenControlRepoState, ...],
     allow_dirty_workspace: bool = False,
+    source: BomPromotionSource = "workspace",
 ) -> Result[BomPromotionPlan, ReleaseError]:
     workspace_by_repo = {repo.repo: repo for repo in workspace_repos}
     current_pins = current_lock.pins_by_repo()
@@ -170,7 +202,7 @@ def plan_bom_promotion(
     )
     return Ok(
         BomPromotionPlan(
-            source="workspace",
+            source=source,
             current_version=current_lock.version,
             next_version=next_version,
             items=tuple(items),
@@ -279,3 +311,10 @@ def _dedupe_preserve_order(items: list[str]) -> list[str]:
         seen.add(item)
         result.append(item)
     return result
+
+
+def _github_ref_resolver(*, workspace_root: Path) -> RefResolver:
+    def resolve(repo: str, ref: str) -> Result[str, ReleaseError]:
+        return get_ref_head_sha(workspace_root=workspace_root, repo=repo, ref=ref)
+
+    return resolve

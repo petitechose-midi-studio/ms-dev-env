@@ -111,7 +111,7 @@ def test_promote_open_control_bom_returns_already_merged_when_no_write_needed(
     def fake_ok_none(**_: object) -> Ok[None]:
         return Ok(None)
 
-    def fake_plan_workspace_bom_sync(**_: object) -> Ok[BomSyncPreview]:
+    def fake_plan_github_bom_sync(**_: object) -> Ok[BomSyncPreview]:
         return Ok(preview)
 
     def fake_get_ref_head_sha(**_: object) -> Ok[str]:
@@ -120,7 +120,7 @@ def test_promote_open_control_bom_returns_already_merged_when_no_write_needed(
     monkeypatch.setattr(promotion_steps, "ensure_core_repo", fake_ensure_core_repo)
     monkeypatch.setattr(promotion_steps, "ensure_clean_core_repo", fake_ok_none)
     monkeypatch.setattr(promotion_steps, "core_checkout_main_and_pull", fake_ok_none)
-    monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(promotion_steps, "plan_github_bom_sync", fake_plan_github_bom_sync)
     monkeypatch.setattr(
         promotion_steps,
         "plan_core_dependency_pin_sync",
@@ -184,20 +184,24 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
         calls.append("pull")
         return Ok(None)
 
-    def fake_plan_workspace_bom_sync(**_: object) -> Ok[BomSyncPreview]:
+    def fake_plan_github_bom_sync(**_: object) -> Ok[BomSyncPreview]:
         return Ok(preview)
 
     def fake_core_create_branch(*, branch: str, **_: object) -> Ok[None]:
         calls.append(f"branch:{branch}")
         return Ok(None)
 
-    def fake_sync_workspace_bom(**_: object) -> Ok[BomSyncResult]:
+    def fake_sync_bom_files(**_: object) -> Ok[tuple[Path, ...]]:
         calls.append("sync")
-        return Ok(synced)
+        return Ok(written)
 
-    def fake_sync_core_dependency_pins(**_: object) -> Ok[CoreDependencyPinSyncResult]:
+    def fake_sync_core_dependency_pin_plan(**_: object) -> Ok[CoreDependencyPinSyncResult]:
         calls.append("pins")
         return Ok(CoreDependencyPinSyncResult(plan=_core_pin_plan(), written=()))
+
+    def fake_verify_github_bom_files(**_: object) -> Ok[BomWorkspaceState]:
+        calls.append("verify")
+        return Ok(synced.after)
 
     def fake_validate_workspace_bom_targets(**_: object) -> Ok[tuple[object, ...]]:
         calls.append("validate")
@@ -226,19 +230,20 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
         "core_checkout_main_and_pull",
         fake_core_checkout_main_and_pull,
     )
-    monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(promotion_steps, "plan_github_bom_sync", fake_plan_github_bom_sync)
     monkeypatch.setattr(
         promotion_steps,
         "plan_core_dependency_pin_sync",
         _fake_core_pin_plan,
     )
     monkeypatch.setattr(promotion_steps, "core_create_branch", fake_core_create_branch)
-    monkeypatch.setattr(promotion_steps, "sync_workspace_bom", fake_sync_workspace_bom)
+    monkeypatch.setattr(promotion_steps, "sync_bom_files", fake_sync_bom_files)
     monkeypatch.setattr(
         promotion_steps,
-        "sync_core_dependency_pins",
-        fake_sync_core_dependency_pins,
+        "sync_core_dependency_pin_plan",
+        fake_sync_core_dependency_pin_plan,
     )
+    monkeypatch.setattr(promotion_steps, "verify_github_bom_files", fake_verify_github_bom_files)
     monkeypatch.setattr(
         promotion_steps,
         "validate_workspace_bom_targets",
@@ -267,6 +272,7 @@ def test_promote_open_control_bom_creates_and_merges_core_pr(
         "pull",
         "sync",
         "pins",
+        "verify",
         "validate",
         "branch:release/oc-sdk-v0.1.4-99999999",
         "commit:release(core): promote OpenControl BOM to v0.1.4",
@@ -318,10 +324,10 @@ def test_promote_open_control_bom_restores_main_when_sync_fails(
         calls.append("pull")
         return Ok(None)
 
-    def fake_plan_workspace_bom_sync(**_: object) -> Ok[BomSyncPreview]:
+    def fake_plan_github_bom_sync(**_: object) -> Ok[BomSyncPreview]:
         return Ok(preview)
 
-    def fake_sync_workspace_bom(**_: object) -> Err[ReleaseError]:
+    def fake_sync_bom_files(**_: object) -> Err[ReleaseError]:
         calls.append("sync")
         (core_root / "oc-sdk.ini").write_text("new sdk\n", encoding="utf-8")
         (core_root / "oc-native-sdk.ini").write_text("new native\n", encoding="utf-8")
@@ -340,13 +346,13 @@ def test_promote_open_control_bom_restores_main_when_sync_fails(
         "core_checkout_main_and_pull",
         fake_core_checkout_main_and_pull,
     )
-    monkeypatch.setattr(promotion_steps, "plan_workspace_bom_sync", fake_plan_workspace_bom_sync)
+    monkeypatch.setattr(promotion_steps, "plan_github_bom_sync", fake_plan_github_bom_sync)
     monkeypatch.setattr(
         promotion_steps,
         "plan_core_dependency_pin_sync",
         _fake_core_pin_plan,
     )
-    monkeypatch.setattr(promotion_steps, "sync_workspace_bom", fake_sync_workspace_bom)
+    monkeypatch.setattr(promotion_steps, "sync_bom_files", fake_sync_bom_files)
 
     result = promote_open_control_bom(
         workspace_root=tmp_path,
