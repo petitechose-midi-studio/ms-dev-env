@@ -30,7 +30,7 @@ ux_app = typer.Typer(
 
 @dataclass(frozen=True, slots=True)
 class _TreeChoice:
-    kind: Literal["folder", "file"]
+    kind: Literal["current", "folder", "file"]
     path: str
 
 
@@ -297,33 +297,41 @@ def _select_workflow_tree(
         files = service.workflows_in(catalog, current)
         options = [
             SelectorOption(
-                value=_TreeChoice(kind="folder", path=group.path),
-                label=f"{Path(group.path).name}/",
-                detail=f"{group.workflow_count} workflow(s)",
-            )
-            for group in groups
+                value=_TreeChoice(kind="current", path=current or "."),
+                label="./",
+                detail=f"Selected: {current or '.'} | Workflows: {count}",
+            ),
+            *[
+                SelectorOption(
+                    value=_TreeChoice(kind="folder", path=group.path),
+                    label=f"{Path(group.path).name}/",
+                    detail=f"Selected: {group.path}/ | Workflows: {group.workflow_count}",
+                )
+                for group in groups
+            ],
         ]
         options.extend(
             SelectorOption(
                 value=_TreeChoice(kind="file", path=workflow.relative_path),
                 label=workflow.name,
-                detail=workflow.relative_path,
+                detail=f"Selected: {workflow.relative_path} | Workflows: 1",
             )
             for workflow in files
         )
-        if not options:
-            return current or "."
 
         label = catalog.app.name if not current else f"{catalog.app.name}/{current}"
         result = select_one_with_run(
             title=f"ms ux {verb}",
-            subtitle=f"{label} - {count} workflow(s). Enter opens, r runs current selection.",
+            subtitle=(
+                f"Current: {label} | Workflows: {count}. "
+                "Enter opens folders/files; Ctrl+Enter/r runs highlighted."
+            ),
             options=options,
             allow_back=True,
-            run_current_label=f"{verb} current ({count})",
+            run_current_label=f"{verb} highlighted",
         )
         if result.action == "run":
-            return current or "."
+            return result.value.path if result.value is not None else current or "."
         if result.action == "cancel":
             return None
         if result.action == "back":
@@ -333,6 +341,8 @@ def _select_workflow_tree(
             continue
         if result.value is None:
             return None
+        if result.value.kind == "current":
+            return result.value.path
         if result.value.kind == "folder":
             current = result.value.path
             continue

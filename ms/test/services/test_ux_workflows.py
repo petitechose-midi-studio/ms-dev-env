@@ -38,7 +38,11 @@ def _ok[T, E](value: Ok[T] | Err[E]) -> T:
 def test_catalog_discovers_nested_workflows_and_prints_tree(tmp_path: Path) -> None:
     _write_workflow(tmp_path, "sequencer/undo/step-toggle.ux")
     _write_workflow(tmp_path, "sequencer/undo/quick-controls.ux")
-    _write_workflow(tmp_path, "overlay-exclusivity.ux")
+    _write_workflow(
+        tmp_path,
+        "overlay-exclusivity.ux",
+        "# Expect: overlay_exclusive, playhead_progress\n10 capture screen first\n",
+    )
 
     service = _service(tmp_path)
     catalog = _ok(service.catalog("core"))
@@ -56,7 +60,7 @@ def test_catalog_discovers_nested_workflows_and_prints_tree(tmp_path: Path) -> N
         "|   `-- undo/ (2)",
         "|       |-- quick-controls.ux",
         "|       `-- step-toggle.ux",
-        "`-- overlay-exclusivity.ux",
+        "`-- overlay-exclusivity.ux expects=overlay_exclusive,playhead_progress",
     )
 
 

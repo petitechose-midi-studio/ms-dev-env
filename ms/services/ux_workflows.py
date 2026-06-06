@@ -539,7 +539,26 @@ def _append_tree_lines(
             next_indent = indent + ("    " if index == len(entries) - 1 else "|   ")
             _append_tree_lines(lines, workflows=workflows, parent=path, indent=next_indent)
         else:
-            lines.append(f"{indent}{branch}{Path(path).name}")
+            workflow = next(item for item in workflows if item.relative_path == path)
+            tags = _expectation_suffix(_workflow_expectations(workflow.path))
+            lines.append(f"{indent}{branch}{Path(path).name}{tags}")
+
+
+def _expectation_suffix(expectations: tuple[str, ...]) -> str:
+    if not expectations:
+        return ""
+    labels: list[str] = []
+    capture_matches = 0
+    for expectation in expectations:
+        if expectation.startswith("capture_match:"):
+            capture_matches += 1
+            continue
+        labels.append(expectation)
+    if capture_matches == 1:
+        labels.append("capture_match:*")
+    elif capture_matches > 1:
+        labels.append(f"capture_match:*x{capture_matches}")
+    return f" expects={','.join(labels)}"
 
 
 def _selected_workflows(

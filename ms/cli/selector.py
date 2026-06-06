@@ -62,8 +62,10 @@ def _read_key() -> str:
         import msvcrt
 
         ch = msvcrt.getwch()
-        if ch in ("\r", "\n"):
+        if ch == "\r":
             return "enter"
+        if ch == "\n":
+            return "run"
         if ch in ("r", "R"):
             return "run"
         if ch in ("\x08", "\x7f"):
@@ -89,7 +91,7 @@ def _read_key() -> str:
         ch = sys.stdin.read(1)
         if ch in ("\r", "\n"):
             return "enter"
-        if ch in ("\x12", "r", "R"):
+        if ch in ("r", "R"):
             return "run"
         if ch in ("\x08", "\x7f"):
             return "back"
@@ -103,6 +105,11 @@ def _read_key() -> str:
                     return "up"
                 if c3 == "B":
                     return "down"
+                seq = c3
+                while len(seq) < 16 and seq[-1:] not in {"u", "~"}:
+                    seq += sys.stdin.read(1)
+                if seq in {"13;5u", "13;5~"}:
+                    return "run"
             return "cancel"
         return "other"
     finally:
@@ -290,7 +297,7 @@ def _render(
         + ": cancel"
     )
     if run_current_label is not None:
-        keys_line += ", " + _paint("r", "1", "97") + f": {run_current_label}"
+        keys_line += ", " + _paint("Ctrl+Enter/r", "1", "97") + f": {run_current_label}"
     print(keys_line)
     sys.stdout.flush()
 
@@ -374,7 +381,8 @@ def _select_one[T](
             chosen = options[idx]
             return SelectorRunResult(action="select", value=chosen.value, index=idx)
         if key == "run" and run_current_label is not None:
-            return SelectorRunResult(action="run", value=None, index=idx)
+            chosen = options[idx]
+            return SelectorRunResult(action="run", value=chosen.value, index=idx)
         if key == "back" and allow_back:
             return SelectorRunResult(action="back", value=None, index=idx)
         if key == "cancel":

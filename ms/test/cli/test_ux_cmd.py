@@ -1,17 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 import typer
 
 from ms.cli.context import CLIContext
+from ms.cli.selector import SelectorOption, SelectorRunResult
 from ms.core.errors import ErrorCode
 from ms.core.result import Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import detect
-from ms.services.ux_workflows import UxWorkflow, UxWorkflowApp, UxWorkflowCatalog
+from ms.services.ux_workflows import (
+    UxWorkflow,
+    UxWorkflowApp,
+    UxWorkflowCatalog,
+    UxWorkflowGroup,
+)
 
 
 def _ctx(tmp_path: Path) -> CLIContext:
@@ -32,15 +39,19 @@ def _catalog(tmp_path: Path) -> UxWorkflowCatalog:
         output_root=tmp_path / "midi-studio" / "core" / ".captures" / "ux" / "workflows",
         executable=tmp_path / "bin" / "core" / "native" / "midi_studio_core.exe",
     )
+    workflows = (
+        UxWorkflow(path=app.workflow_dir / "overlay.ux", relative_path="overlay.ux"),
+        UxWorkflow(
+            path=app.workflow_dir / "sequencer" / "undo" / "step-toggle.ux",
+            relative_path="sequencer/undo/step-toggle.ux",
+        ),
+    )
+    for workflow in workflows:
+        workflow.path.parent.mkdir(parents=True, exist_ok=True)
+        workflow.path.write_text("10 capture screen first\n", encoding="utf-8")
     return UxWorkflowCatalog(
         app=app,
-        workflows=(
-            UxWorkflow(path=app.workflow_dir / "overlay.ux", relative_path="overlay.ux"),
-            UxWorkflow(
-                path=app.workflow_dir / "sequencer" / "undo" / "step-toggle.ux",
-                relative_path="sequencer/undo/step-toggle.ux",
-            ),
-        ),
+        workflows=workflows,
     )
 
 
@@ -148,6 +159,82 @@ def test_ux_run_passes_selection_to_service(
     )
 
     assert calls == [("core", ("sequencer/undo",), False)]
+
+
+def test_workflow_tree_run_shortcut_uses_highlighted_folder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import ms.cli.commands.ux as ux_cmd
+
+    ctx = _ctx(tmp_path)
+    catalog = _catalog(tmp_path)
+    calls: list[tuple[str, tuple[str, ...], bool]] = []
+    monkeypatch.setattr(ux_cmd, "build_context", lambda: ctx)
+    monkeypatch.setattr(ux_cmd, "is_interactive_terminal", lambda: True)
+
+    class FakeUxWorkflowService:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def catalog(self, app_name: str) -> Ok[UxWorkflowCatalog]:
+            assert app_name == "core"
+            return Ok(catalog)
+
+        def count_selection(self, catalog: UxWorkflowCatalog, selection: str) -> int:
+            del catalog
+            return 2 if selection in {".", "sequencer"} else 1
+
+        def groups(
+            self, catalog: UxWorkflowCatalog, parent: str = ""
+        ) -> tuple[UxWorkflowGroup, ...]:
+            del catalog
+            if parent:
+                return ()
+            return (UxWorkflowGroup(path="sequencer", workflow_count=1),)
+
+        def workflows_in(
+            self, catalog: UxWorkflowCatalog, parent: str = ""
+        ) -> tuple[UxWorkflow, ...]:
+            return tuple(
+                workflow
+                for workflow in catalog.workflows
+                if (not parent and "/" not in workflow.relative_path)
+                or workflow.relative_path.startswith(f"{parent}/")
+            )
+
+        def run(
+            self,
+            *,
+            app_name: str,
+            selections: tuple[str, ...],
+            all_workflows: bool,
+            skip_build: bool,
+            executable: Path | None,
+            output_root: Path | None,
+        ) -> Ok[tuple[object, ...]]:
+            del skip_build, executable, output_root
+            calls.append((app_name, selections, all_workflows))
+            return Ok(())
+
+    def fake_select_one_with_run(**kwargs: object) -> SelectorRunResult[object]:
+        options = cast(list[SelectorOption[object]], kwargs["options"])
+        assert options[0].label == "./"
+        assert options[1].label == "sequencer/"
+        return SelectorRunResult(action="run", value=options[1].value, index=1)
+
+    monkeypatch.setattr(ux_cmd, "UxWorkflowService", FakeUxWorkflowService)
+    monkeypatch.setattr(ux_cmd, "select_one_with_run", fake_select_one_with_run)
+
+    ux_cmd.run_cmd(
+        app_name="core",
+        select=None,
+        all_workflows=False,
+        report=False,
+        no_interactive=False,
+    )
+
+    assert calls == [("core", ("sequencer",), False)]
 
 
 def test_ux_report_defaults_to_all_workflows(
