@@ -44,13 +44,28 @@ command fails with the PR URL and the repository setting that must be fixed.
 For a fully unattended PR + terminal approval flow, the PR author and approver must be separate
 GitHub identities. The target architecture is:
 
-- a release GitHub App creates/pushes release branches and opens PRs;
+- the CLI pushes release branches, then a release GitHub App opens release PRs;
 - the maintainer account approves from the terminal;
 - GitHub auto-merges once required checks and reviews are satisfied;
 - interrupted releases are resumed by querying the open release PR.
 
 Until that release App is available to the local CLI, `ms release` uses the authenticated `gh` user
 for PR creation and can only approve PRs authored by another identity.
+
+When a release GitHub App is configured, `ms release` opens release PRs through the App installation
+token, then uses the active `gh` maintainer account to approve the PR if GitHub reports
+`REVIEW_REQUIRED`, and finally queues `gh pr merge --auto`. Configure the App locally with
+per-organization variables:
+
+- `MS_RELEASE_GITHUB_APP_ID_OPEN_CONTROL`
+- `MS_RELEASE_GITHUB_APP_PRIVATE_KEY_PATH_OPEN_CONTROL`
+- `MS_RELEASE_GITHUB_APP_ID_PETITECHOSE_MIDI_STUDIO`
+- `MS_RELEASE_GITHUB_APP_PRIVATE_KEY_PATH_PETITECHOSE_MIDI_STUDIO`
+
+The unsuffixed `MS_RELEASE_GITHUB_APP_ID` and `MS_RELEASE_GITHUB_APP_PRIVATE_KEY_PATH` variables are
+accepted as defaults, but per-organization values are preferred because the two GitHub organizations
+can use separate private Apps. The App must be installed on the target repositories and must be able
+to create pull requests. The maintainer account must remain a different identity from the App author.
 
 ## Typical commands
 
