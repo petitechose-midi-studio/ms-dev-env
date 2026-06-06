@@ -36,21 +36,36 @@ fetch, not an uncommitted or branch-local workspace state.
 Feature branches can still be used for development validation, but they are not promoted into
 `core/main` by the default dependency release flow.
 
-Release PR merges must respect GitHub branch protections. Repositories in the release graph have
-`Allow auto-merge` enabled, and the CLI requests `gh pr merge --auto`. The release tooling must not
-fall back to a direct/admin merge when auto-merge is unavailable. If GitHub cannot queue the PR, the
-command fails with the PR URL and the repository setting that must be fixed.
+Release PR merges must respect GitHub branch protections. Repositories in the release graph keep
+required status checks enabled and have `Allow auto-merge` enabled. The CLI requests
+`gh pr merge --auto`. The release tooling must not fall back to a direct/admin merge when auto-merge
+is unavailable. If GitHub cannot queue the PR, the command fails with the PR URL and the repository
+setting that must be fixed.
+
+While `petitechose-audio` is the only maintainer and the same identity authors release PRs, required
+approving reviews are intentionally disabled on `main`: GitHub cannot usefully enforce self-review,
+and requiring one would only force an admin bypass. The release safety contract is therefore:
+
+- no dirty or divergent dependency workspace;
+- release BOM/pins resolved from fetchable GitHub refs;
+- required status checks green;
+- PR-based merge through GitHub auto-merge.
+
+If another maintainer joins, or if release PRs are authored by a separate release GitHub App, required
+approving reviews can be re-enabled without changing the default release command. `ms release`
+already treats review approval as conditional: if GitHub reports `REVIEW_REQUIRED`, the command
+requires a valid approval from a different identity before the PR can merge.
 
 `ms test ms-dev-env` is the local preflight for tooling changes. It enables the same strict
 architecture checks that CI runs, so release tooling layering/import regressions fail locally before
 the branch is pushed. The dedicated CI architecture job remains as the remote double-check.
 
-For a fully unattended PR + terminal approval flow, the PR author and approver must be separate
-GitHub identities. The target architecture is:
+For a fully unattended PR + terminal approval flow with required reviews enabled, the PR author and
+approver must be separate GitHub identities. The target architecture is:
 
 - the CLI pushes release branches, then a release GitHub App opens release PRs;
 - the maintainer account approves from the terminal;
-- GitHub auto-merges once required checks and reviews are satisfied;
+- GitHub auto-merges once required checks, and required reviews if enabled, are satisfied;
 - interrupted releases are resumed by querying the open release PR.
 
 Until that release App is available to the local CLI, `ms release` uses the authenticated `gh` user
