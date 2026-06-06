@@ -153,7 +153,6 @@ def merge_pr(
         pr_url=pr_url,
         repo_label="core",
         delete_branch=True,
-        allow_auto_merge_fallback=True,
         console=console,
         dry_run=dry_run,
     )

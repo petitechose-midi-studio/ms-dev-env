@@ -123,7 +123,7 @@ def wait_until_merged(
                 "--repo",
                 repo_slug,
                 "--json",
-                "state,mergedAt",
+                "state,mergedAt,reviewDecision,autoMergeRequest",
             ],
             cwd=workspace_root,
             timeout=GH_TIMEOUT_SECONDS,
@@ -149,6 +149,20 @@ def wait_until_merged(
         )
         if merged:
             return Ok(None)
+
+        review_decision = parsed.value.get("reviewDecision")
+        auto_merge_request = parsed.value.get("autoMergeRequest")
+        if review_decision == "REVIEW_REQUIRED" and auto_merge_request is not None:
+            return Err(
+                ReleaseError(
+                    kind="repo_failed",
+                    message=f"{repo_label} PR is waiting for required review",
+                    hint=(
+                        "Approve the release PR with a different authorized identity, "
+                        f"then rerun the release command. PR: {pr_url}"
+                    ),
+                )
+            )
 
         if isinstance(state, str) and state != "OPEN":
             return Err(
