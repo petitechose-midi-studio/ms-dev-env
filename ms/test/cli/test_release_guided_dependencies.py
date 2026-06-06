@@ -174,6 +174,7 @@ def test_guided_dependencies_dry_run_prints_bom_plan_without_promoting(
 
     assert isinstance(result, Ok)
     assert not promoted["called"]
+    assert "READY 0/0 repo(s) clean/fetchable" in console.text
     assert "dependency promotion dry-run completed" in console.text
 
 
