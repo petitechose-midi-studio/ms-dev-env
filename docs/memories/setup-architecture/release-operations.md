@@ -36,6 +36,13 @@ fetch, not an uncommitted or branch-local workspace state.
 Feature branches can still be used for development validation, but they are not promoted into
 `core/main` by the default dependency release flow.
 
+When dependency promotion is blocked, the readiness report is intentionally action-oriented:
+
+- it prints the ready/blocking repository count;
+- each blocker shows its branch, short SHA, detail, and next maintainer action;
+- the first required action is repeated at the end of the report;
+- `uv run ms release dependencies --dry-run` is the safe command to rerun after each fix.
+
 Release PR merges must respect GitHub branch protections. Repositories in the release graph keep
 required status checks enabled and have `Allow auto-merge` enabled. The CLI requests
 `gh pr merge --auto`. The release tooling must not fall back to a direct/admin merge when auto-merge

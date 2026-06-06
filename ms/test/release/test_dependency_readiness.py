@@ -6,6 +6,7 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.git.repository import GitError, GitStatus, StatusEntry
 from ms.release.domain.dependency_graph_models import ReleaseGraph, ReleaseGraphNode
+from ms.release.domain.dependency_readiness_models import next_action_for_item
 from ms.release.errors import ReleaseError
 from ms.release.flow.dependency_readiness import (
     ReadinessRepository,
@@ -272,6 +273,43 @@ def test_assess_dependency_readiness_blocks_dependents_when_dependency_is_dirty(
     assert report.by_node_id()["oc-framework"].status == "dirty"
     assert report.by_node_id()["oc-framework"].detail == "unstaged=1\n  .M src/foo.cpp"
     assert report.by_node_id()["core"].status == "blocked_by_dependency"
+    assert report.ready_count == 0
+    assert report.blocker_count == 2
+    assert len(report.blockers) == 2
+
+
+def test_dirty_dependency_action_guides_maintainer_to_publish_through_pr(
+    tmp_path: Path,
+) -> None:
+    dirty = GitStatus(
+        branch="main",
+        upstream="origin/main",
+        entries=(StatusEntry(xy=" M", path="src/foo.cpp"),),
+    )
+
+    report = assess_dependency_readiness(
+        workspace_root=tmp_path,
+        graph=ReleaseGraph(
+            nodes=(
+                ReleaseGraphNode(
+                    id="oc-framework",
+                    repo="open-control/framework",
+                    local_path="open-control/framework",
+                    role="bom_dependency",
+                    expected_branch="main",
+                ),
+            )
+        ),
+        repo_factory=_factory({"framework": _FakeRepo(repo_status=dirty)}),
+        fetchable_checker=_fetchable,
+        enforce_expected_branch=True,
+    )
+
+    item = report.by_node_id()["oc-framework"]
+    action = next_action_for_item(item)
+
+    assert action.summary == "Keep -> PR/CI/auto-merge; discard -> revert/stash; then pull+rerun."
+    assert action.command == f"git -C {tmp_path / 'open-control' / 'framework'} status --short"
 
 
 def test_assess_dependency_readiness_reports_unpushed_head(tmp_path: Path) -> None:

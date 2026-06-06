@@ -117,10 +117,19 @@ def test_guided_dependencies_blocks_on_readiness_report(
     )
 
     assert isinstance(result, Err)
-    assert result.error.message == "dependency promotion blocked"
+    assert result.error.message == "dependency promotion blocked; see readiness report above"
     assert result.error.hint is not None
-    assert "petitechose-midi-studio/ms-dev-env" in result.error.hint
-    assert "petitechose-midi-studio/ms-dev-env: dirty" in console.text
+    assert result.error.hint == (
+        "fix the first blocker above, then rerun: "
+        "uv run ms release dependencies --dry-run"
+    )
+    assert ".M ms/foo.py" not in result.error.hint
+    assert "petitechose-midi-studio/ms-dev-env (dirty)" in console.text
+    assert "BLOCKED 1/1 repo(s) need action before dependency promotion" in console.text
+    assert "where: detached @ unknown" in console.text
+    assert "why: unstaged=1" in console.text
+    assert "next: Keep -> PR/CI/auto-merge; discard -> revert/stash;" in console.text
+    assert f"cmd: git -C {tmp_path} status --short" in console.text
     assert ".M ms/foo.py" in console.text
 
 

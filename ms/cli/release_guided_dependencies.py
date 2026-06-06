@@ -8,10 +8,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.config import MS_REPO_SLUG
 from ms.release.domain.dependency_graph_models import ReleaseGraph, ReleaseGraphNode
-from ms.release.domain.dependency_readiness_models import (
-    DependencyReadinessItem,
-    DependencyReadinessReport,
-)
+from ms.release.domain.dependency_readiness_models import DependencyReadinessReport
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import promote_open_control_bom
 from ms.release.flow.bom_validation import validate_workspace_dev_targets
@@ -97,12 +94,11 @@ def run_dependencies_release(
     readiness = _assess_guided_readiness(workspace_root=workspace_root, graph=graph.value)
     print_dependency_readiness_report(console=console, report=readiness)
     if not readiness.is_ready:
-        blocker = _first_blocker(readiness.items)
         return Err(
             ReleaseError(
                 kind="invalid_input",
-                message="dependency promotion blocked",
-                hint=_blocker_hint(blocker),
+                message="dependency promotion blocked; see readiness report above",
+                hint=_blocker_hint(),
             )
         )
 
@@ -308,17 +304,8 @@ def _assess_guided_readiness(
     return DependencyReadinessReport(items=(*tooling.items, *dependencies.items))
 
 
-def _first_blocker(items: tuple[DependencyReadinessItem, ...]) -> DependencyReadinessItem:
-    return next(item for item in items if item.is_blocking)
-
-
-def _blocker_hint(item: DependencyReadinessItem) -> str:
-    parts = [f"{item.repo}: {item.status}"]
-    if item.detail:
-        parts.append(item.detail)
-    if item.hint:
-        parts.append(item.hint)
-    return "\n".join(parts)
+def _blocker_hint() -> str:
+    return "fix the first blocker above, then rerun: uv run ms release dependencies --dry-run"
 
 
 def _print_core_pin_plan(*, console: ConsoleProtocol, plan: CoreDependencyPinPlan) -> None:
