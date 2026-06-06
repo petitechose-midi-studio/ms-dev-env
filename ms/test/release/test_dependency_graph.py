@@ -71,6 +71,7 @@ role = "bom_dependency"
     assert isinstance(graph, Ok)
     assert [node.id for node in graph.value.nodes] == ["oc-framework", "oc-note", "core"]
     assert graph.value.by_id()["core"].local_path == "midi-studio/core"
+    assert graph.value.by_id()["core"].expected_branch is None
     assert graph.value.by_id()["core"].validations == ("core-release",)
 
 
@@ -148,6 +149,7 @@ def test_default_release_graph_covers_dev_workspace_repos() -> None:
     ]
 
     by_id = graph.value.by_id()
+    assert by_id["core"].expected_branch == "main"
     assert by_id["core"].depends_on == (
         "oc-framework",
         "oc-note",

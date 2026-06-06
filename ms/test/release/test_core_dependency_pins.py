@@ -133,3 +133,54 @@ def test_sync_core_dependency_pins_inserts_missing_ci_env_pins(tmp_path: Path) -
     verified = plan_core_dependency_pin_sync(workspace_root=workspace, core_root=core_root)
     assert isinstance(verified, Ok)
     assert not verified.value.requires_write
+
+
+def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path
+    core_root = workspace / "midi-studio" / "core"
+    _write_core_files(core_root)
+
+    remote_shas = {
+        "petitechose-midi-studio/ms-dev-env": "1" * 40,
+        "open-control/framework": "2" * 40,
+        "open-control/note": "3" * 40,
+        "open-control/hal-midi": "4" * 40,
+        "open-control/hal-net": "5" * 40,
+        "open-control/hal-sdl": "6" * 40,
+        "open-control/ui-lvgl": "7" * 40,
+        "open-control/ui-lvgl-components": "8" * 40,
+        "petitechose-midi-studio/ui": "9" * 40,
+    }
+
+    def resolve(repo: str, ref: str) -> Ok[str]:
+        assert ref == "main"
+        return Ok(remote_shas[repo])
+
+    planned = plan_core_dependency_pin_sync(
+        workspace_root=workspace,
+        core_root=core_root,
+        source="github",
+        ref_resolver=resolve,
+    )
+
+    assert isinstance(planned, Ok)
+    assert planned.value.requires_write
+
+    synced = sync_core_dependency_pins(
+        workspace_root=workspace,
+        core_root=core_root,
+        source="github",
+        ref_resolver=resolve,
+    )
+
+    assert isinstance(synced, Ok)
+    platformio = (core_root / "platformio.ini").read_text(encoding="utf-8")
+    ci = (core_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert remote_shas["petitechose-midi-studio/ui"] in platformio
+    assert f"MS_DEV_ENV_SHA: {remote_shas['petitechose-midi-studio/ms-dev-env']}" in ci
+    assert (
+        f"OPEN_CONTROL_UI_LVGL_COMPONENTS_SHA: "
+        f"{remote_shas['open-control/ui-lvgl-components']}"
+    ) in ci

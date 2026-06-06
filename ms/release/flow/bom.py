@@ -8,6 +8,7 @@ from ms.release.domain.open_control_models import (
     OPEN_CONTROL_NATIVE_CI_REPOS,
     BomPromotionItem,
     BomPromotionPlan,
+    BomPromotionSource,
     BomRepoState,
     BomStateComparison,
     DerivedBomLock,
@@ -125,6 +126,7 @@ def plan_bom_promotion(
     current_lock: OcSdkLock,
     workspace_repos: tuple[OpenControlRepoState, ...],
     allow_dirty_workspace: bool = False,
+    source: BomPromotionSource = "workspace",
 ) -> Result[BomPromotionPlan, ReleaseError]:
     workspace_by_repo = {repo.repo: repo for repo in workspace_repos}
     current_pins = current_lock.pins_by_repo()
@@ -170,7 +172,7 @@ def plan_bom_promotion(
     )
     return Ok(
         BomPromotionPlan(
-            source="workspace",
+            source=source,
             current_version=current_lock.version,
             next_version=next_version,
             items=tuple(items),

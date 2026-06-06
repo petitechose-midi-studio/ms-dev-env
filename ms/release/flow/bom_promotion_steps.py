@@ -8,6 +8,7 @@ from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.config import CORE_DEFAULT_BRANCH, CORE_REPO_SLUG
 from ms.release.domain.open_control_models import BomPromotionPlan
 from ms.release.errors import ReleaseError
+from ms.release.flow.bom import sync_bom_files
 from ms.release.flow.bom_promotion_helpers import (
     branch_name,
     build_pr_body,
@@ -21,13 +22,13 @@ from ms.release.flow.bom_validation import validate_workspace_bom_targets
 from ms.release.flow.bom_workflow import (
     BomSyncPreview,
     BomSyncResult,
-    plan_workspace_bom_sync,
-    sync_workspace_bom,
+    plan_github_bom_sync,
+    verify_github_bom_files,
 )
 from ms.release.flow.core_dependency_pins import (
     CoreDependencyPinPlan,
     plan_core_dependency_pin_sync,
-    sync_core_dependency_pins,
+    sync_core_dependency_pin_plan,
 )
 from ms.release.infra.github.client import get_ref_head_sha
 from ms.release.infra.repos.core import (
@@ -76,7 +77,7 @@ def prepare_bom_promotion(
         return pulled
 
     console.print("Planning OpenControl BOM changes", Style.DIM)
-    preview = plan_workspace_bom_sync(workspace_root=workspace_root, allow_dirty_workspace=False)
+    preview = plan_github_bom_sync(workspace_root=workspace_root)
     if isinstance(preview, Err):
         return preview
 
@@ -95,6 +96,7 @@ def prepare_bom_promotion(
     core_pin_plan = plan_core_dependency_pin_sync(
         workspace_root=workspace_root,
         core_root=core_root,
+        source="github",
     )
     if isinstance(core_pin_plan, Err):
         return core_pin_plan
@@ -112,36 +114,39 @@ def apply_bom_promotion(
     *,
     workspace_root: Path,
     core_root: Path,
-    plan: BomPromotionPlan,
+    preview: BomSyncPreview,
     core_pin_plan: CoreDependencyPinPlan,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[BomPromotionApplied, ReleaseError]:
+    plan = preview.plan
     console.print("Snapshotting core dependency files", Style.DIM)
     snapshot = snapshot_bom_files(core_root=core_root)
     if isinstance(snapshot, Err):
         return snapshot
 
     console.print("Writing OpenControl BOM files", Style.DIM)
-    synced = sync_workspace_bom(
-        workspace_root=workspace_root,
-        allow_dirty_workspace=False,
-        validate_targets=False,
-        include_plugin_release=True,
-    )
-    if isinstance(synced, Err):
+    bom_written = sync_bom_files(core_root=core_root, plan=plan)
+    if isinstance(bom_written, Err):
         restored = restore_bom_files(snapshot=snapshot.value)
         if isinstance(restored, Err):
             return restored
-        return synced
+        return bom_written
 
     console.print("Writing core CI/runtime pins", Style.DIM)
-    core_pins = sync_core_dependency_pins(workspace_root=workspace_root, core_root=core_root)
+    core_pins = sync_core_dependency_pin_plan(plan=core_pin_plan)
     if isinstance(core_pins, Err):
         restored = restore_bom_files(snapshot=snapshot.value)
         if isinstance(restored, Err):
             return restored
         return core_pins
+
+    after = verify_github_bom_files(workspace_root=workspace_root)
+    if isinstance(after, Err):
+        restored = restore_bom_files(snapshot=snapshot.value)
+        if isinstance(restored, Err):
+            return restored
+        return after
 
     console.print("Validating release targets", Style.DIM)
     validations = validate_workspace_bom_targets(
@@ -156,10 +161,10 @@ def apply_bom_promotion(
         return validations
 
     combined_sync = BomSyncResult(
-        before=synced.value.before,
-        plan=synced.value.plan,
-        written=(*synced.value.written, *core_pins.value.written),
-        after=synced.value.after,
+        before=preview.state,
+        plan=plan,
+        written=(*bom_written.value, *core_pins.value.written),
+        after=after.value,
         validations=validations.value,
     )
 

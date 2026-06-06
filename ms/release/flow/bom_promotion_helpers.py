@@ -30,7 +30,7 @@ def pr_title(*, plan: BomPromotionPlan, core_pin_plan: CoreDependencyPinPlan) ->
 
 def build_pr_body(*, plan: BomPromotionPlan, core_pin_plan: CoreDependencyPinPlan) -> str:
     lines = [
-        "Promote core dependency pins to the current workspace heads.",
+        f"Promote core dependency pins to the selected {plan.source} dependency heads.",
         "",
         f"oc-sdk.version: {plan.current_version} -> {plan.next_version}",
         "",
