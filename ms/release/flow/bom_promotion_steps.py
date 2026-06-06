@@ -8,6 +8,7 @@ from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.config import CORE_DEFAULT_BRANCH, CORE_REPO_SLUG
 from ms.release.domain.open_control_models import BomPromotionPlan
 from ms.release.errors import ReleaseError
+from ms.release.flow.bom import sync_bom_files
 from ms.release.flow.bom_promotion_helpers import (
     branch_name,
     build_pr_body,
@@ -18,7 +19,6 @@ from ms.release.flow.bom_promotion_helpers import (
     with_branch_hint,
 )
 from ms.release.flow.bom_validation import validate_workspace_bom_targets
-from ms.release.flow.bom import sync_bom_files
 from ms.release.flow.bom_workflow import (
     BomSyncPreview,
     BomSyncResult,

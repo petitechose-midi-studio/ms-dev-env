@@ -12,7 +12,6 @@ from ms.release.domain.open_control_models import (
     OpenControlRepoState,
 )
 from ms.release.flow.bom import (
-    collect_github_bom_state,
     collect_workspace_bom_state,
     compare_bom_state,
     load_bom_lock_from_file,
@@ -21,6 +20,7 @@ from ms.release.flow.bom import (
     sync_bom_files,
     verify_bom_files,
 )
+from ms.release.flow.bom_remote import collect_github_bom_state
 from ms.release.flow.bom_workflow import plan_github_bom_sync
 
 

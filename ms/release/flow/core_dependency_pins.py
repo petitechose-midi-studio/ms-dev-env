@@ -3,39 +3,21 @@ from __future__ import annotations
 import os
 import re
 import tempfile
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 from ms.core.result import Err, Ok, Result
-from ms.git.repository import Repository
-from ms.release.domain.config import MS_DEFAULT_BRANCH, MS_REPO_SLUG
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.client import get_ref_head_sha
+from ms.release.flow.core_dependency_pin_sources import (
+    CI_ENV_REPOS,
+    DependencyPinSource,
+    RefResolver,
+    dependency_shas,
+)
 
 _SHA_RE = r"[0-9a-fA-F]{40}"
 _MS_UI_RELEASE_RE = re.compile(
     rf"(?m)^(\s*ms-ui=https://github\.com/petitechose-midi-studio/ui\.git#)({_SHA_RE})(\s*)$"
-)
-
-DependencyPinSource = Literal["workspace", "github"]
-RefResolver = Callable[[str, str], Result[str, ReleaseError]]
-
-_CI_ENV_REPOS: tuple[tuple[str, str, str], ...] = (
-    ("MS_DEV_ENV_SHA", ".", MS_REPO_SLUG),
-    ("OPEN_CONTROL_FRAMEWORK_SHA", "open-control/framework", "open-control/framework"),
-    ("OPEN_CONTROL_NOTE_SHA", "open-control/note", "open-control/note"),
-    ("OPEN_CONTROL_HAL_MIDI_SHA", "open-control/hal-midi", "open-control/hal-midi"),
-    ("OPEN_CONTROL_HAL_NET_SHA", "open-control/hal-net", "open-control/hal-net"),
-    ("OPEN_CONTROL_HAL_SDL_SHA", "open-control/hal-sdl", "open-control/hal-sdl"),
-    ("OPEN_CONTROL_UI_LVGL_SHA", "open-control/ui-lvgl", "open-control/ui-lvgl"),
-    (
-        "OPEN_CONTROL_UI_LVGL_COMPONENTS_SHA",
-        "open-control/ui-lvgl-components",
-        "open-control/ui-lvgl-components",
-    ),
-    ("MIDI_STUDIO_UI_SHA", "midi-studio/ui", "petitechose-midi-studio/ui"),
 )
 
 
@@ -71,7 +53,7 @@ def plan_core_dependency_pin_sync(
     platformio = core / "platformio.ini"
     ci = core / ".github" / "workflows" / "ci.yml"
 
-    shas = _dependency_shas(
+    shas = dependency_shas(
         workspace_root=workspace_root,
         source=source,
         ref_resolver=ref_resolver,
@@ -107,12 +89,12 @@ def plan_core_dependency_pin_sync(
         )
     ]
 
-    for env_key, repo_path, _repo_slug in _CI_ENV_REPOS:
-        current = _extract_ci_env_pin(ci_text.value, env_key)
-        target = shas.value[repo_path]
+    for repo in CI_ENV_REPOS:
+        current = _extract_ci_env_pin(ci_text.value, repo.env_key)
+        target = shas.value[repo.repo_path]
         items.append(
             CoreDependencyPinItem(
-                key=f"ci.{env_key}",
+                key=f"ci.{repo.env_key}",
                 path=ci,
                 from_sha=current,
                 to_sha=target,
@@ -195,68 +177,6 @@ def sync_core_dependency_pin_plan(
         return verified
 
     return Ok(CoreDependencyPinSyncResult(plan=plan, written=tuple(written)))
-
-
-def _dependency_shas(
-    *,
-    workspace_root: Path,
-    source: DependencyPinSource,
-    ref_resolver: RefResolver | None,
-) -> Result[dict[str, str], ReleaseError]:
-    if source == "github":
-        return _github_shas(workspace_root=workspace_root, ref_resolver=ref_resolver)
-    return _workspace_shas(workspace_root=workspace_root)
-
-
-def _workspace_shas(*, workspace_root: Path) -> Result[dict[str, str], ReleaseError]:
-    paths = {repo_path for _, repo_path, _repo_slug in _CI_ENV_REPOS}
-    paths.add("midi-studio/ui")
-
-    shas: dict[str, str] = {}
-    for repo_path in sorted(paths):
-        repo_root = workspace_root if repo_path == "." else workspace_root / repo_path
-        repo = Repository(repo_root)
-        if not repo.exists():
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"dependency repo unavailable: {repo_path}",
-                    hint="Run: uv run ms sync --repos",
-                )
-            )
-        head = repo.head_sha()
-        if isinstance(head, Err):
-            return Err(
-                ReleaseError(
-                    kind="repo_failed",
-                    message=f"failed to read dependency SHA: {repo_path}",
-                    hint=head.error.message,
-                )
-            )
-        shas[repo_path] = head.value
-    return Ok(shas)
-
-
-def _github_shas(
-    *,
-    workspace_root: Path,
-    ref_resolver: RefResolver | None,
-) -> Result[dict[str, str], ReleaseError]:
-    resolver = ref_resolver or _github_ref_resolver(workspace_root=workspace_root)
-    shas: dict[str, str] = {}
-    for _env_key, repo_path, repo_slug in _CI_ENV_REPOS:
-        resolved = resolver(repo_slug, MS_DEFAULT_BRANCH)
-        if isinstance(resolved, Err):
-            return resolved
-        shas[repo_path] = resolved.value
-    return Ok(shas)
-
-
-def _github_ref_resolver(*, workspace_root: Path) -> RefResolver:
-    def resolve(repo: str, ref: str) -> Result[str, ReleaseError]:
-        return get_ref_head_sha(workspace_root=workspace_root, repo=repo, ref=ref)
-
-    return resolve
 
 
 def _read_text(*, path: Path) -> Result[str, ReleaseError]:

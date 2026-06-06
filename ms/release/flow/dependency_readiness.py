@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from ms.core.result import Err, Ok, Result
+from ms.core.result import Err, Result
 from ms.git.repository import GitError, GitStatus, Repository
 from ms.release.domain.dependency_graph_models import ReleaseGraph, ReleaseGraphNode
 from ms.release.domain.dependency_readiness_models import (
@@ -12,7 +12,8 @@ from ms.release.domain.dependency_readiness_models import (
     DependencyReadinessReport,
 )
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.client import get_ref_head_sha
+from ms.release.flow.dependency_fetchability import is_commit_fetchable
+from ms.release.flow.dependency_readiness_details import dirty_detail
 
 
 class ReadinessRepository(Protocol):
@@ -84,15 +85,6 @@ def assess_dependency_readiness(
     return DependencyReadinessReport(items=tuple(items))
 
 
-def is_commit_fetchable(
-    *, workspace_root: Path, repo: str, sha: str
-) -> Result[bool, ReleaseError]:
-    resolved = get_ref_head_sha(workspace_root=workspace_root, repo=repo, ref=sha)
-    if isinstance(resolved, Err):
-        return Err(resolved.error)
-    return Ok(resolved.value == sha)
-
-
 def _assess_node(
     *,
     workspace_root: Path,
@@ -159,7 +151,7 @@ def _assess_node(
             status="dirty",
             sha=sha,
             branch=branch,
-            detail=_dirty_detail(status.value),
+            detail=dirty_detail(status.value),
             hint=f"Commit, stash, or discard changes before promotion: git -C {path} status",
         )
 
@@ -304,18 +296,3 @@ def _assess_node(
         sha=sha,
         branch=branch,
     )
-
-
-def _dirty_detail(status: GitStatus) -> str:
-    parts: list[str] = []
-    if status.staged_count:
-        parts.append(f"staged={status.staged_count}")
-    if status.unstaged_count:
-        parts.append(f"unstaged={status.unstaged_count}")
-    if status.untracked_count:
-        parts.append(f"untracked={status.untracked_count}")
-    summary = ", ".join(parts) if parts else "working tree has local changes"
-    entries = [f"  {entry.pretty_xy()} {entry.path}" for entry in status.entries]
-    if not entries:
-        return summary
-    return "\n".join((summary, *entries))

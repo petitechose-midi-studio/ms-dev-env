@@ -13,8 +13,6 @@ from ms.release.domain.open_control_models import (
 )
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom import (
-    RefResolver,
-    collect_github_bom_state,
     collect_workspace_bom_state,
     compare_bom_state,
     load_bom_state_from_core,
@@ -22,6 +20,7 @@ from ms.release.flow.bom import (
     sync_bom_files,
     verify_bom_files,
 )
+from ms.release.flow.bom_remote import RefResolver, collect_github_bom_state
 from ms.release.flow.bom_validation import BomValidationTarget, validate_workspace_bom_targets
 
 
