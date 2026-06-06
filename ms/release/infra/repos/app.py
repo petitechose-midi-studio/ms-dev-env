@@ -155,7 +155,6 @@ def merge_pr(
         pr_url=pr_url,
         repo_label="app",
         delete_branch=delete_branch,
-        allow_auto_merge_fallback=True,
         console=console,
         dry_run=dry_run,
     )

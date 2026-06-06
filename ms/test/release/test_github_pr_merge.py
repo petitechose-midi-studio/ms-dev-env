@@ -10,7 +10,7 @@ from ms.platform.process import ProcessError
 from ms.release.infra.github.pr_merge import merge_pull_request
 
 
-def test_merge_pull_request_accepts_already_merged_direct_fallback(
+def test_merge_pull_request_reports_disabled_auto_merge(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
 ) -> None:
@@ -38,16 +38,11 @@ def test_merge_pull_request_accepts_already_merged_direct_fallback(
             )
         )
 
-    def fake_wait_until_mergeable(**_: object) -> Ok[None]:
-        calls.append("mergeable")
-        return Ok(None)
-
     def fake_wait_until_merged(**_: object) -> Ok[None]:
         calls.append("merged")
         return Ok(None)
 
     monkeypatch.setattr(pr_merge, "run_gh_process", fake_run_gh_process)
-    monkeypatch.setattr(pr_merge, "wait_until_mergeable", fake_wait_until_mergeable)
     monkeypatch.setattr(pr_merge, "wait_until_merged", fake_wait_until_merged)
 
     result = merge_pull_request(
@@ -56,12 +51,16 @@ def test_merge_pull_request_accepts_already_merged_direct_fallback(
         pr_url="https://example.invalid/pr/1",
         repo_label="core",
         delete_branch=True,
-        allow_auto_merge_fallback=True,
         console=MockConsole(),
         dry_run=False,
     )
 
-    assert isinstance(result, Ok)
+    assert isinstance(result, Err)
+    assert result.error.message == "auto-merge is disabled for core repo"
+    assert result.error.hint == (
+        "Enable Allow auto-merge for owner/repo, then rerun. "
+        "PR: https://example.invalid/pr/1"
+    )
     assert calls == [
         " ".join(
             (
@@ -69,7 +68,4 @@ def test_merge_pull_request_accepts_already_merged_direct_fallback(
                 "--rebase --auto --delete-branch",
             )
         ),
-        "mergeable",
-        "gh pr merge https://example.invalid/pr/1 --repo owner/repo --rebase --delete-branch",
-        "merged",
     ]

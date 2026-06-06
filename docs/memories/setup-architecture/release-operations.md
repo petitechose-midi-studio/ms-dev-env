@@ -36,6 +36,22 @@ fetch, not an uncommitted or branch-local workspace state.
 Feature branches can still be used for development validation, but they are not promoted into
 `core/main` by the default dependency release flow.
 
+Release PR merges must respect GitHub branch protections. Repositories in the release graph have
+`Allow auto-merge` enabled, and the CLI requests `gh pr merge --auto`. The release tooling must not
+fall back to a direct/admin merge when auto-merge is unavailable. If GitHub cannot queue the PR, the
+command fails with the PR URL and the repository setting that must be fixed.
+
+For a fully unattended PR + terminal approval flow, the PR author and approver must be separate
+GitHub identities. The target architecture is:
+
+- a release GitHub App creates/pushes release branches and opens PRs;
+- the maintainer account approves from the terminal;
+- GitHub auto-merges once required checks and reviews are satisfied;
+- interrupted releases are resumed by querying the open release PR.
+
+Until that release App is available to the local CLI, `ms release` uses the authenticated `gh` user
+for PR creation and can only approve PRs authored by another identity.
+
 ## Typical commands
 
 - Guided: `uv run ms release`
