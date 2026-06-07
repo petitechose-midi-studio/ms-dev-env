@@ -85,6 +85,63 @@ def test_watch_run_prints_concise_progress_until_success(
     assert "progress: completed | jobs 2/2 | result: success" in console.text
 
 
+def test_watch_run_deduplicates_unchanged_progress(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    import ms.release.infra.github.run_watch as run_watch
+
+    running = _run_payload(
+        status="in_progress",
+        jobs=[
+            {"name": "release alignment", "status": "in_progress", "conclusion": None},
+        ],
+    )
+    payloads = iter(
+        (
+            running,
+            running,
+            running,
+            _run_payload(
+                status="completed",
+                conclusion="success",
+                jobs=[
+                    {
+                        "name": "release alignment",
+                        "status": "completed",
+                        "conclusion": "success",
+                    },
+                ],
+            ),
+        )
+    )
+    clock_values = iter((0.0, 0.0, 10.0, 20.0, 30.0))
+
+    def fake_run_gh_process(cmd: list[str], **_: object) -> Ok[str]:
+        return Ok(next(payloads))
+
+    monkeypatch.setattr(run_watch, "run_gh_process", fake_run_gh_process)
+    console = MockConsole()
+
+    result = watch_run(
+        workspace_root=tmp_path,
+        run_id=123,
+        repo_slug="owner/repo",
+        console=console,
+        dry_run=False,
+        poll_interval_seconds=0.1,
+        sleep_fn=lambda _: None,
+        clock_fn=lambda: next(clock_values),
+    )
+
+    assert isinstance(result, Ok)
+    progress_lines = [
+        message for message in console.messages if "progress: in_progress" in message
+    ]
+    assert progress_lines == ["progress: in_progress | jobs 0/1 | active: release alignment"]
+    assert "progress: completed | jobs 1/1 | result: success" in console.text
+
+
 def test_watch_run_failure_reports_failed_jobs_and_log_command(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,

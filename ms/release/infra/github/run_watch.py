@@ -20,6 +20,7 @@ _ACTIVE_STATUSES = frozenset({"queued", "in_progress", "requested", "waiting", "
 
 _SleepFn = Callable[[float], None]
 _ClockFn = Callable[[], float]
+_ProgressKey = tuple[str, int, int, tuple[str, ...], tuple[str, ...], str | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +58,7 @@ def watch_run(
         return Ok(None)
 
     deadline = clock_fn() + timeout_seconds
-    last_line: str | None = None
+    last_key: _ProgressKey | None = None
     last_printed_at = 0.0
     while True:
         snapshot = _fetch_run_snapshot(
@@ -69,10 +70,13 @@ def watch_run(
             return snapshot
 
         now = clock_fn()
-        line = _progress_line(snapshot.value)
-        if line != last_line or now - last_printed_at >= _HEARTBEAT_SECONDS:
-            console.print(line, Style.DIM)
-            last_line = line
+        key = _progress_key(snapshot.value)
+        if key != last_key:
+            console.print(_progress_line(snapshot.value), Style.DIM)
+            last_key = key
+            last_printed_at = now
+        elif now - last_printed_at >= _HEARTBEAT_SECONDS:
+            console.print(_heartbeat_line(snapshot.value), Style.DIM)
             last_printed_at = now
 
         if snapshot.value.status == "completed":
@@ -191,6 +195,21 @@ def _progress_line(snapshot: _RunSnapshot) -> str:
     elif snapshot.conclusion:
         parts.append(f"result: {snapshot.conclusion}")
     return " | ".join(parts)
+
+
+def _heartbeat_line(snapshot: _RunSnapshot) -> str:
+    progress = _progress_line(snapshot)
+    if progress.startswith("progress: "):
+        return "still: " + progress.removeprefix("progress: ")
+    return "still: " + progress
+
+
+def _progress_key(snapshot: _RunSnapshot) -> _ProgressKey:
+    jobs = snapshot.jobs
+    done = sum(1 for job in jobs if job.status == "completed")
+    active = tuple(job.name for job in jobs if job.status in _ACTIVE_STATUSES)
+    failed = _failed_job_names(snapshot)
+    return (snapshot.status, done, len(jobs), active, failed, snapshot.conclusion)
 
 
 def _failed_job_names(snapshot: _RunSnapshot) -> tuple[str, ...]:

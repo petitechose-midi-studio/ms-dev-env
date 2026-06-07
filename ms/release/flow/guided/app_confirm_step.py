@@ -4,9 +4,10 @@ from dataclasses import replace
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.output.console import ConsoleProtocol
+from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
+from ms.release.flow.release_tooling import resolve_release_tooling
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
 from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
@@ -19,6 +20,29 @@ from .app_release_dispatch import (
 from .fsm import FINISH, StepOutcome, advance
 from .menu_option import MenuOption
 from .sessions import AppReleaseSession
+
+
+def refresh_app_session_tooling(
+    *,
+    session: AppReleaseSession,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+) -> Result[AppReleaseSession, ReleaseError]:
+    if session.tooling_sha is None:
+        return Ok(session)
+
+    tooling = resolve_release_tooling(workspace_root=workspace_root)
+    if isinstance(tooling, Err):
+        return tooling
+
+    if tooling.value.sha == session.tooling_sha:
+        return Ok(session)
+
+    console.print(
+        f"Release tooling refreshed: {session.tooling_sha[:12]} -> {tooling.value.sha[:12]}",
+        Style.DIM,
+    )
+    return Ok(replace(session, tooling_sha=tooling.value.sha))
 
 
 def run_app_confirm_step[PrepareT: AppPrepareResultLike](
@@ -35,6 +59,15 @@ def run_app_confirm_step[PrepareT: AppPrepareResultLike](
     approved = deps.confirm(prompt=f"Publish {session.tag} from {source}")
     if not approved:
         return Ok(advance(replace(session, step="summary")))
+
+    refreshed = refresh_app_session_tooling(
+        session=session,
+        workspace_root=workspace_root,
+        console=console,
+    )
+    if isinstance(refreshed, Err):
+        return refreshed
+    session = refreshed.value
 
     pinned = pinned_app_repo(app_release_repo=app_release_repo, session=session)
     if isinstance(pinned, Err):

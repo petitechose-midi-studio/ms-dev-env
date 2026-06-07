@@ -70,6 +70,10 @@ def _tooling() -> ReleaseTooling:
     )
 
 
+def _tooling_with_sha(sha: str) -> ReleaseTooling:
+    return ReleaseTooling(repo="petitechose-midi-studio/ms-dev-env", ref="main", sha=sha)
+
+
 def _fake_remote_coherence(**_: object) -> Ok[object]:
     return Ok(None)
 
@@ -205,6 +209,9 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     def fake_clear(*args: object, **kwargs: object):
         return Ok(None)
 
+    def fake_current_tooling(**_: object) -> Ok[ReleaseTooling]:
+        return Ok(_tooling_with_sha("g" * 40))
+
     monkeypatch.setattr(app, "preflight_with_permission", fake_preflight)
     monkeypatch.setattr(app, "bootstrap_app_session", fake_bootstrap)
     monkeypatch.setattr(app, "save_app_state", fake_save_state)
@@ -220,6 +227,7 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
     monkeypatch.setattr(app_dispatch, "assert_release_remote_coherence", _fake_remote_coherence)
     monkeypatch.setattr(app_confirm, "assert_release_remote_coherence", _fake_remote_coherence)
+    monkeypatch.setattr(app_confirm, "resolve_release_tooling", fake_current_tooling)
 
     result = app.run_guided_app_release(
         workspace_root=tmp_path,
@@ -233,6 +241,7 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     assert summary_calls["count"] == 1
     assert published["tag"] == "v1.2.3"
     assert published["source_sha"] == "b" * 40
+    assert published["tooling_sha"] == "g" * 40
     assert published["watch"] is False
     assert published["notes_markdown"] == "hello notes"
     assert published["notes_source_path"] == "/tmp/notes.md"
@@ -329,6 +338,9 @@ def test_guided_app_summary_edit_recomputes_tag(
     def fake_clear(*args: object, **kwargs: object):
         return Ok(None)
 
+    def fake_current_tooling(**_: object) -> Ok[ReleaseTooling]:
+        return Ok(_tooling())
+
     monkeypatch.setattr(app, "preflight_with_permission", fake_preflight)
     monkeypatch.setattr(app, "bootstrap_app_session", fake_bootstrap)
     monkeypatch.setattr(app, "save_app_state", fake_save_state)
@@ -344,6 +356,7 @@ def test_guided_app_summary_edit_recomputes_tag(
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
     monkeypatch.setattr(app_dispatch, "assert_release_remote_coherence", _fake_remote_coherence)
     monkeypatch.setattr(app_confirm, "assert_release_remote_coherence", _fake_remote_coherence)
+    monkeypatch.setattr(app_confirm, "resolve_release_tooling", fake_current_tooling)
 
     result = app.run_guided_app_release(
         workspace_root=tmp_path,
