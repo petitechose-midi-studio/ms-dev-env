@@ -43,6 +43,11 @@ When dependency promotion is blocked, the readiness report is intentionally acti
 - the first required action is repeated at the end of the report;
 - `uv run ms release dependencies --dry-run` is the safe command to rerun after each fix.
 
+When a release command watches a GitHub Actions run, the CLI owns the terminal feedback instead of
+delegating silently to `gh run watch`: it prints the run URL once, then compact progress updates with
+the run status, completed job count, active jobs, and failed jobs if any. Full logs stay one command
+away through the failure hint.
+
 Release PR merges must respect GitHub branch protections. Repositories in the release graph keep
 required status checks enabled and have `Allow auto-merge` enabled. The CLI requests
 `gh pr merge --auto`. The release tooling must not fall back to a direct/admin merge when auto-merge
