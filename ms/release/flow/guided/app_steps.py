@@ -8,7 +8,7 @@ from ms.output.console import ConsoleProtocol
 from ms.release.domain.models import PinnedRepo, ReleaseRepo
 from ms.release.errors import ReleaseError
 
-from .app_confirm_step import run_app_confirm_step
+from .app_confirm_step import refresh_app_session_tooling, run_app_confirm_step
 from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
 from .app_notes_step import run_app_notes_step
 from .app_pins import pinned_app_repo
@@ -242,7 +242,15 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
     if isinstance(boot, Err):
         return boot
 
-    saved = deps.save_state(session=boot.value)
+    current = refresh_app_session_tooling(
+        session=boot.value,
+        workspace_root=workspace_root,
+        console=console,
+    )
+    if isinstance(current, Err):
+        return current
+
+    saved = deps.save_state(session=current.value)
     if isinstance(saved, Err):
         return saved
 
