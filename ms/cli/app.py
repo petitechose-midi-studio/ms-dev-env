@@ -10,7 +10,6 @@ from ms.cli.commands.bridge import bridge_app
 from ms.cli.commands.build_cmd import build
 from ms.cli.commands.check import check
 from ms.cli.commands.clean import clean
-from ms.cli.commands.device import device_app
 from ms.cli.commands.dist import dist_app
 from ms.cli.commands.list_cmd import list_apps
 from ms.cli.commands.monitor_cmd import monitor
@@ -71,12 +70,6 @@ app.add_typer(
     name="bridge",
     help="Run and manage the local bridge.",
     rich_help_panel=TOOLS_PANEL,
-)
-app.add_typer(
-    device_app,
-    name="device",
-    help="Inspect connected controller state.",
-    rich_help_panel=DEVICE_PANEL,
 )
 app.add_typer(
     self_app,
