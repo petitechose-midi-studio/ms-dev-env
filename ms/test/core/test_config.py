@@ -52,8 +52,8 @@ class TestPortsConfig:
     def test_defaults(self) -> None:
         config = PortsConfig()
         assert config.hardware == 9000
-        assert config.native == 9001
-        assert config.wasm == 9002
+        assert config.native == 9100
+        assert config.wasm == 9200
         assert isinstance(config.controller, ControllerPortsConfig)
 
     def test_nested_controller(self) -> None:
@@ -108,6 +108,8 @@ class TestConfig:
         config = Config.from_dict({})
         # Should use all defaults
         assert config.ports.hardware == 9000
+        assert config.ports.native == 9100
+        assert config.ports.wasm == 9200
         assert config.midi.linux == "VirMIDI"
 
     def test_from_dict_partial(self) -> None:
@@ -117,7 +119,7 @@ class TestConfig:
         }
         config = Config.from_dict(data)
         assert config.ports.hardware == 1234
-        assert config.ports.native == 9001  # default
+        assert config.ports.native == 9100  # default
         assert config.midi.linux == "CustomMIDI"
         assert config.midi.windows == "loopMIDI"  # default
 
