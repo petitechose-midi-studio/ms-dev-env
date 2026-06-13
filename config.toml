@@ -3,8 +3,8 @@
 [ports]
 # Bridge host ports (Bitwig extension listens here)
 hardware = 9000
-native = 9001
-wasm = 9002
+native = 9100
+wasm = 9200
 
 [ports.controller]
 core_native = 8000

@@ -42,10 +42,10 @@ CONTROLLER_CORE_WASM_PORT = 8100
 CONTROLLER_BITWIG_NATIVE_PORT = 8001
 CONTROLLER_BITWIG_WASM_PORT = 8101
 
-# Bridge ports (bridge internal)
+# Bridge host ports (Bitwig extension listens here)
 BRIDGE_HARDWARE_PORT = 9000
-BRIDGE_NATIVE_PORT = 9001
-BRIDGE_WASM_PORT = 9002
+BRIDGE_NATIVE_PORT = 9100
+BRIDGE_WASM_PORT = 9200
 
 
 @dataclass(frozen=True, slots=True)

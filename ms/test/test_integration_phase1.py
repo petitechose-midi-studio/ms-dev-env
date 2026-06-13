@@ -155,8 +155,8 @@ class TestRealWorkspaceIntegration:
 
                 # Verify real config values match expected
                 assert config.ports.hardware == 9000
-                assert config.ports.native == 9001
-                assert config.ports.wasm == 9002
+                assert config.ports.native == 9100
+                assert config.ports.wasm == 9200
                 assert config.midi.linux == "VirMIDI"
                 assert config.paths.bridge == "open-control/bridge"
 

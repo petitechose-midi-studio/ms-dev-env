@@ -10,7 +10,7 @@ def test_spec_for_core_native_defaults() -> None:
     assert spec.mode == "native"
     assert spec.controller == "udp"
     assert spec.controller_port == 8000
-    assert spec.host_udp_port == 9001
+    assert spec.host_udp_port == 9100
 
 
 def test_spec_for_bitwig_native_defaults() -> None:
@@ -18,7 +18,7 @@ def test_spec_for_bitwig_native_defaults() -> None:
     spec = spec_for(cfg, app_name="bitwig", mode="native")
     assert spec.controller == "udp"
     assert spec.controller_port == 8001
-    assert spec.host_udp_port == 9001
+    assert spec.host_udp_port == 9100
 
 
 def test_spec_for_core_wasm_defaults() -> None:
@@ -27,7 +27,7 @@ def test_spec_for_core_wasm_defaults() -> None:
     assert spec.mode == "wasm"
     assert spec.controller == "ws"
     assert spec.controller_port == 8100
-    assert spec.host_udp_port == 9002
+    assert spec.host_udp_port == 9200
 
 
 def test_spec_for_bitwig_wasm_defaults() -> None:
@@ -35,4 +35,4 @@ def test_spec_for_bitwig_wasm_defaults() -> None:
     spec = spec_for(cfg, app_name="bitwig", mode="wasm")
     assert spec.controller == "ws"
     assert spec.controller_port == 8101
-    assert spec.host_udp_port == 9002
+    assert spec.host_udp_port == 9200
