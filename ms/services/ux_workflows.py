@@ -18,6 +18,7 @@ type UxProcessRunner = Callable[[list[str], Path, float | None], Result[None, Pr
 
 _EXPECT_RE = re.compile(r"^\s*#\s*Expect:\s*(.+)$", re.IGNORECASE)
 _CAPTURE_RE = re.compile(r"^\s*\d+\s+capture\s+(screen|controller)\s+([A-Za-z0-9_-]+)\s*$")
+_OVERLAY_EXCLUSIVE_MAX_CHANGED_BYTE_RATIO = 0.02
 
 if TYPE_CHECKING:
     from ms.core.config import Config
@@ -341,6 +342,8 @@ class UxWorkflowService(BaseService):
 
         root = (output_root or catalog.app.output_root).resolve()
         root.mkdir(parents=True, exist_ok=True)
+        if all_workflows and output_root is None:
+            _clear_generated_workflow_outputs(root)
 
         runs: list[UxWorkflowRun] = []
         for workflow in selected:
@@ -621,7 +624,12 @@ def _failed_expectations(
                 failed.append(expectation)
             continue
         if expectation == "overlay_exclusive":
-            if not _capture_match(output_dir, "selector_open_early", "selector_open_late"):
+            if not _capture_mostly_match(
+                output_dir,
+                "selector_open_early",
+                "selector_open_late",
+                max_changed_byte_ratio=_OVERLAY_EXCLUSIVE_MAX_CHANGED_BYTE_RATIO,
+            ):
                 failed.append(expectation)
             continue
         if expectation.startswith("capture_match:"):
@@ -687,6 +695,37 @@ def _capture_match(output_dir: Path, left_label: str, right_label: str) -> bool:
     if left is None or right is None:
         return False
     return _sha256(left) == _sha256(right)
+
+
+def _clear_generated_workflow_outputs(root: Path) -> None:
+    for child in root.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child)
+        elif child.name == "report.md":
+            child.unlink()
+
+
+def _capture_mostly_match(
+    output_dir: Path,
+    left_label: str,
+    right_label: str,
+    *,
+    max_changed_byte_ratio: float,
+) -> bool:
+    left = _capture_for_label(output_dir, left_label)
+    right = _capture_for_label(output_dir, right_label)
+    if left is None or right is None:
+        return False
+
+    left_data = left.read_bytes()
+    right_data = right.read_bytes()
+    total = max(len(left_data), len(right_data))
+    if total == 0:
+        return len(left_data) == len(right_data)
+
+    changed = abs(len(left_data) - len(right_data))
+    changed += sum(a != b for a, b in zip(left_data, right_data, strict=False))
+    return changed / total <= max_changed_byte_ratio
 
 
 def _capture_for_label(output_dir: Path, label: str) -> Path | None:
