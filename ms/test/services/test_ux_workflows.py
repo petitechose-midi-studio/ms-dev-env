@@ -8,6 +8,7 @@ from ms.output.console import MockConsole
 from ms.platform.detection import detect
 from ms.platform.process import ProcessError
 from ms.services.ux_workflows import (
+    UxRunFailed,
     UxWorkflowNotFound,
     UxWorkflowService,
     workflow_tree_lines,
@@ -155,6 +156,167 @@ def test_run_validates_trace_dispatch_captures_and_expectations(tmp_path: Path) 
     assert runs[0].capture_count == 2
     assert runs[0].expected_capture_count == 2
     assert runs[0].expectations == ("capture_match:first=second", "playhead_progress")
+
+
+def test_overlay_exclusive_tolerates_small_animated_regions(tmp_path: Path) -> None:
+    _write_workflow(
+        tmp_path,
+        "smoke/overlay-exclusivity.ux",
+        """
+# Expect: overlay_exclusive
+10 capture screen selector_open_early
+20 capture screen selector_open_late
+""".lstrip(),
+    )
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text(
+            '{"stage":"dispatch"}\n',
+            encoding="utf-8",
+        )
+        early = bytearray(b"\x00" * 1000)
+        late = bytearray(early)
+        late[:10] = b"\x01" * 10
+        (output / "001_selector_open_early_screen.bmp").write_bytes(early)
+        (output / "002_selector_open_late_screen.bmp").write_bytes(late)
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+
+    runs = _ok(
+        service.run(
+            app_name="core",
+            selections=("smoke/overlay-exclusivity",),
+            all_workflows=False,
+            skip_build=True,
+            executable=exe,
+        )
+    )
+
+    assert len(runs) == 1
+    assert runs[0].ok
+    assert runs[0].expectations == ("overlay_exclusive",)
+
+
+def test_overlay_exclusive_rejects_large_capture_changes(tmp_path: Path) -> None:
+    _write_workflow(
+        tmp_path,
+        "smoke/overlay-exclusivity.ux",
+        """
+# Expect: overlay_exclusive
+10 capture screen selector_open_early
+20 capture screen selector_open_late
+""".lstrip(),
+    )
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text(
+            '{"stage":"dispatch"}\n',
+            encoding="utf-8",
+        )
+        early = bytearray(b"\x00" * 1000)
+        late = bytearray(early)
+        late[:30] = b"\x01" * 30
+        (output / "001_selector_open_early_screen.bmp").write_bytes(early)
+        (output / "002_selector_open_late_screen.bmp").write_bytes(late)
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+
+    result = service.run(
+        app_name="core",
+        selections=("smoke/overlay-exclusivity",),
+        all_workflows=False,
+        skip_build=True,
+        executable=exe,
+    )
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxRunFailed)
+    assert result.error.run is not None
+    assert result.error.run.failed_expectations == ("overlay_exclusive",)
+
+
+def test_run_all_removes_stale_workflow_outputs(tmp_path: Path) -> None:
+    _write_workflow(tmp_path, "smoke/current.ux", "10 capture screen first\n")
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+    output_root = tmp_path / "midi-studio" / "core" / ".captures" / "ux" / "workflows"
+    stale = output_root / "smoke" / "removed-workflow"
+    stale.mkdir(parents=True)
+    (stale / "old_screen.bmp").write_bytes(b"old")
+    log_file = output_root / "full-core-run.log"
+    log_file.write_text("keep me\n", encoding="utf-8")
+    report = output_root / "report.md"
+    report.write_text("old report\n", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text(
+            '{"stage":"dispatch"}\n',
+            encoding="utf-8",
+        )
+        (output / "001_first_screen.bmp").write_bytes(b"bmp")
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+
+    result = service.run(
+        app_name="core",
+        selections=(),
+        all_workflows=True,
+        skip_build=True,
+        executable=exe,
+    )
+
+    runs = _ok(result)
+    assert len(runs) == 1
+    assert runs[0].ok
+    assert not stale.exists()
+    assert log_file.read_text(encoding="utf-8") == "keep me\n"
+    assert not report.exists()
 
 
 def test_write_report_uses_existing_capture_outputs(tmp_path: Path) -> None:
