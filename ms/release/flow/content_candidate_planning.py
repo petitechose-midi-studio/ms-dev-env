@@ -51,6 +51,7 @@ def plan_content_candidates(
             "loader-binaries",
             "oc-bridge-binaries",
             "core-default-firmware",
+            "core-host-tools",
             "plugin-bitwig-extension",
             "plugin-bitwig-firmware",
         )
@@ -97,6 +98,19 @@ def plan_content_candidates(
             source_sha=core_pin.sha,
             tooling=tooling,
             public_key_b64=producer_keys.value["core-default-firmware"],
+        ),
+        _single_repo_candidate_target(
+            target_id="core-host-tools",
+            label=f"core host tools {core_pin.sha[:12]}",
+            producer_id="core-host-tools",
+            repo_slug=core_pin.repo.slug,
+            workflow_file=".github/workflows/candidate-host-tools.yml",
+            ref=core_pin.repo.ref,
+            candidate_tag=f"rc-core-host-tools-{core_pin.sha}-tooling-{tooling.sha}",
+            input_repo_id="core",
+            source_sha=core_pin.sha,
+            tooling=tooling,
+            public_key_b64=producer_keys.value["core-host-tools"],
         ),
         _single_repo_candidate_target(
             target_id="plugin-bitwig-extension",

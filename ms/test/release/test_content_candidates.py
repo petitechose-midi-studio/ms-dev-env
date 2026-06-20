@@ -94,16 +94,21 @@ def test_plan_content_candidates_resolves_tags_and_ui_sha(
         "loader-binaries",
         "oc-bridge-binaries",
         "core-default-firmware",
+        "core-host-tools",
         "plugin-bitwig-extension",
         "plugin-bitwig-firmware",
     ]
     assert planned.value[2].candidate_tag == "rc-" + ("3" * 40) + "-tooling-" + ("f" * 40)
     assert (
-        planned.value[4].candidate_tag
+        planned.value[3].candidate_tag
+        == "rc-core-host-tools-" + ("3" * 40) + "-tooling-" + ("f" * 40)
+    )
+    assert (
+        planned.value[5].candidate_tag
         == "rc-plugin-bitwig-firmware-" + ("3" * 40) + "-" + ("4" * 40) + "-tooling-" + ("f" * 40)
     )
-    assert planned.value[4].expected_input_repos[2].sha == "a" * 40
-    assert planned.value[4].expected_input_repos[3].id == "ms-dev-env"
+    assert planned.value[5].expected_input_repos[2].sha == "a" * 40
+    assert planned.value[5].expected_input_repos[3].id == "ms-dev-env"
 
 
 def test_ensure_content_candidates_dispatches_only_missing_targets(

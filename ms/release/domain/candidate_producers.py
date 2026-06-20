@@ -42,6 +42,14 @@ TRUSTED_CANDIDATE_PRODUCERS: tuple[TrustedCandidateProducer, ...] = (
         public_key_b64="SAmvKafqhAmX4/3qSW+Lz5eo3XpF0WKeh5HntqL/CSA=",
     ),
     TrustedCandidateProducer(
+        id="core-host-tools",
+        candidate_repo="petitechose-midi-studio/core",
+        producer_repo="petitechose-midi-studio/core",
+        producer_kind="core-host-tools",
+        workflow_file=".github/workflows/candidate-host-tools.yml",
+        public_key_b64="SAmvKafqhAmX4/3qSW+Lz5eo3XpF0WKeh5HntqL/CSA=",
+    ),
+    TrustedCandidateProducer(
         id="plugin-bitwig-extension",
         candidate_repo="petitechose-midi-studio/plugin-bitwig",
         producer_repo="petitechose-midi-studio/plugin-bitwig",
