@@ -926,6 +926,8 @@ class UnitTestService(BaseService):
             "",
             "project(ms_workspace_unit_tests LANGUAGES C CXX)",
             "",
+            "set(CMAKE_CXX_SCAN_FOR_MODULES OFF)",
+            "",
             "include(CTest)",
             "",
             'set(OC_FRAMEWORK_BUILD_TESTS ON CACHE BOOL "Build OpenControl framework tests" FORCE)',
