@@ -149,6 +149,6 @@ def test_ctest_path_filter_removes_workspace_venv(tmp_path: Path) -> None:
     other = tmp_path / "tools" / "bin"
     value = os.pathsep.join((str(venv_scripts), str(other)))
 
-    filtered = unit_tests._remove_env_path_entry(value, venv_scripts)
+    filtered = unit_tests.remove_env_path_entry(value, venv_scripts)
 
     assert filtered == str(other)

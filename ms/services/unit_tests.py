@@ -813,7 +813,7 @@ class UnitTestService(BaseService):
         env = os.environ.copy()
         venv_dir = self._workspace.root / ".venv"
         venv_scripts = venv_dir / ("Scripts" if self._platform.platform.is_windows else "bin")
-        env["PATH"] = _remove_env_path_entry(env.get("PATH", ""), venv_scripts)
+        env["PATH"] = remove_env_path_entry(env.get("PATH", ""), venv_scripts)
         if Path(env.get("VIRTUAL_ENV", "")).resolve() == venv_dir.resolve():
             env.pop("VIRTUAL_ENV", None)
         env.update(dict(target.env_vars))
@@ -1061,7 +1061,7 @@ def _join_env_path(first: str, rest: str | None) -> str:
     return f"{first}{os.pathsep}{rest}"
 
 
-def _remove_env_path_entry(value: str, blocked: Path) -> str:
+def remove_env_path_entry(value: str, blocked: Path) -> str:
     if not value:
         return value
     blocked_norm = str(blocked.resolve()).casefold()
