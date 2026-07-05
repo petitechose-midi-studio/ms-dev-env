@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -141,3 +142,13 @@ def test_ms_dev_env_target_enables_strict_architecture_checks(
     assert not isinstance(result, Err)
     assert captured_env["MS_ARCH_CHECKS"] == "1"
     assert captured_env["MS_ARCH_STRICT"] == "1"
+
+
+def test_ctest_path_filter_removes_workspace_venv(tmp_path: Path) -> None:
+    venv_scripts = tmp_path / ".venv" / "Scripts"
+    other = tmp_path / "tools" / "bin"
+    value = os.pathsep.join((str(venv_scripts), str(other)))
+
+    filtered = unit_tests.remove_env_path_entry(value, venv_scripts)
+
+    assert filtered == str(other)

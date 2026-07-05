@@ -467,7 +467,7 @@ class UnitTestService(BaseService):
             tests = run(
                 ctest_args,
                 cwd=self._workspace.root,
-                env=self._base_env(),
+                env=self._ctest_env(unit_target),
                 timeout=_TEST_TIMEOUT_SECONDS,
             )
             if isinstance(tests, Err):
@@ -803,6 +803,22 @@ class UnitTestService(BaseService):
         env.update(dict(target.env_vars))
         return env
 
+    def _ctest_env(self, target: UnitTestTarget) -> dict[str, str]:
+        """Runtime env for native test executables.
+
+        Configure/build need the full toolchain environment. The compiled
+        CTest executables do not, and leaking unrelated tool env can perturb
+        native Windows test processes.
+        """
+        env = os.environ.copy()
+        venv_dir = self._workspace.root / ".venv"
+        venv_scripts = venv_dir / ("Scripts" if self._platform.platform.is_windows else "bin")
+        env["PATH"] = remove_env_path_entry(env.get("PATH", ""), venv_scripts)
+        if Path(env.get("VIRTUAL_ENV", "")).resolve() == venv_dir.resolve():
+            env.pop("VIRTUAL_ENV", None)
+        env.update(dict(target.env_vars))
+        return env
+
     def _get_tool_path(self, tool_id: str) -> Result[Path, UnitTestError]:
         path = self._registry.get_bin_path(tool_id)
         if path is not None and path.exists():
@@ -1043,6 +1059,17 @@ def _join_env_path(first: str, rest: str | None) -> str:
     if not rest:
         return first
     return f"{first}{os.pathsep}{rest}"
+
+
+def remove_env_path_entry(value: str, blocked: Path) -> str:
+    if not value:
+        return value
+    blocked_norm = str(blocked.resolve()).casefold()
+    kept = [
+        entry for entry in value.split(os.pathsep)
+        if str(Path(entry).resolve()).casefold() != blocked_norm
+    ]
+    return os.pathsep.join(kept)
 
 
 def load_test_dependency_pin(name: str) -> Result[_TestDependencyPin, UnitTestError]:
