@@ -6,13 +6,13 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.release.errors import ReleaseError
-from ms.release.infra.atomic_text_file import read_utf8_text, write_utf8_text_atomic
 from ms.release.flow.core_dependency_pin_sources import (
     CI_ENV_REPOS,
     DependencyPinSource,
     RefResolver,
     dependency_shas,
 )
+from ms.release.infra.atomic_text_file import read_utf8_text, write_utf8_text_atomic
 
 _SHA_RE = r"[0-9a-fA-F]{40}"
 _MS_UI_RELEASE_RE = re.compile(

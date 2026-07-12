@@ -94,7 +94,9 @@ def run_dependencies_release(
             return Err(
                 ReleaseError(
                     kind="invalid_input",
-                    message="dependency pin preparation cannot promote, watch, or run interactively",
+                    message=(
+                        "dependency pin preparation cannot promote, watch, or run interactively"
+                    ),
                 )
             )
         return _run_dependency_pin_preparation(
@@ -448,9 +450,7 @@ def _print_dependency_pin_preparation_plan(
     if plan.consumer is not None:
         for item in plan.consumer.items:
             if item.changed:
-                console.print(
-                    f"{item.dependency_id}: {item.from_sha[:12]} -> {item.to_sha[:12]}"
-                )
+                console.print(f"{item.dependency_id}: {item.from_sha[:12]} -> {item.to_sha[:12]}")
     if not plan.requires_write:
         console.print("no pin changes required", Style.DIM)
 

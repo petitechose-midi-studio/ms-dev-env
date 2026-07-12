@@ -15,11 +15,11 @@ from ms.release.domain.open_control_models import BomPromotionPlan
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.bom_workflow import BomSyncPreview, BomWorkspaceState
-from ms.release.flow.core_dependency_pins import CoreDependencyPinPlan
 from ms.release.flow.consumer_dependency_pins import (
     ConsumerDependencyPinItem,
     ConsumerDependencyPinPlan,
 )
+from ms.release.flow.core_dependency_pins import CoreDependencyPinPlan
 from ms.release.flow.dependency_pin_preparation import DependencyPinPreparationPlan
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.github.workflows import WorkflowRun
@@ -125,8 +125,7 @@ def test_guided_dependencies_blocks_on_readiness_report(
     assert result.error.message == "dependency promotion blocked; see readiness report above"
     assert result.error.hint is not None
     assert result.error.hint == (
-        "fix the first blocker above, then rerun: "
-        "uv run ms release dependencies --dry-run"
+        "fix the first blocker above, then rerun: uv run ms release dependencies --dry-run"
     )
     assert ".M ms/foo.py" not in result.error.hint
     assert "petitechose-midi-studio/ms-dev-env (dirty)" in console.text
@@ -222,33 +221,30 @@ def test_dependencies_prepare_dry_run_allows_dirty_consumer_and_skips_writes(
     )
     applied = {"called": False}
 
-    monkeypatch.setattr(deps, "load_release_graph", lambda: Ok(graph))
-    monkeypatch.setattr(
-        deps,
-        "assess_dependency_readiness",
-        lambda **_: DependencyReadinessReport(items=()),
-    )
-    monkeypatch.setattr(
-        deps,
-        "plan_dependency_pin_preparation",
-        lambda **_: Ok(
+    def fake_readiness(**_: object) -> DependencyReadinessReport:
+        return DependencyReadinessReport(items=())
+
+    def fake_pin_plan(**_: object) -> Ok[DependencyPinPreparationPlan]:
+        return Ok(
             DependencyPinPreparationPlan(
                 consumer_id="oc-hal-teensy",
                 consumer=pin_plan,
             )
-        ),
-    )
+        )
+
+    def fail_permissions(**_: object) -> None:
+        pytest.fail("prepare must not require GitHub permissions")
+
+    monkeypatch.setattr(deps, "load_release_graph", lambda: Ok(graph))
+    monkeypatch.setattr(deps, "assess_dependency_readiness", fake_readiness)
+    monkeypatch.setattr(deps, "plan_dependency_pin_preparation", fake_pin_plan)
 
     def fail_if_applied(**_: object):
         applied["called"] = True
         return Err(ReleaseError(kind="repo_failed", message="should not apply"))
 
     monkeypatch.setattr(deps, "apply_dependency_pin_preparation", fail_if_applied)
-    monkeypatch.setattr(
-        deps,
-        "ensure_core_release_permissions",
-        lambda **_: pytest.fail("prepare must not require GitHub permissions"),
-    )
+    monkeypatch.setattr(deps, "ensure_core_release_permissions", fail_permissions)
 
     console = MockConsole()
     result = deps.run_dependencies_release(

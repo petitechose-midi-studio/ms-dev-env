@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -34,10 +35,8 @@ def write_utf8_text_atomic(*, path: Path, content: str) -> Result[None, ReleaseE
         os.replace(tmp_path, path)
     except OSError as error:
         if tmp_path is not None:
-            try:
+            with suppress(OSError):
                 tmp_path.unlink(missing_ok=True)
-            except OSError:
-                pass
         return Err(
             ReleaseError(kind="invalid_input", message=f"failed to write {path}", hint=str(error))
         )
