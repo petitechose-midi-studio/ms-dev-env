@@ -24,6 +24,12 @@ def dependencies_cmd(
         help="Watch the release-alignment workflow after promotion.",
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without mutating."),
+    prepare: str | None = typer.Option(
+        None,
+        "--prepare",
+        metavar="NODE_ID",
+        help="Write merged dependency heads into one consumer working tree without tests or PRs.",
+    ),
 ) -> None:
     """Check release-branch dependency heads and optionally promote core dependency pins."""
 
@@ -36,6 +42,7 @@ def dependencies_cmd(
         dry_run=dry_run,
         promote=promote,
         interactive=False,
+        prepare=prepare,
     )
     if isinstance(run, Err):
         exit_release(run.error.pretty(), code=release_error_code(run.error.kind))

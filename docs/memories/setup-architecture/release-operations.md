@@ -43,6 +43,33 @@ When dependency promotion is blocked, the readiness report is intentionally acti
 - the first required action is repeated at the end of the report;
 - `uv run ms release dependencies --dry-run` is the safe command to rerun after each fix.
 
+### Preparing one consumer
+
+Use `uv run ms release dependencies --prepare <node-id>` while committing a dependency chain from
+the bottom up. This mode is deliberately narrower than promotion:
+
+- it fetches and audits only the transitive dependencies of the selected consumer;
+- every dependency must be clean, on its canonical branch, and present on the corresponding remote
+  branch;
+- the selected consumer may remain dirty and on its implementation branch;
+- it writes only dependency-owned release pins in the consumer working tree;
+- it does not run tests, open or merge pull requests, or require GitHub write permissions.
+
+Always inspect the exact write set first:
+
+```text
+uv run ms release dependencies --prepare oc-hal-teensy --dry-run
+uv run ms release dependencies --prepare oc-hal-teensy
+```
+
+After preparation, review the generated diff and run the consumer's normal test/build contract
+before committing it. For `core`, preparation updates the canonical OpenControl BOM, its derived
+native CI BOM, the pinned `ms-ui` release dependency, and Core CI dependency SHAs from merged
+workspace heads. Pin values must never be edited by hand.
+
+The plain `--dry-run` remains a whole-graph readiness inspection and also runs no tests. Tests are
+part of the explicit repository preflight and of the actual promotion path, not of either dry-run.
+
 When a release command watches a GitHub Actions run, the CLI owns the terminal feedback instead of
 delegating silently to `gh run watch`: it prints the run URL once, then compact progress updates with
 the run status, completed job count, active jobs, and failed jobs if any. Full logs stay one command
@@ -105,6 +132,8 @@ to create pull requests. The maintainer account must remain a different identity
   - `uv run ms release content plan|prepare|publish ...`
   - `uv run ms release app plan|prepare|publish ...`
   - `uv run ms release dependencies --dry-run`
+  - `uv run ms release dependencies --prepare <node-id> --dry-run`
+  - `uv run ms release dependencies --prepare <node-id>`
   - `uv run ms release dependencies --promote --watch`
 
 ## Archived details
