@@ -450,7 +450,8 @@ def _print_dependency_pin_preparation_plan(
     if plan.consumer is not None:
         for item in plan.consumer.items:
             if item.changed:
-                console.print(f"{item.dependency_id}: {item.from_sha[:12]} -> {item.to_sha[:12]}")
+                before = item.from_sha[:12] if item.from_sha is not None else "unset"
+                console.print(f"{item.dependency_id}: {before} -> {item.to_sha[:12]}")
     if not plan.requires_write:
         console.print("no pin changes required", Style.DIM)
 
