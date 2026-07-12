@@ -19,6 +19,7 @@ type UxProcessRunner = Callable[[list[str], Path, float | None], Result[None, Pr
 _EXPECT_RE = re.compile(r"^\s*#\s*Expect:\s*(.+)$", re.IGNORECASE)
 _CAPTURE_RE = re.compile(r"^\s*\d+\s+capture\s+(screen|controller)\s+([A-Za-z0-9_-]+)\s*$")
 _OVERLAY_EXCLUSIVE_MAX_CHANGED_BYTE_RATIO = 0.02
+_CAPTURE_CHANGED_MIN_BYTES = 16
 
 if TYPE_CHECKING:
     from ms.core.config import Config
@@ -552,15 +553,23 @@ def _expectation_suffix(expectations: tuple[str, ...]) -> str:
         return ""
     labels: list[str] = []
     capture_matches = 0
+    capture_changes = 0
     for expectation in expectations:
         if expectation.startswith("capture_match:"):
             capture_matches += 1
+            continue
+        if expectation.startswith("capture_changed:"):
+            capture_changes += 1
             continue
         labels.append(expectation)
     if capture_matches == 1:
         labels.append("capture_match:*")
     elif capture_matches > 1:
         labels.append(f"capture_match:*x{capture_matches}")
+    if capture_changes == 1:
+        labels.append("capture_changed:*")
+    elif capture_changes > 1:
+        labels.append(f"capture_changed:*x{capture_changes}")
     return f" expects={','.join(labels)}"
 
 
@@ -639,6 +648,14 @@ def _failed_expectations(
                 continue
             if not _capture_match(output_dir, labels[0], labels[1]):
                 failed.append(expectation)
+            continue
+        if expectation.startswith("capture_changed:"):
+            labels = expectation.removeprefix("capture_changed:").split("=", 1)
+            if len(labels) != 2 or not labels[0] or not labels[1]:
+                failed.append(expectation)
+                continue
+            if not _capture_changed(output_dir, labels[0], labels[1]):
+                failed.append(expectation)
     return tuple(failed)
 
 
@@ -695,6 +712,21 @@ def _capture_match(output_dir: Path, left_label: str, right_label: str) -> bool:
     if left is None or right is None:
         return False
     return _sha256(left) == _sha256(right)
+
+
+def _capture_changed(output_dir: Path, left_label: str, right_label: str) -> bool:
+    left = _capture_for_label(output_dir, left_label)
+    right = _capture_for_label(output_dir, right_label)
+    if left is None or right is None:
+        return False
+
+    left_data = left.read_bytes()
+    right_data = right.read_bytes()
+    changed = abs(len(left_data) - len(right_data))
+    changed += sum(
+        a != b for a, b in zip(left_data, right_data, strict=False)
+    )
+    return changed >= _CAPTURE_CHANGED_MIN_BYTES
 
 
 def _clear_generated_workflow_outputs(root: Path) -> None:

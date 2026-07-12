@@ -9,7 +9,9 @@ from ms.platform.detection import detect
 from ms.platform.process import ProcessError
 from ms.services.ux_workflows import (
     UxRunFailed,
+    UxWorkflowError,
     UxWorkflowNotFound,
+    UxWorkflowRun,
     UxWorkflowService,
     workflow_tree_lines,
 )
@@ -265,6 +267,69 @@ def test_overlay_exclusive_rejects_large_capture_changes(tmp_path: Path) -> None
     assert isinstance(result.error, UxRunFailed)
     assert result.error.run is not None
     assert result.error.run.failed_expectations == ("overlay_exclusive",)
+
+
+def _run_capture_changed_workflow(
+    tmp_path: Path, *, changed_bytes: int
+) -> Ok[tuple[UxWorkflowRun, ...]] | Err[UxWorkflowError]:
+    _write_workflow(
+        tmp_path,
+        "changed.ux",
+        "# Expect: capture_changed:before=after\n"
+        "10 capture screen before\n"
+        "20 capture screen after\n",
+    )
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text(
+            '{"stage":"dispatch"}\n', encoding="utf-8"
+        )
+        (output / "001_before_screen.bmp").write_bytes(b"A" * 10_000)
+        (output / "002_after_screen.bmp").write_bytes(
+            b"A" * (10_000 - changed_bytes) + b"B" * changed_bytes
+        )
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+    return service.run(
+        app_name="core",
+        selections=("changed",),
+        all_workflows=False,
+        skip_build=True,
+        executable=exe,
+    )
+
+
+def test_capture_changed_requires_a_meaningful_visual_difference(tmp_path: Path) -> None:
+    result = _run_capture_changed_workflow(tmp_path, changed_bytes=100)
+
+    runs = _ok(result)
+    assert len(runs) == 1
+    assert runs[0].failed_expectations == ()
+
+
+def test_capture_changed_rejects_nearly_identical_captures(tmp_path: Path) -> None:
+    result = _run_capture_changed_workflow(tmp_path, changed_bytes=5)
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxRunFailed)
+    assert result.error.run is not None
+    assert result.error.run.failed_expectations == ("capture_changed:before=after",)
 
 
 def test_run_all_removes_stale_workflow_outputs(tmp_path: Path) -> None:
