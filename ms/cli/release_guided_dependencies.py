@@ -18,6 +18,11 @@ from ms.release.flow.core_dependency_pins import (
     plan_core_dependency_pin_sync,
 )
 from ms.release.flow.dependency_graph import load_release_graph
+from ms.release.flow.dependency_pin_preparation import (
+    DependencyPinPreparationPlan,
+    apply_dependency_pin_preparation,
+    plan_dependency_pin_preparation,
+)
 from ms.release.flow.dependency_readiness import assess_dependency_readiness
 from ms.release.flow.guided.router import MenuOption
 from ms.release.flow.permissions import ensure_core_release_permissions
@@ -63,6 +68,7 @@ def run_guided_dependencies_release(
         dry_run=dry_run,
         promote=False,
         interactive=True,
+        prepare=None,
     )
 
 
@@ -75,8 +81,31 @@ def run_dependencies_release(
     dry_run: bool,
     promote: bool,
     interactive: bool,
+    prepare: str | None = None,
 ) -> Result[None, ReleaseError]:
     del notes_file
+
+    graph = load_release_graph()
+    if isinstance(graph, Err):
+        return graph
+
+    if prepare is not None:
+        if promote or watch or interactive:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message=(
+                        "dependency pin preparation cannot promote, watch, or run interactively"
+                    ),
+                )
+            )
+        return _run_dependency_pin_preparation(
+            workspace_root=workspace_root,
+            console=console,
+            graph=graph.value,
+            consumer_id=prepare,
+            dry_run=dry_run,
+        )
 
     auth = ensure_core_release_permissions(
         workspace_root=workspace_root,
@@ -85,10 +114,6 @@ def run_dependencies_release(
     )
     if isinstance(auth, Err):
         return auth
-
-    graph = load_release_graph()
-    if isinstance(graph, Err):
-        return graph
 
     console.print("Checking release-branch heads for every dependency repo", Style.DIM)
     readiness = _assess_guided_readiness(workspace_root=workspace_root, graph=graph.value)
@@ -302,6 +327,132 @@ def _assess_guided_readiness(
         refresh_remotes=True,
     )
     return DependencyReadinessReport(items=(*tooling.items, *dependencies.items))
+
+
+def _run_dependency_pin_preparation(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    graph: ReleaseGraph,
+    consumer_id: str,
+    dry_run: bool,
+) -> Result[None, ReleaseError]:
+    consumer = graph.by_id().get(consumer_id)
+    if consumer is None:
+        return Err(
+            ReleaseError(kind="invalid_input", message=f"unknown release graph node: {consumer_id}")
+        )
+
+    dependency_graph = _dependency_closure_graph(graph=graph, consumer_id=consumer_id)
+    dependencies = assess_dependency_readiness(
+        workspace_root=workspace_root,
+        graph=dependency_graph,
+        enforce_expected_branch=True,
+        refresh_remotes=True,
+    )
+    if consumer_id == "core":
+        tooling_graph = ReleaseGraph(
+            nodes=(
+                ReleaseGraphNode(
+                    id="ms-dev-env",
+                    repo=MS_REPO_SLUG,
+                    local_path=".",
+                    role="release_producer",
+                    expected_branch="main",
+                ),
+            )
+        )
+        tooling = assess_dependency_readiness(
+            workspace_root=workspace_root,
+            graph=tooling_graph,
+            enforce_expected_branch=True,
+            refresh_remotes=True,
+        )
+        readiness = DependencyReadinessReport(items=(*tooling.items, *dependencies.items))
+    else:
+        readiness = dependencies
+
+    console.print(f"Checking merged dependencies for {consumer.repo}", Style.DIM)
+    print_dependency_readiness_report(console=console, report=readiness)
+    if not readiness.is_ready:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="dependency pin preparation blocked; see readiness report above",
+                hint="merge and pull the listed dependencies, then rerun the same command",
+            )
+        )
+
+    planned = plan_dependency_pin_preparation(
+        workspace_root=workspace_root,
+        graph=graph,
+        consumer_id=consumer_id,
+    )
+    if isinstance(planned, Err):
+        return planned
+
+    _print_dependency_pin_preparation_plan(console=console, plan=planned.value)
+    console.print("tests are not run during dependency pin preparation", Style.DIM)
+    if dry_run:
+        console.success("dependency pin preparation dry-run completed")
+        return Ok(None)
+    if not planned.value.requires_write:
+        console.success(f"{consumer.repo} dependency pins already match merged workspace heads")
+        return Ok(None)
+
+    applied = apply_dependency_pin_preparation(
+        workspace_root=workspace_root,
+        graph=graph,
+        plan=planned.value,
+    )
+    if isinstance(applied, Err):
+        return applied
+    for path in applied.value.written:
+        console.print(f"updated: {path}", Style.DIM)
+    console.success(f"prepared dependency pins for {consumer.repo}")
+    return Ok(None)
+
+
+def _dependency_closure_graph(*, graph: ReleaseGraph, consumer_id: str) -> ReleaseGraph:
+    nodes = graph.by_id()
+    required: set[str] = set()
+
+    def collect(node_id: str) -> None:
+        node = nodes.get(node_id)
+        if node is None:
+            return
+        for dependency_id in node.depends_on:
+            if dependency_id in required:
+                continue
+            required.add(dependency_id)
+            collect(dependency_id)
+
+    collect(consumer_id)
+    return ReleaseGraph(nodes=tuple(node for node in graph.nodes if node.id in required))
+
+
+def _print_dependency_pin_preparation_plan(
+    *, console: ConsoleProtocol, plan: DependencyPinPreparationPlan
+) -> None:
+    console.header("Dependency pin preparation plan")
+    console.print(f"consumer: {plan.consumer_id}", Style.DIM)
+    if plan.bom is not None:
+        console.print(
+            f"OpenControl BOM: {plan.bom.current_version} -> {plan.bom.next_version}",
+            Style.DIM,
+        )
+        for item in plan.bom.items:
+            if item.changed:
+                before = item.from_sha[:12] if item.from_sha is not None else "unset"
+                console.print(f"{item.repo}: {before} -> {item.to_sha[:12]}")
+    if plan.core is not None:
+        _print_core_pin_plan(console=console, plan=plan.core)
+    if plan.consumer is not None:
+        for item in plan.consumer.items:
+            if item.changed:
+                console.print(f"{item.dependency_id}: {item.from_sha[:12]} -> {item.to_sha[:12]}")
+    if not plan.requires_write:
+        console.print("no pin changes required", Style.DIM)
 
 
 def _blocker_hint() -> str:

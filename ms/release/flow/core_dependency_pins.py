@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import re
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +12,7 @@ from ms.release.flow.core_dependency_pin_sources import (
     RefResolver,
     dependency_shas,
 )
+from ms.release.infra.atomic_text_file import read_utf8_text, write_utf8_text_atomic
 
 _SHA_RE = r"[0-9a-fA-F]{40}"
 _MS_UI_RELEASE_RE = re.compile(
@@ -61,10 +60,10 @@ def plan_core_dependency_pin_sync(
     if isinstance(shas, Err):
         return shas
 
-    platformio_text = _read_text(path=platformio)
+    platformio_text = read_utf8_text(path=platformio)
     if isinstance(platformio_text, Err):
         return platformio_text
-    ci_text = _read_text(path=ci)
+    ci_text = read_utf8_text(path=ci)
     if isinstance(ci_text, Err):
         return ci_text
 
@@ -163,11 +162,11 @@ def sync_core_dependency_pin_plan(
 
     written: list[Path] = []
     for path, items in by_path.items():
-        text = _read_text(path=path)
+        text = read_utf8_text(path=path)
         if isinstance(text, Err):
             return text
         rendered = _apply_items(text=text.value, items=tuple(items))
-        write = _atomic_write_text(path=path, content=rendered)
+        write = write_utf8_text_atomic(path=path, content=rendered)
         if isinstance(write, Err):
             return write
         written.append(path)
@@ -177,15 +176,6 @@ def sync_core_dependency_pin_plan(
         return verified
 
     return Ok(CoreDependencyPinSyncResult(plan=plan, written=tuple(written)))
-
-
-def _read_text(*, path: Path) -> Result[str, ReleaseError]:
-    try:
-        return Ok(path.read_text(encoding="utf-8"))
-    except OSError as error:
-        return Err(
-            ReleaseError(kind="invalid_input", message=f"failed to read {path}", hint=str(error))
-        )
 
 
 def _extract_ms_ui_release_pin(text: str) -> str | None:
@@ -220,7 +210,7 @@ def _verify_written_plan(*, plan: CoreDependencyPinPlan) -> Result[None, Release
     for item in plan.items:
         if not item.changed:
             continue
-        text = _read_text(path=item.path)
+        text = read_utf8_text(path=item.path)
         if isinstance(text, Err):
             return text
         current = _extract_item_pin(text=text.value, key=item.key)
@@ -267,24 +257,3 @@ def _insert_ci_env_pin(*, text: str, key: str, sha: str) -> str:
     if had_trailing_newline:
         rendered += "\n"
     return rendered
-
-
-def _atomic_write_text(*, path: Path, content: str) -> Result[None, ReleaseError]:
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            newline="\n",
-            delete=False,
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-        ) as handle:
-            handle.write(content)
-            tmp_path = Path(handle.name)
-        os.replace(tmp_path, path)
-    except OSError as error:
-        return Err(
-            ReleaseError(kind="invalid_input", message=f"failed to write {path}", hint=str(error))
-        )
-    return Ok(None)

@@ -56,7 +56,10 @@ def test_self_install_writes_repo_launchers(
     ms_launcher = bin_dir / "ms.cmd"
     assert ms_launcher.exists()
     assert not stale_ms_exe.exists()
-    assert f'uv run --project "{ws}" ms %*' in ms_launcher.read_text(encoding="utf-8")
+    launcher_content = ms_launcher.read_text(encoding="utf-8")
+    assert 'set "UV_EXE=%~dp0uv.exe"' in launcher_content
+    assert 'if not exist "%UV_EXE%" set "UV_EXE=uv.exe"' in launcher_content
+    assert f'"%UV_EXE%" run --project "{ws}" ms %*' in launcher_content
     assert (bin_dir / "oc-build.cmd").exists()
 
 

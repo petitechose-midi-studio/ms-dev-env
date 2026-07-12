@@ -116,7 +116,9 @@ def _windows_launcher_content(root: Path, command: str) -> str:
     return (
         "@echo off\r\n"
         "setlocal\r\n"
-        f'uv run --project "{root}" {command} %*\r\n'
+        'set "UV_EXE=%~dp0uv.exe"\r\n'
+        'if not exist "%UV_EXE%" set "UV_EXE=uv.exe"\r\n'
+        f'"%UV_EXE%" run --project "{root}" {command} %*\r\n'
         "exit /b %ERRORLEVEL%\r\n"
     )
 

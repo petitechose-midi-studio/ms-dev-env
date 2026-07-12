@@ -15,7 +15,12 @@ from ms.release.domain.open_control_models import BomPromotionPlan
 from ms.release.errors import ReleaseError
 from ms.release.flow.bom_promotion import BomPromotionResult
 from ms.release.flow.bom_workflow import BomSyncPreview, BomWorkspaceState
+from ms.release.flow.consumer_dependency_pins import (
+    ConsumerDependencyPinItem,
+    ConsumerDependencyPinPlan,
+)
 from ms.release.flow.core_dependency_pins import CoreDependencyPinPlan
+from ms.release.flow.dependency_pin_preparation import DependencyPinPreparationPlan
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.github.workflows import WorkflowRun
 
@@ -120,8 +125,7 @@ def test_guided_dependencies_blocks_on_readiness_report(
     assert result.error.message == "dependency promotion blocked; see readiness report above"
     assert result.error.hint is not None
     assert result.error.hint == (
-        "fix the first blocker above, then rerun: "
-        "uv run ms release dependencies --dry-run"
+        "fix the first blocker above, then rerun: uv run ms release dependencies --dry-run"
     )
     assert ".M ms/foo.py" not in result.error.hint
     assert "petitechose-midi-studio/ms-dev-env (dirty)" in console.text
@@ -176,6 +180,89 @@ def test_guided_dependencies_dry_run_prints_bom_plan_without_promoting(
     assert not promoted["called"]
     assert "READY 0/0 repo(s) clean/fetchable" in console.text
     assert "dependency promotion dry-run completed" in console.text
+
+
+def test_dependencies_prepare_dry_run_allows_dirty_consumer_and_skips_writes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import ms.cli.release_guided_dependencies as deps
+    from ms.release.domain.dependency_graph_models import ReleaseGraphNode
+
+    graph = ReleaseGraph(
+        nodes=(
+            ReleaseGraphNode(
+                id="oc-framework",
+                repo="open-control/framework",
+                local_path="open-control/framework",
+                role="bom_dependency",
+            ),
+            ReleaseGraphNode(
+                id="oc-hal-teensy",
+                repo="open-control/hal-teensy",
+                local_path="open-control/hal-teensy",
+                role="bom_dependency",
+                depends_on=("oc-framework",),
+            ),
+        )
+    )
+    platformio = tmp_path / "open-control" / "hal-teensy" / "platformio.ini"
+    pin_plan = ConsumerDependencyPinPlan(
+        consumer_id="oc-hal-teensy",
+        items=(
+            ConsumerDependencyPinItem(
+                dependency_id="oc-framework",
+                path=platformio,
+                from_sha="1" * 40,
+                to_sha="2" * 40,
+                changed=True,
+            ),
+        ),
+        requires_write=True,
+    )
+    applied = {"called": False}
+
+    def fake_readiness(**_: object) -> DependencyReadinessReport:
+        return DependencyReadinessReport(items=())
+
+    def fake_pin_plan(**_: object) -> Ok[DependencyPinPreparationPlan]:
+        return Ok(
+            DependencyPinPreparationPlan(
+                consumer_id="oc-hal-teensy",
+                consumer=pin_plan,
+            )
+        )
+
+    def fail_permissions(**_: object) -> None:
+        pytest.fail("prepare must not require GitHub permissions")
+
+    monkeypatch.setattr(deps, "load_release_graph", lambda: Ok(graph))
+    monkeypatch.setattr(deps, "assess_dependency_readiness", fake_readiness)
+    monkeypatch.setattr(deps, "plan_dependency_pin_preparation", fake_pin_plan)
+
+    def fail_if_applied(**_: object):
+        applied["called"] = True
+        return Err(ReleaseError(kind="repo_failed", message="should not apply"))
+
+    monkeypatch.setattr(deps, "apply_dependency_pin_preparation", fail_if_applied)
+    monkeypatch.setattr(deps, "ensure_core_release_permissions", fail_permissions)
+
+    console = MockConsole()
+    result = deps.run_dependencies_release(
+        workspace_root=tmp_path,
+        console=console,
+        notes_file=None,
+        watch=False,
+        dry_run=True,
+        promote=False,
+        interactive=False,
+        prepare="oc-hal-teensy",
+    )
+
+    assert isinstance(result, Ok)
+    assert not applied["called"]
+    assert "oc-framework: 111111111111 -> 222222222222" in console.text
+    assert "tests are not run during dependency pin preparation" in console.text
+    assert "dependency pin preparation dry-run completed" in console.text
 
 
 def test_guided_dependencies_watch_dispatches_and_watches_release_alignment(
