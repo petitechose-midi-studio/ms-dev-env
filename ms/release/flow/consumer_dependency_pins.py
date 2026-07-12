@@ -19,7 +19,7 @@ _RELEASE_SECTION_RE = re.compile(r"(?ms)^\[env:release\]\s*$.*?(?=^\[|\Z)")
 class ConsumerDependencyPinItem:
     dependency_id: str
     path: Path
-    from_sha: str
+    from_sha: str | None
     to_sha: str
     changed: bool
 
@@ -89,17 +89,17 @@ def plan_consumer_dependency_pin_sync(
                     hint=f"referenced by {consumer_id}",
                 )
             )
-        pattern = _pin_pattern(dependency)
+        pattern = _dependency_line_pattern(dependency)
         match = pattern.search(release_section.group(0))
         if match is None:
             return Err(
                 ReleaseError(
                     kind="invalid_input",
-                    message=f"missing release pin for {dependency_id}",
+                    message=f"missing release dependency for {dependency_id}",
                     hint=str(platformio),
                 )
             )
-        current = match.group(2).lower()
+        current = match.group(2).lower() if match.group(2) is not None else None
         target_head = heads.get(dependency_id)
         if target_head is None:
             return Err(
@@ -115,7 +115,9 @@ def plan_consumer_dependency_pin_sync(
                 path=platformio,
                 from_sha=current,
                 to_sha=target,
-                changed=current != target,
+                changed=(
+                    current != target or _pin_pattern(dependency).fullmatch(match.group(0)) is None
+                ),
             )
         )
 
@@ -160,8 +162,11 @@ def sync_consumer_dependency_pin_plan(
                         message=f"missing [env:release] in {path}",
                     )
                 )
-            section, count = _pin_pattern(dependency).subn(
-                rf"\g<1>{item.to_sha}\g<3>",
+            section, count = _dependency_line_pattern(dependency).subn(
+                (
+                    rf"\g<1>{dependency.id}=https://github.com/"
+                    rf"{dependency.repo}.git#{item.to_sha}\g<3>"
+                ),
                 release_section.group(0),
             )
             if count != 1:
@@ -215,6 +220,13 @@ def _pin_pattern(dependency: ReleaseGraphNode) -> re.Pattern[str]:
     return re.compile(
         rf"(?m)^(\s*{re.escape(dependency.id)}=https://github\.com/"
         rf"{re.escape(dependency.repo)}\.git#)({_SHA_RE})(\s*)$"
+    )
+
+
+def _dependency_line_pattern(dependency: ReleaseGraphNode) -> re.Pattern[str]:
+    return re.compile(
+        rf"(?m)^(\s*)(?:{re.escape(dependency.id)}=)?https://github\.com/"
+        rf"{re.escape(dependency.repo)}(?:\.git)?(?:#({_SHA_RE}))?(\s*)$"
     )
 
 

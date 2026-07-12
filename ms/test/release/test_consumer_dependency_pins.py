@@ -93,7 +93,41 @@ def test_consumer_pin_sync_updates_only_release_dependency_shas(tmp_path: Path) 
     assert "vendor/library@1.0.0" in content
 
 
-def test_consumer_pin_plan_rejects_missing_declared_release_pin(tmp_path: Path) -> None:
+def test_consumer_pin_sync_bootstraps_unpinned_release_dependency(tmp_path: Path) -> None:
+    platformio = tmp_path / "open-control" / "hal-teensy" / "platformio.ini"
+    platformio.parent.mkdir(parents=True)
+    platformio.write_text(
+        """[env:release]
+lib_deps =
+    oc-framework=https://github.com/open-control/framework.git#1111111111111111111111111111111111111111
+    https://github.com/open-control/hal-common
+""",
+        encoding="utf-8",
+    )
+
+    planned = plan_consumer_dependency_pin_sync(
+        workspace_root=tmp_path,
+        graph=_graph(),
+        consumer_id="oc-hal-teensy",
+        dependency_heads={
+            "oc-framework": "a" * 40,
+            "oc-hal-common": "b" * 40,
+        },
+    )
+
+    assert isinstance(planned, Ok)
+    hal_common = next(item for item in planned.value.items if item.dependency_id == "oc-hal-common")
+    assert hal_common.from_sha is None
+    assert hal_common.changed
+
+    synced = sync_consumer_dependency_pin_plan(graph=_graph(), plan=planned.value)
+
+    assert isinstance(synced, Ok)
+    rendered = platformio.read_text(encoding="utf-8")
+    assert (f"oc-hal-common=https://github.com/open-control/hal-common.git#{'b' * 40}") in rendered
+
+
+def test_consumer_pin_plan_rejects_missing_release_dependency(tmp_path: Path) -> None:
     platformio = tmp_path / "open-control" / "hal-teensy" / "platformio.ini"
     platformio.parent.mkdir(parents=True)
     platformio.write_text(
@@ -115,7 +149,7 @@ lib_deps =
     )
 
     assert isinstance(planned, Err)
-    assert planned.error.message == "missing release pin for oc-hal-common"
+    assert planned.error.message == "missing release dependency for oc-hal-common"
 
 
 def test_consumer_pin_plan_rejects_missing_dependency_head(tmp_path: Path) -> None:
