@@ -116,7 +116,15 @@ def _resolve_app_changed_paths(
 ) -> Result[list[Path], ReleaseError]:
     if dry_run:
         vf = app_version_files(app_repo_root=app_root)
-        return Ok([vf.package_json, vf.cargo_toml, vf.tauri_conf])
+        return Ok(
+            [
+                vf.package_json,
+                vf.package_lock,
+                vf.cargo_toml,
+                vf.cargo_lock,
+                vf.tauri_conf,
+            ]
+        )
 
     changed = apply_version(app_repo_root=app_root, version=version)
     if isinstance(changed, Err):
