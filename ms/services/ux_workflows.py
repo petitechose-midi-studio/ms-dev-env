@@ -18,6 +18,8 @@ type UxProcessRunner = Callable[[list[str], Path, float | None], Result[None, Pr
 
 _EXPECT_RE = re.compile(r"^\s*#\s*Expect:\s*(.+)$", re.IGNORECASE)
 _CAPTURE_RE = re.compile(r"^\s*\d+\s+capture\s+(screen|controller)\s+([A-Za-z0-9_-]+)\s*$")
+_SEMANTIC_EXPECT_RE = re.compile(r"^semantic:([A-Za-z0-9_-]+):([A-Za-z][A-Za-z0-9_]*)=(.+)$")
+_SEMANTIC_LABEL_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _OVERLAY_EXCLUSIVE_MAX_CHANGED_BYTE_RATIO = 0.02
 _CAPTURE_CHANGED_MIN_BYTES = 16
 
@@ -80,6 +82,9 @@ class UxWorkflowRun:
     expected_capture_count: int
     run_ended: bool
     has_dispatch: bool
+    semantic_capture_count: int
+    expected_semantic_capture_count: int
+    semantic_schema_valid: bool
     expectations: tuple[str, ...]
     failed_expectations: tuple[str, ...]
 
@@ -90,6 +95,8 @@ class UxWorkflowRun:
             and self.run_ended
             and self.has_dispatch
             and self.capture_count >= self.expected_capture_count
+            and self.semantic_schema_valid
+            and self.semantic_capture_count >= self.expected_semantic_capture_count
             and len(self.failed_expectations) == 0
         )
 
@@ -239,9 +246,7 @@ class UxWorkflowService(BaseService):
             for path, count in sorted(children.items())
         )
 
-    def workflows_in(
-        self, catalog: UxWorkflowCatalog, parent: str = ""
-    ) -> tuple[UxWorkflow, ...]:
+    def workflows_in(self, catalog: UxWorkflowCatalog, parent: str = "") -> tuple[UxWorkflow, ...]:
         prefix = _folder_prefix(parent)
         return tuple(
             workflow
@@ -486,6 +491,9 @@ def ux_error_message(error: UxWorkflowError) -> str:
                 return (
                     f"UX workflow '{workflow.relative_path}' did not verify: "
                     f"captures={run.capture_count}/{run.expected_capture_count} "
+                    f"semantic={run.semantic_capture_count}/"
+                    f"{run.expected_semantic_capture_count} "
+                    f"semantic_schema={run.semantic_schema_valid} "
                     f"run_end={run.run_ended} dispatch={run.has_dispatch} "
                     f"expectation_failures={','.join(run.failed_expectations)}"
                 )
@@ -554,12 +562,16 @@ def _expectation_suffix(expectations: tuple[str, ...]) -> str:
     labels: list[str] = []
     capture_matches = 0
     capture_changes = 0
+    semantic_facts = 0
     for expectation in expectations:
         if expectation.startswith("capture_match:"):
             capture_matches += 1
             continue
         if expectation.startswith("capture_changed:"):
             capture_changes += 1
+            continue
+        if expectation.startswith("semantic:"):
+            semantic_facts += 1
             continue
         labels.append(expectation)
     if capture_matches == 1:
@@ -570,6 +582,10 @@ def _expectation_suffix(expectations: tuple[str, ...]) -> str:
         labels.append("capture_changed:*")
     elif capture_changes > 1:
         labels.append(f"capture_changed:*x{capture_changes}")
+    if semantic_facts == 1:
+        labels.append("semantic:*")
+    elif semantic_facts > 1:
+        labels.append(f"semantic:*x{semantic_facts}")
     return f" expects={','.join(labels)}"
 
 
@@ -598,14 +614,26 @@ def _selected_workflows(
 def _inspect_run(*, workflow: UxWorkflow, output_dir: Path, exit_code: int) -> UxWorkflowRun:
     trace_path = output_dir / "trace.ndjson"
     binding_trace_path = output_dir / "binding-trace.ndjson"
+    semantic_trace_path = output_dir / "semantic-trace.ndjson"
     trace_rows = _read_ndjson(trace_path)
     binding_rows = _read_ndjson(binding_trace_path)
     expectations = _workflow_expectations(workflow.path)
+    requires_semantics = any(item.startswith("semantic:") for item in expectations)
+    semantic_rows, raw_semantic_schema_valid = _read_semantic_trace(semantic_trace_path)
+    semantic_schema_valid = not requires_semantics or raw_semantic_schema_valid
     failed = _failed_expectations(
         expectations=expectations,
         trace_rows=trace_rows,
+        semantic_rows=semantic_rows,
+        semantic_schema_valid=semantic_schema_valid,
         output_dir=output_dir,
     )
+
+    expected_semantic_labels = {
+        parsed[0]
+        for expectation in expectations
+        if (parsed := _parse_semantic_expectation(expectation)) is not None
+    }
 
     return UxWorkflowRun(
         workflow=workflow,
@@ -615,6 +643,9 @@ def _inspect_run(*, workflow: UxWorkflow, output_dir: Path, exit_code: int) -> U
         expected_capture_count=_expected_capture_count(workflow.path),
         run_ended=any(row.get("event") == "run_end" for row in trace_rows),
         has_dispatch=any(row.get("stage") == "dispatch" for row in binding_rows),
+        semantic_capture_count=len(semantic_rows),
+        expected_semantic_capture_count=len(expected_semantic_labels),
+        semantic_schema_valid=semantic_schema_valid,
         expectations=expectations,
         failed_expectations=failed,
     )
@@ -624,9 +655,15 @@ def _failed_expectations(
     *,
     expectations: tuple[str, ...],
     trace_rows: tuple[dict[str, object], ...],
+    semantic_rows: tuple[dict[str, object], ...],
+    semantic_schema_valid: bool,
     output_dir: Path,
 ) -> tuple[str, ...]:
     failed: list[str] = []
+    requires_semantics = any(item.startswith("semantic:") for item in expectations)
+    if requires_semantics and not semantic_schema_valid:
+        failed.append("semantic_trace_schema")
+
     for expectation in expectations:
         if expectation == "playhead_progress":
             if not _has_playhead_progress(trace_rows):
@@ -655,6 +692,16 @@ def _failed_expectations(
                 failed.append(expectation)
                 continue
             if not _capture_changed(output_dir, labels[0], labels[1]):
+                failed.append(expectation)
+            continue
+        if expectation.startswith("semantic:"):
+            if not semantic_schema_valid:
+                continue
+            parsed = _parse_semantic_expectation(expectation)
+            if parsed is None or not _semantic_expectation_matches(
+                semantic_rows,
+                *parsed,
+            ):
                 failed.append(expectation)
     return tuple(failed)
 
@@ -693,6 +740,135 @@ def _read_ndjson(path: Path) -> tuple[dict[str, object], ...]:
     return tuple(rows)
 
 
+def _read_semantic_trace(path: Path) -> tuple[tuple[dict[str, object], ...], bool]:
+    """Read and validate capture rows from the semantic UX trace.
+
+    Input gesture rows intentionally remain extensible. Capture rows are the
+    durable Gate 9 contract and therefore use a small strict schema: a unique
+    label, an ordered source sequence, the rendered global snapshot, and an
+    explicit statement of whether an active semantic surface supplied facts.
+    """
+    if not path.is_file():
+        return (), False
+
+    captures: list[dict[str, object]] = []
+    labels: set[str] = set()
+    try:
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            if not raw_line.strip():
+                continue
+            value = json.loads(raw_line)
+            if not isinstance(value, dict):
+                return (), False
+            row = cast(dict[str, object], value)
+            if row.get("kind") != "capture":
+                continue
+            if not _valid_semantic_capture_row(row):
+                return (), False
+            label = cast(str, row["label"])
+            if label in labels:
+                return (), False
+            labels.add(label)
+            captures.append(row)
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return (), False
+
+    return tuple(captures), True
+
+
+def _valid_semantic_capture_row(row: dict[str, object]) -> bool:
+    label = row.get("label")
+    if not isinstance(label, str) or _SEMANTIC_LABEL_RE.fullmatch(label) is None:
+        return False
+
+    for field in ("seq", "ms", "source_seq", "playhead", "page", "shared_track", "shared_mask"):
+        value = row.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):
+            return False
+    if cast(int, row["seq"]) <= 0 or cast(int, row["ms"]) < 0:
+        return False
+    if cast(int, row["source_seq"]) < 0:
+        return False
+
+    if not isinstance(row.get("surface_context"), bool):
+        return False
+    if not isinstance(row.get("playing"), bool):
+        return False
+    if not isinstance(row.get("view"), str) or not cast(str, row["view"]):
+        return False
+    if not isinstance(row.get("overlay"), str) or not cast(str, row["overlay"]):
+        return False
+
+    activation_origin = row.get("activation_origin")
+    activation_generation = row.get("activation_generation")
+    if (activation_origin is None) != (activation_generation is None):
+        return False
+    if activation_origin is not None:
+        if (
+            not isinstance(activation_origin, str)
+            or _SEMANTIC_LABEL_RE.fullmatch(activation_origin) is None
+        ):
+            return False
+        if (
+            not isinstance(activation_generation, int)
+            or isinstance(activation_generation, bool)
+            or activation_generation <= 0
+        ):
+            return False
+
+    surface_context = cast(bool, row["surface_context"])
+    source_seq = cast(int, row["source_seq"])
+    return (surface_context and source_seq >= 0) or (
+        not surface_context and source_seq == 0
+    )
+
+
+def _parse_semantic_expectation(expectation: str) -> tuple[str, str, str] | None:
+    match = _SEMANTIC_EXPECT_RE.fullmatch(expectation)
+    if match is None:
+        return None
+    label, field, expected = match.groups()
+    expected = expected.strip()
+    return (label, field, expected) if expected else None
+
+
+def _semantic_expectation_matches(
+    rows: tuple[dict[str, object], ...],
+    label: str,
+    field: str,
+    expected: str,
+) -> bool:
+    matches = tuple(row for row in rows if row.get("label") == label)
+    if len(matches) != 1 or field not in matches[0]:
+        return False
+    return _semantic_value_matches(matches[0][field], expected)
+
+
+def _semantic_value_matches(actual: object, expected: str) -> bool:
+    if expected == "*":
+        return actual is not None
+
+    normalized = expected.casefold()
+    if normalized == "true":
+        return actual is True or (
+            isinstance(actual, int) and not isinstance(actual, bool) and actual == 1
+        )
+    if normalized == "false":
+        return actual is False or (
+            isinstance(actual, int) and not isinstance(actual, bool) and actual == 0
+        )
+    if normalized == "null":
+        return actual is None
+
+    try:
+        expected_int = int(expected, 10)
+    except ValueError:
+        expected_int = None
+    if expected_int is not None:
+        return isinstance(actual, int) and not isinstance(actual, bool) and actual == expected_int
+    return isinstance(actual, str) and actual == expected
+
+
 def _has_playhead_progress(rows: tuple[dict[str, object], ...]) -> bool:
     steps = {
         int(step)
@@ -723,9 +899,7 @@ def _capture_changed(output_dir: Path, left_label: str, right_label: str) -> boo
     left_data = left.read_bytes()
     right_data = right.read_bytes()
     changed = abs(len(left_data) - len(right_data))
-    changed += sum(
-        a != b for a, b in zip(left_data, right_data, strict=False)
-    )
+    changed += sum(a != b for a, b in zip(left_data, right_data, strict=False))
     return changed >= _CAPTURE_CHANGED_MIN_BYTES
 
 
@@ -789,8 +963,8 @@ def _report_lines(
         "",
         "## Summary",
         "",
-        "| Workflow | Captures | Run End | Dispatch | Expectations |",
-        "|---|---:|---:|---:|---|",
+        "| Workflow | Captures | Semantic | Schema | Run End | Dispatch | Expectations |",
+        "|---|---:|---:|---:|---:|---:|---|",
     ]
 
     sections: list[str] = []
@@ -799,6 +973,8 @@ def _report_lines(
         expectations = ", ".join(run.expectations) if run.expectations else "-"
         lines.append(
             f"| {workflow.relative_path} | {run.capture_count}/{run.expected_capture_count} | "
+            f"{run.semantic_capture_count}/{run.expected_semantic_capture_count} | "
+            f"{run.semantic_schema_valid} | "
             f"{run.run_ended} | {run.has_dispatch} | {expectations} |"
         )
         sections.extend(_workflow_report_section(workflow=workflow, run=run, report_dir=report_dir))
@@ -815,6 +991,8 @@ def _workflow_report_section(
         "",
         f"- Output: {_relative(run.output_dir, report_dir)}",
         f"- Captures: {run.capture_count}/{run.expected_capture_count}",
+        f"- Semantic captures: {run.semantic_capture_count}/{run.expected_semantic_capture_count}",
+        f"- Semantic schema: {run.semantic_schema_valid}",
         f"- Run end: {run.run_ended}",
         f"- Dispatch: {run.has_dispatch}",
         "",
