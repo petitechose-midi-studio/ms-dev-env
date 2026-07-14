@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_str_dict, get_str
+from ms.core.structured import as_str_dict, get_str, get_table
 from ms.platform.files import atomic_write_text
 from ms.release.errors import ReleaseError
 
@@ -20,6 +20,7 @@ from .app_cargo_versions import (
 @dataclass(frozen=True, slots=True)
 class AppVersionFiles:
     package_json: Path
+    package_lock: Path
     cargo_toml: Path
     cargo_lock: Path
     tauri_conf: Path
@@ -40,6 +41,7 @@ def version_from_tag(*, tag: str) -> Result[str, ReleaseError]:
 def app_version_files(*, app_repo_root: Path) -> AppVersionFiles:
     return AppVersionFiles(
         package_json=app_repo_root / "package.json",
+        package_lock=app_repo_root / "package-lock.json",
         cargo_toml=app_repo_root / "src-tauri" / "Cargo.toml",
         cargo_lock=app_repo_root / "src-tauri" / "Cargo.lock",
         tauri_conf=app_repo_root / "src-tauri" / "tauri.conf.json",
@@ -51,6 +53,9 @@ def current_version(*, app_repo_root: Path) -> Result[str, ReleaseError]:
     pkg_v = _read_json_version(path=files.package_json)
     if isinstance(pkg_v, Err):
         return pkg_v
+    package_lock_v = _read_package_lock_versions(path=files.package_lock)
+    if isinstance(package_lock_v, Err):
+        return package_lock_v
     cargo_v = read_cargo_package_version(path=files.cargo_toml)
     if isinstance(cargo_v, Err):
         return cargo_v
@@ -61,15 +66,26 @@ def current_version(*, app_repo_root: Path) -> Result[str, ReleaseError]:
     if isinstance(tauri_v, Err):
         return tauri_v
 
-    values = {pkg_v.value, cargo_v.value, cargo_lock_v.value, tauri_v.value}
+    package_lock_root_v, package_lock_package_v = package_lock_v.value
+    values = {
+        pkg_v.value,
+        package_lock_root_v,
+        package_lock_package_v,
+        cargo_v.value,
+        cargo_lock_v.value,
+        tauri_v.value,
+    }
     if len(values) != 1:
         return Err(
             ReleaseError(
                 kind="invalid_input",
                 message="ms-manager version files are out of sync",
                 hint=(
-                    f"package.json={pkg_v.value}, Cargo.toml={cargo_v.value}, "
-                    f"Cargo.lock={cargo_lock_v.value}, tauri.conf.json={tauri_v.value}"
+                    f"package.json={pkg_v.value}, "
+                    f"package-lock.json={package_lock_root_v}, "
+                    f"package-lock.json#packages['']={package_lock_package_v}, "
+                    f"Cargo.toml={cargo_v.value}, Cargo.lock={cargo_lock_v.value}, "
+                    f"tauri.conf.json={tauri_v.value}"
                 ),
             )
         )
@@ -85,6 +101,12 @@ def apply_version(*, app_repo_root: Path, version: str) -> Result[list[Path], Re
         return pkg
     if pkg.value:
         changed.append(files.package_json)
+
+    package_lock = _write_package_lock_versions(path=files.package_lock, version=version)
+    if isinstance(package_lock, Err):
+        return package_lock
+    if package_lock.value:
+        changed.append(files.package_lock)
 
     cargo = write_cargo_package_version(path=files.cargo_toml, version=version)
     if isinstance(cargo, Err):
@@ -152,7 +174,80 @@ def _read_json_version(*, path: Path) -> Result[str, ReleaseError]:
     return Ok(value)
 
 
+def _read_package_lock_versions(*, path: Path) -> Result[tuple[str, str], ReleaseError]:
+    data_result = _read_json_object(path=path)
+    if isinstance(data_result, Err):
+        return data_result
+    data = data_result.value
+
+    root_version = get_str(data, "version")
+    packages = get_table(data, "packages")
+    root_package = get_table(packages, "") if packages is not None else None
+    package_version = get_str(root_package, "version") if root_package is not None else None
+    if root_version is None or package_version is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="missing ms-manager version in package-lock.json",
+                hint=str(path),
+            )
+        )
+    return Ok((root_version, package_version))
+
+
 def _write_json_version(*, path: Path, version: str) -> Result[bool, ReleaseError]:
+    data_result = _read_json_object(path=path)
+    if isinstance(data_result, Err):
+        return data_result
+    data = data_result.value
+
+    prev = get_str(data, "version")
+    if prev == version:
+        return Ok(False)
+
+    data["version"] = version
+
+    try:
+        atomic_write_text(path, json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    except OSError as e:
+        return Err(
+            ReleaseError(
+                kind="repo_failed",
+                message=f"failed to write {path.name}: {e}",
+                hint=str(path),
+            )
+        )
+
+    return Ok(True)
+
+
+def _write_package_lock_versions(*, path: Path, version: str) -> Result[bool, ReleaseError]:
+    data_result = _read_json_object(path=path)
+    if isinstance(data_result, Err):
+        return data_result
+    data = data_result.value
+
+    packages = get_table(data, "packages")
+    root_package = get_table(packages, "") if packages is not None else None
+    if root_package is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="missing root package in package-lock.json",
+                hint=str(path),
+            )
+        )
+
+    changed = get_str(data, "version") != version or get_str(root_package, "version") != version
+    if not changed:
+        return Ok(False)
+
+    data["version"] = version
+    root_package["version"] = version
+    return _write_json_object(path=path, data=data)
+
+
+def _read_json_object(*, path: Path) -> Result[dict[str, object], ReleaseError]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as e:
@@ -184,13 +279,10 @@ def _write_json_version(*, path: Path, version: str) -> Result[bool, ReleaseErro
                 hint=str(path),
             )
         )
+    return Ok(data)
 
-    prev = get_str(data, "version")
-    if prev == version:
-        return Ok(False)
 
-    data["version"] = version
-
+def _write_json_object(*, path: Path, data: dict[str, object]) -> Result[bool, ReleaseError]:
     try:
         atomic_write_text(path, json.dumps(data, indent=2) + "\n", encoding="utf-8")
     except OSError as e:
@@ -201,5 +293,4 @@ def _write_json_version(*, path: Path, version: str) -> Result[bool, ReleaseErro
                 hint=str(path),
             )
         )
-
     return Ok(True)
