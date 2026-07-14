@@ -172,32 +172,38 @@ def prepare_distribution_pr(
     if isinstance(br, Err):
         return br
 
-    spec = write_release_spec(
-        dist_repo_root=dist_root,
-        channel=plan.channel,
-        tag=plan.tag,
-        pinned=plan.pinned,
-        tooling=plan.tooling,
-    )
-    if isinstance(spec, Err):
-        return spec
+    if dry_run:
+        changed_paths = [dist_root / plan.spec_path]
+        if plan.notes_path is not None:
+            changed_paths.append(dist_root / plan.notes_path)
+    else:
+        spec = write_release_spec(
+            dist_repo_root=dist_root,
+            channel=plan.channel,
+            tag=plan.tag,
+            pinned=plan.pinned,
+            tooling=plan.tooling,
+        )
+        if isinstance(spec, Err):
+            return spec
 
-    notes = write_release_notes(
-        dist_repo_root=dist_root,
-        channel=plan.channel,
-        tag=plan.tag,
-        pinned=plan.pinned,
-        user_notes=user_notes,
-        user_notes_file=user_notes_file,
-    )
-    if isinstance(notes, Err):
-        return notes
+        notes = write_release_notes(
+            dist_repo_root=dist_root,
+            channel=plan.channel,
+            tag=plan.tag,
+            pinned=plan.pinned,
+            user_notes=user_notes,
+            user_notes_file=user_notes_file,
+        )
+        if isinstance(notes, Err):
+            return notes
+        changed_paths = [spec.value.abs_path, notes.value.abs_path]
 
     commit_msg = f"release: add {plan.tag} spec"
     commit = commit_and_push(
         repo_root=dist_root,
         branch=branch,
-        paths=[spec.value.abs_path, notes.value.abs_path],
+        paths=changed_paths,
         message=commit_msg,
         console=console,
         dry_run=dry_run,
