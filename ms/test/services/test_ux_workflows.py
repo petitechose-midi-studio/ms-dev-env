@@ -160,6 +160,225 @@ def test_run_validates_trace_dispatch_captures_and_expectations(tmp_path: Path) 
     assert runs[0].expectations == ("capture_match:first=second", "playhead_progress")
 
 
+def test_run_validates_semantic_facts_bound_to_named_captures(tmp_path: Path) -> None:
+    _write_workflow(
+        tmp_path,
+        "gate9/cc-lane.ux",
+        """
+# Expect: semantic:armed:surface_context=true, semantic:armed:outcome=armed
+# Expect: semantic:armed:activation_origin=track_paste, semantic:armed:activation_generation=42
+# Expect: semantic:live:projection=live, semantic:live:resolved_value=96
+10 capture screen armed
+20 capture screen live
+""".lstrip(),
+    )
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
+        (output / "semantic-trace.ndjson").write_text(
+            "\n".join(
+                [
+                    '{"seq":2,"ms":10,"kind":"capture","label":"armed",'
+                    '"surface_context":true,"source_seq":1,"view":"sequencer",'
+                    '"overlay":"seq_cc_lane","playing":false,"playhead":-1,'
+                    '"page":0,"shared_track":0,"shared_mask":1,"outcome":"armed",'
+                    '"activation_origin":"track_paste","activation_generation":42}',
+                    '{"seq":4,"ms":20,"kind":"capture","label":"live",'
+                    '"surface_context":true,"source_seq":3,"view":"sequencer",'
+                    '"overlay":"seq_cc_lane","playing":true,"playhead":2,'
+                    '"page":0,"shared_track":0,"shared_mask":1,'
+                    '"projection":"live","resolved_value":96}',
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        (output / "010_armed_screen.bmp").write_bytes(b"armed")
+        (output / "020_live_screen.bmp").write_bytes(b"live")
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+    runs = _ok(
+        service.run(
+            app_name="core",
+            selections=("gate9/cc-lane",),
+            all_workflows=False,
+            skip_build=True,
+            executable=exe,
+        )
+    )
+
+    assert runs[0].ok
+    assert runs[0].semantic_schema_valid
+    assert runs[0].semantic_capture_count == 2
+    assert runs[0].expected_semantic_capture_count == 2
+
+
+def test_run_rejects_missing_semantic_fact(tmp_path: Path) -> None:
+    _write_workflow(
+        tmp_path,
+        "gate9/missing.ux",
+        "# Expect: semantic:preview:projection=preview\n10 capture screen preview\n",
+    )
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
+        (output / "semantic-trace.ndjson").write_text(
+            '{"seq":2,"ms":10,"kind":"capture","label":"preview",'
+            '"surface_context":true,"source_seq":1,"view":"sequencer",'
+            '"overlay":"none","playing":false,"playhead":-1,"page":0,'
+            '"shared_track":0,"shared_mask":1}\n',
+            encoding="utf-8",
+        )
+        (output / "010_preview_screen.bmp").write_bytes(b"preview")
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+    result = service.run(
+        app_name="core",
+        selections=("gate9/missing",),
+        all_workflows=False,
+        skip_build=True,
+        executable=exe,
+    )
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxRunFailed)
+    assert result.error.run is not None
+    assert result.error.run.failed_expectations == ("semantic:preview:projection=preview",)
+
+
+def test_run_rejects_malformed_semantic_capture_schema(tmp_path: Path) -> None:
+    _write_workflow(
+        tmp_path,
+        "gate9/schema.ux",
+        "# Expect: semantic:armed:outcome=armed\n10 capture screen armed\n",
+    )
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
+        # A capture without surface context cannot claim a binding source.
+        (output / "semantic-trace.ndjson").write_text(
+            '{"seq":2,"ms":10,"kind":"capture","label":"armed",'
+            '"surface_context":false,"source_seq":1,"view":"sequencer",'
+            '"overlay":"none","playing":false,"playhead":-1,"page":0,'
+            '"shared_track":0,"shared_mask":1,"outcome":"armed"}\n',
+            encoding="utf-8",
+        )
+        (output / "010_armed_screen.bmp").write_bytes(b"armed")
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+    result = service.run(
+        app_name="core",
+        selections=("gate9/schema",),
+        all_workflows=False,
+        skip_build=True,
+        executable=exe,
+    )
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxRunFailed)
+    assert result.error.run is not None
+    assert result.error.run.failed_expectations == ("semantic_trace_schema",)
+
+
+def test_run_rejects_uncorrelated_activation_semantics(tmp_path: Path) -> None:
+    _write_workflow(
+        tmp_path,
+        "gate9/activation-schema.ux",
+        "# Expect: semantic:queued:outcome=queued\n10 capture screen queued\n",
+    )
+    exe = tmp_path / "fake-midi-studio-core.exe"
+    exe.write_text("", encoding="utf-8")
+
+    def runner(
+        cmd: list[str],
+        cwd: Path,
+        timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
+        # Origin and generation form one correlation tuple; neither is valid alone.
+        (output / "semantic-trace.ndjson").write_text(
+            '{"seq":2,"ms":10,"kind":"capture","label":"queued",'
+            '"surface_context":true,"source_seq":1,"view":"sequencer",'
+            '"overlay":"none","playing":true,"playhead":2,"page":0,'
+            '"shared_track":0,"shared_mask":1,"outcome":"queued",'
+            '"activation_origin":"track_paste"}\n',
+            encoding="utf-8",
+        )
+        (output / "010_queued_screen.bmp").write_bytes(b"queued")
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+        runner=runner,
+    )
+    result = service.run(
+        app_name="core",
+        selections=("gate9/activation-schema",),
+        all_workflows=False,
+        skip_build=True,
+        executable=exe,
+    )
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxRunFailed)
+    assert result.error.run is not None
+    assert result.error.run.failed_expectations == ("semantic_trace_schema",)
+
+
 def test_overlay_exclusive_tolerates_small_animated_regions(tmp_path: Path) -> None:
     _write_workflow(
         tmp_path,
@@ -290,9 +509,7 @@ def _run_capture_changed_workflow(
         del cwd, timeout
         output = Path(cmd[cmd.index("--ux-output") + 1])
         (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
-        (output / "binding-trace.ndjson").write_text(
-            '{"stage":"dispatch"}\n', encoding="utf-8"
-        )
+        (output / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
         (output / "001_before_screen.bmp").write_bytes(b"A" * 10_000)
         (output / "002_after_screen.bmp").write_bytes(
             b"A" * (10_000 - changed_bytes) + b"B" * changed_bytes
