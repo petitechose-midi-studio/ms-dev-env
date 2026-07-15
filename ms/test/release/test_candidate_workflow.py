@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from ms.core.result import Ok
+from ms.core.result import Err, Ok
 from ms.release.domain import CandidateInputRepo, TrustedCandidateProducer
 from ms.release.flow import candidate_fetch as fetch_module
 from ms.release.flow import candidate_verify as verify_module
@@ -58,7 +58,7 @@ def test_write_and_verify_candidate_bundle_roundtrip(
 ) -> None:
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
-    (artifacts_dir / "foo.msi").write_bytes(b"msi")
+    (artifacts_dir / "foo-1.2.3.msi").write_bytes(b"msi")
     (tmp_path / "package-lock.json").write_text("{}", encoding="utf-8")
 
     def fake_sign_candidate_manifest(
@@ -117,7 +117,7 @@ def test_write_and_verify_candidate_bundle_roundtrip(
             artifact_specs=(
                 CandidateArtifactSpec(
                     id="package-msi",
-                    filename="foo.msi",
+                    filename="foo-1.2.3.msi",
                     kind="package",
                     os="windows",
                     arch=None,
@@ -142,6 +142,7 @@ def test_write_and_verify_candidate_bundle_roundtrip(
             expected_producer_repo="petitechose-midi-studio/ms-manager",
             expected_producer_kind="ms-manager-app",
             expected_workflow_file=".github/workflows/candidate.yml",
+            expected_package_version="1.2.3",
             public_key_b64=base64.b64encode(b"\x01" * 32).decode("ascii"),
             expected_input_repos=(
                 CandidateInputRepo(
@@ -154,6 +155,21 @@ def test_write_and_verify_candidate_bundle_roundtrip(
     )
 
     assert isinstance(verified, Ok)
+
+    mismatched = verify_candidate_bundle(
+        workspace_root=tmp_path,
+        request=CandidateVerifyRequest(
+            artifacts_dir=artifacts_dir,
+            manifest_path=tmp_path / "candidate.json",
+            checksums_path=tmp_path / "checksums.txt",
+            sig_path=tmp_path / "candidate.json.sig",
+            expected_package_version="1.2.4",
+            public_key_b64=base64.b64encode(b"\x01" * 32).decode("ascii"),
+        ),
+    )
+
+    assert isinstance(mismatched, Err)
+    assert mismatched.error.message == "candidate package version mismatch"
 
 
 def test_fetch_candidate_assets_downloads_verifies_and_copies(

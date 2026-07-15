@@ -46,6 +46,7 @@ class CandidateVerifyRequest:
     expected_producer_kind: str | None = None
     expected_workflow_file: str | None = None
     expected_input_repos: tuple[CandidateInputRepo, ...] | None = None
+    expected_package_version: str | None = None
     public_key_env: str = "MS_CANDIDATE_ED25519_PK"
     public_key_b64: str | None = None
 
