@@ -78,30 +78,9 @@ jobs:
         run: uv run ms release verify-bom
 
       - name: Validate latest beta manifest with MS Manager
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag="$(gh release list \
-            --repo petitechose-midi-studio/distribution \
-            --limit 100 \
-            --json tagName,isDraft,isPrerelease,publishedAt \
-            --jq 'map(select(.isPrerelease and (.isDraft | not))) | sort_by(.publishedAt) | last | .tagName')"
-          if [ -z "$tag" ] || [ "$tag" = "null" ]; then
-            echo "no published Distribution prerelease found" >&2
-            exit 1
-          fi
-          manifest_dir="$(mktemp -d)"
-          trap 'rm -rf "$manifest_dir"' EXIT
-          gh release download "$tag" \
-            --repo petitechose-midi-studio/distribution \
-            --pattern manifest.json \
-            --dir "$manifest_dir"
-          cargo run --quiet \
-            --manifest-path ms-manager/crates/ms-manager-core/Cargo.toml \
-            --example distribution_manifest_contract_probe \
-            -- "$manifest_dir/manifest.json"
+        uses: ./.github/actions/validate-distribution-manager-contract
+        with:
+          token: ${{ github.token }}
 
       - name: Validate release BOM targets (main/manual only)
         if: ${{ github.event_name != 'pull_request' }}

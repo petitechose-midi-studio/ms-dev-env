@@ -35,6 +35,12 @@ jobs:
       - name: Sync Python deps
         run: uv sync --frozen --extra dev
 
+      - name: Validate latest beta manifest with MS Manager
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/validate-distribution-manager-contract
+        with:
+          token: ${{ github.token }}
+
       - name: Type check
         run: uv run pyright
 
