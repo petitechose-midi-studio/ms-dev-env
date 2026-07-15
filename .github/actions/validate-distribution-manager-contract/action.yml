@@ -1,0 +1,51 @@
+name: Validate Distribution manifest with MS Manager
+description: Validate the latest published Distribution beta with the real MS Manager parser.
+
+inputs:
+  token:
+    description: GitHub token used to inspect and download the published Distribution release.
+    required: true
+  manager-ref:
+    description: MS Manager Git ref whose consumer contract must remain compatible.
+    required: false
+    default: main
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout MS Manager contract consumer
+      uses: actions/checkout@v6
+      with:
+        repository: petitechose-midi-studio/ms-manager
+        ref: ${{ inputs.manager-ref }}
+        path: .ms/contracts/ms-manager
+        persist-credentials: false
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Validate latest published beta manifest
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        tag="$(gh release list \
+          --repo petitechose-midi-studio/distribution \
+          --limit 100 \
+          --json tagName,isDraft,isPrerelease,publishedAt \
+          --jq 'map(select(.isPrerelease and (.isDraft | not))) | sort_by(.publishedAt) | last | .tagName')"
+        if [ -z "$tag" ] || [ "$tag" = "null" ]; then
+          echo "no published Distribution prerelease found" >&2
+          exit 1
+        fi
+        manifest_dir="$(mktemp -d)"
+        trap 'rm -rf "$manifest_dir"' EXIT
+        gh release download "$tag" \
+          --repo petitechose-midi-studio/distribution \
+          --pattern manifest.json \
+          --dir "$manifest_dir"
+        cargo run --quiet \
+          --manifest-path .ms/contracts/ms-manager/crates/ms-manager-core/Cargo.toml \
+          --example distribution_manifest_contract_probe \
+          -- "$manifest_dir/manifest.json"
