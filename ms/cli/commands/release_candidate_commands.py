@@ -134,6 +134,11 @@ def verify_candidate_cmd(
     expected_input_repos_json: Path | None = typer.Option(
         None, "--expected-input-repos-json", help="Expected input repos JSON array."
     ),
+    expected_package_version: str | None = typer.Option(
+        None,
+        "--expected-package-version",
+        help="Expected version embedded in every package artifact filename.",
+    ),
     public_key_env: str = typer.Option(
         "MS_CANDIDATE_ED25519_PK", "--public-key-env", help="Public key env var."
     ),
@@ -153,6 +158,7 @@ def verify_candidate_cmd(
             expected_producer_kind=expected_producer_kind,
             expected_workflow_file=expected_workflow_file,
             expected_input_repos=expected_repos,
+            expected_package_version=expected_package_version,
             public_key_env=public_key_env,
         ),
     )

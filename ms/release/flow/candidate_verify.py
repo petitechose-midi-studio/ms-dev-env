@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -78,12 +79,63 @@ def _validate_candidate_expectations(
                 hint=f"expected {request.expected_workflow_file}, got {manifest.workflow_file}",
             )
         )
-    if request.expected_input_repos is None:
-        return Ok(None)
-    return _validate_expected_input_repos(
-        expected_input_repos=request.expected_input_repos,
-        manifest=manifest,
+    if request.expected_input_repos is not None:
+        repos = _validate_expected_input_repos(
+            expected_input_repos=request.expected_input_repos,
+            manifest=manifest,
+        )
+        if isinstance(repos, Err):
+            return repos
+    if request.expected_package_version is not None:
+        return _validate_expected_package_version(
+            expected_package_version=request.expected_package_version,
+            manifest=manifest,
+        )
+    return Ok(None)
+
+
+def _validate_expected_package_version(
+    *,
+    expected_package_version: str,
+    manifest: CandidateManifest,
+) -> Result[None, ReleaseError]:
+    if not expected_package_version or expected_package_version.strip() != expected_package_version:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="expected package version must be a non-empty trimmed value",
+            )
+        )
+
+    packages = tuple(artifact for artifact in manifest.artifacts if artifact.kind == "package")
+    if not packages:
+        return Err(
+            ReleaseError(
+                kind="verification_failed",
+                message="candidate has no package artifacts to version-check",
+            )
+        )
+
+    version_pattern = re.compile(
+        rf"(?<![0-9A-Za-z]){re.escape(expected_package_version)}(?=$|[^0-9A-Za-z])"
     )
+    mismatched = tuple(
+        artifact.filename
+        for artifact in packages
+        if version_pattern.search(artifact.filename) is None
+    )
+    if mismatched:
+        return Err(
+            ReleaseError(
+                kind="verification_failed",
+                message="candidate package version mismatch",
+                hint=(
+                    f"expected version {expected_package_version} in package filenames; "
+                    f"mismatched: {', '.join(mismatched)}"
+                ),
+            )
+        )
+    return Ok(None)
 
 
 def _validate_expected_input_repos(

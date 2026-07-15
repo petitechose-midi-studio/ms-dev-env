@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.core.structured import as_str_dict
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain.config import APP_DEFAULT_BRANCH, APP_REPO_SLUG
 from ms.release.domain.models import AppReleasePlan, PinnedRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.ci_gate import ensure_ci_green
@@ -14,6 +17,7 @@ from ms.release.infra.artifacts.app_version_writer import (
     apply_version,
     current_version,
 )
+from ms.release.infra.github.client import get_ref_head_sha, get_repo_file_text
 from ms.release.infra.repos.app import (
     checkout_main_and_pull as app_checkout_main_and_pull,
 )
@@ -51,6 +55,55 @@ class PreparedAppRelease:
     plan: AppReleasePlan
     pr: PrMergeOutcome
     source_sha: str
+
+
+def _resolve_versioned_app_source_sha(
+    *,
+    workspace_root: Path,
+    version: str,
+) -> Result[str, ReleaseError]:
+    head = get_ref_head_sha(
+        workspace_root=workspace_root,
+        repo=APP_REPO_SLUG,
+        ref=APP_DEFAULT_BRANCH,
+    )
+    if isinstance(head, Err):
+        return head
+
+    package_json = get_repo_file_text(
+        workspace_root=workspace_root,
+        repo=APP_REPO_SLUG,
+        path="package.json",
+        ref=head.value,
+    )
+    if isinstance(package_json, Err):
+        return package_json
+
+    try:
+        payload: object = json.loads(package_json.value)
+    except json.JSONDecodeError as e:
+        return Err(
+            ReleaseError(
+                kind="verification_failed",
+                message="invalid remote app package.json",
+                hint=f"{APP_REPO_SLUG}@{head.value}: {e}",
+            )
+        )
+
+    data = as_str_dict(payload)
+    actual_version = data.get("version") if data is not None else None
+    if actual_version != version:
+        return Err(
+            ReleaseError(
+                kind="verification_failed",
+                message="remote app version does not match the requested release",
+                hint=(
+                    f"expected {version}, got {actual_version!r} "
+                    f"at {APP_REPO_SLUG}@{head.value}"
+                ),
+            )
+        )
+    return Ok(head.value)
 
 
 def _prepare_app_repo(
@@ -160,6 +213,12 @@ def prepare_app_pr(
         if isinstance(already_r, Err):
             return already_r
         if already_r.value:
+            source = _resolve_versioned_app_source_sha(
+                workspace_root=workspace_root,
+                version=version,
+            )
+            if isinstance(source, Err):
+                return source
             console.print("app version already present on main; skipping PR", Style.DIM)
             return Ok(
                 AppPrepareResult(
@@ -168,7 +227,7 @@ def prepare_app_pr(
                         url=None,
                         label=f"(already merged) {tag}",
                     ),
-                    source_sha=base_sha,
+                    source_sha=source.value,
                 )
             )
 
@@ -205,8 +264,6 @@ def prepare_app_pr(
     if isinstance(commit, Err):
         return commit
 
-    source_sha = base_sha if dry_run else commit.value
-
     pr = app_open_pr(
         workspace_root=workspace_root,
         branch=branch,
@@ -226,6 +283,17 @@ def prepare_app_pr(
     )
     if isinstance(merged, Err):
         return merged
+
+    if dry_run:
+        source_sha = base_sha
+    else:
+        source = _resolve_versioned_app_source_sha(
+            workspace_root=workspace_root,
+            version=version,
+        )
+        if isinstance(source, Err):
+            return source
+        source_sha = source.value
 
     return Ok(
         AppPrepareResult(
