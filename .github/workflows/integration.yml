@@ -77,6 +77,14 @@ jobs:
       - name: Verify release BOM
         run: uv run ms release verify-bom
 
+      - name: Checkout MS Manager manifest consumer
+        uses: actions/checkout@v6
+        with:
+          repository: petitechose-midi-studio/ms-manager
+          ref: main
+          path: .ms/contracts/ms-manager
+          persist-credentials: false
+
       - name: Validate latest beta manifest with MS Manager
         shell: bash
         env:
@@ -99,7 +107,7 @@ jobs:
             --pattern manifest.json \
             --dir "$manifest_dir"
           cargo run --quiet \
-            --manifest-path ms-manager/crates/ms-manager-core/Cargo.toml \
+            --manifest-path .ms/contracts/ms-manager/crates/ms-manager-core/Cargo.toml \
             --example distribution_manifest_contract_probe \
             -- "$manifest_dir/manifest.json"
 
