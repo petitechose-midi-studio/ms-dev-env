@@ -93,6 +93,39 @@ def test_consumer_pin_sync_updates_only_release_dependency_shas(tmp_path: Path) 
     assert "vendor/library@1.0.0" in content
 
 
+def test_consumer_pin_plan_allows_workflow_owned_dependency_checkouts(
+    tmp_path: Path,
+) -> None:
+    graph = ReleaseGraph(
+        nodes=(
+            ReleaseGraphNode(
+                id="tooling",
+                repo="example/tooling",
+                local_path="tooling",
+                role="dev_dependency",
+            ),
+            ReleaseGraphNode(
+                id="consumer",
+                repo="example/consumer",
+                local_path="consumer",
+                role="release_consumer",
+                depends_on=("tooling",),
+                pin_dependencies=(),
+            ),
+        )
+    )
+
+    planned = plan_consumer_dependency_pin_sync(
+        workspace_root=tmp_path,
+        graph=graph,
+        consumer_id="consumer",
+    )
+
+    assert isinstance(planned, Ok)
+    assert planned.value.items == ()
+    assert not planned.value.requires_write
+
+
 def test_consumer_pin_sync_bootstraps_unpinned_release_dependency(tmp_path: Path) -> None:
     platformio = tmp_path / "open-control" / "hal-teensy" / "platformio.ini"
     platformio.parent.mkdir(parents=True)
