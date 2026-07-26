@@ -36,6 +36,7 @@ baseline-compare/
 .venv/
 
 # Workspace-local build outputs
+/.runtime/
 bin/
 bin-*/
 .build/
