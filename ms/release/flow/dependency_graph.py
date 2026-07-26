@@ -168,6 +168,27 @@ def _parse_node(
     depends_on = _string_tuple(item, "depends_on")
     if isinstance(depends_on, Err):
         return depends_on
+    pin_dependencies: tuple[str, ...] | None = None
+    if "pin_dependencies" in item:
+        parsed_pin_dependencies = _string_tuple(item, "pin_dependencies")
+        if isinstance(parsed_pin_dependencies, Err):
+            return parsed_pin_dependencies
+        pin_dependencies = parsed_pin_dependencies.value
+        unknown_pin_dependencies = tuple(
+            dependency
+            for dependency in pin_dependencies
+            if dependency not in depends_on.value
+        )
+        if unknown_pin_dependencies:
+            return Err(
+                _graph_error(
+                    (
+                        f"release graph pin_dependencies must be declared in depends_on "
+                        f"for {node_id}: {', '.join(unknown_pin_dependencies)}"
+                    ),
+                    graph_path,
+                )
+            )
     validations = _string_tuple(item, "validations")
     if isinstance(validations, Err):
         return validations
@@ -180,6 +201,7 @@ def _parse_node(
             role=cast("ReleaseGraphRole", role),
             expected_branch=spec.branch,
             depends_on=depends_on.value,
+            pin_dependencies=pin_dependencies,
             validations=validations.value,
         )
     )

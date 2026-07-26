@@ -48,7 +48,12 @@ def plan_consumer_dependency_pin_sync(
     consumer = nodes.get(consumer_id)
     if consumer is None:
         return Err(_unknown_consumer(consumer_id))
-    if not consumer.depends_on:
+    pin_dependency_ids = (
+        consumer.depends_on
+        if consumer.pin_dependencies is None
+        else consumer.pin_dependencies
+    )
+    if not pin_dependency_ids:
         return Ok(
             ConsumerDependencyPinPlan(consumer_id=consumer_id, items=(), requires_write=False)
         )
@@ -70,7 +75,7 @@ def plan_consumer_dependency_pin_sync(
         resolved_heads = _workspace_dependency_heads(
             workspace_root=workspace_root,
             nodes=nodes,
-            dependency_ids=consumer.depends_on,
+            dependency_ids=pin_dependency_ids,
         )
         if isinstance(resolved_heads, Err):
             return resolved_heads
@@ -79,7 +84,7 @@ def plan_consumer_dependency_pin_sync(
         heads = dependency_heads
 
     items: list[ConsumerDependencyPinItem] = []
-    for dependency_id in consumer.depends_on:
+    for dependency_id in pin_dependency_ids:
         dependency = nodes.get(dependency_id)
         if dependency is None:
             return Err(

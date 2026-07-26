@@ -20,6 +20,7 @@ class ReleaseGraphNode:
     role: ReleaseGraphRole
     expected_branch: str | None = None
     depends_on: tuple[str, ...] = ()
+    pin_dependencies: tuple[str, ...] | None = None
     validations: tuple[str, ...] = ()
 
 

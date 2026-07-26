@@ -112,4 +112,7 @@ depends_on = [
   "ms-ui",
   "oc-protocol-codegen",
 ]
+# Candidate and CI workflows pin these checkout SHAs directly. The PlatformIO
+# release environment intentionally consumes those checked-out repositories.
+pin_dependencies = []
 validations = ["plugin-bitwig-dev", "plugin-bitwig-release", "plugin-bitwig-unit-tests"]

@@ -55,6 +55,11 @@ the bottom up. This mode is deliberately narrower than promotion:
 - it writes only dependency-owned release pins in the consumer working tree;
 - it does not run tests, open or merge pull requests, or require GitHub write permissions.
 
+`depends_on` remains the complete readiness and ordering contract. A release graph node may declare
+`pin_dependencies` when only a subset of those dependencies is represented by writable release
+pins. An explicit empty list means that CI or candidate workflows own the dependency checkout SHAs,
+so preparation validates the dependency perimeter without rewriting the consumer.
+
 Always inspect the exact write set first:
 
 ```text

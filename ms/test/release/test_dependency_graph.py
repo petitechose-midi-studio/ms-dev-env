@@ -50,6 +50,7 @@ id = "core"
 repo = "petitechose-midi-studio/core"
 role = "bom_consumer"
 depends_on = ["oc-note"]
+pin_dependencies = ["oc-note"]
 validations = ["core-release"]
 
 [[nodes]]
@@ -72,6 +73,7 @@ role = "bom_dependency"
     assert [node.id for node in graph.value.nodes] == ["oc-framework", "oc-note", "core"]
     assert graph.value.by_id()["core"].local_path == "midi-studio/core"
     assert graph.value.by_id()["core"].expected_branch is None
+    assert graph.value.by_id()["core"].pin_dependencies == ("oc-note",)
     assert graph.value.by_id()["core"].validations == ("core-release",)
 
 
@@ -93,6 +95,40 @@ role = "bom_dependency"
 
     assert isinstance(graph, Err)
     assert "not declared" in graph.error.message
+
+
+def test_load_release_graph_rejects_pin_dependency_outside_readiness_contract(
+    tmp_path: Path,
+) -> None:
+    repos_path = tmp_path / "repos.toml"
+    graph_path = tmp_path / "release_graph.toml"
+    _write_repos(repos_path)
+    graph_path.write_text(
+        """
+[[nodes]]
+id = "core"
+repo = "petitechose-midi-studio/core"
+role = "bom_consumer"
+depends_on = ["oc-note"]
+pin_dependencies = ["oc-framework"]
+
+[[nodes]]
+id = "oc-note"
+repo = "open-control/note"
+role = "bom_dependency"
+
+[[nodes]]
+id = "oc-framework"
+repo = "open-control/framework"
+role = "bom_dependency"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    graph = load_release_graph(graph_path=graph_path, repos_manifest_path=repos_path)
+
+    assert isinstance(graph, Err)
+    assert "pin_dependencies must be declared in depends_on" in graph.error.message
 
 
 def test_topological_release_nodes_rejects_cycles() -> None:
@@ -167,4 +203,5 @@ def test_default_release_graph_covers_dev_workspace_repos() -> None:
         "ms-ui",
         "oc-protocol-codegen",
     )
+    assert by_id["plugin-bitwig"].pin_dependencies == ()
 
