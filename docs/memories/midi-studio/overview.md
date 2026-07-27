@@ -25,14 +25,24 @@ The minimal set of repos that `ms sync --repos` manages is pinned in `ms/data/re
 
 ## Storage (current)
 
-Persistence is currently implemented as follows:
+Persistence is currently split by product semantics:
 
-- Teensy (core): SD card file (non-blocking SDIO)
-  - `midi-studio/core/main.cpp` uses `oc::hal::teensy::SDCardBackend` with `/macros.bin`
-- Native simulator (core): local file
-  - `midi-studio/core/sdl/main-native.cpp` uses `oc::impl::FileStorage` with `./macros.bin`
-- WASM simulator (core): in-memory only (no persistence yet)
-  - `midi-studio/core/sdl/MemoryStorage.hpp` (`desktop::MemoryStorage`)
+- Teensy Core Settings use one small non-blocking SDIO file:
+  `/core-settings.bin`.
+- Teensy musical files use `ProductFileService` below `/midi-studio`:
+  - current session: `session/current.mspj`;
+  - named projects: `projects/<slug>.mspj`;
+  - named Step Presets: `library/step-presets/<id>.mssp`.
+- The native simulator uses `./core-settings.bin` for controller settings and
+  `.runtime/core-product-files/midi-studio/` for the same Project/Session/Step
+  Preset filesystem layout. UX runs isolate product files below their capture
+  output.
+- The WASM simulator keeps Core Settings in memory and does not currently
+  provide persistent product files.
+
+The former `/macros.bin`, fixed Macro/Pattern/Set slot stores and Data Manager
+are retired. Future preset families must be named files through
+`ProductFileService`; they must not restore fixed-slot identity.
 
 ## References
 

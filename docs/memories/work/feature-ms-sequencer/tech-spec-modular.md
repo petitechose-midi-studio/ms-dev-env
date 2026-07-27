@@ -24,6 +24,12 @@ test_patterns:
 
 This is the long-term, modular direction for the sequencer engine.
 
+> Historical note (2026-07-27): the Data Manager branch shown later in this
+> January planning document is not part of the current product. Project/Session
+> state uses `.mspj`, Step Presets use `.mssp`, and the remaining fixed-slot
+> stores were retired. The current decision authority is
+> `petitechose-audio-docs/30-decisions/ADR-0056-file-backed-product-assets-and-fixed-slot-data-manager-retirement.md`.
+
 - v0 (UI-first / produit minimal): `docs/memories/work/feature-ms-sequencer/tech-spec.md`
 - v0->framework execution plan: `docs/memories/work/feature-ms-sequencer/implementation-plan-v0-framework.md`
 
