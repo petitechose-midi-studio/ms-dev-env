@@ -29,6 +29,11 @@ CI_ENV_REPOS: tuple[CoreDependencyRepo, ...] = (
     ),
     CoreDependencyRepo("OPEN_CONTROL_NOTE_SHA", "open-control/note", "open-control/note"),
     CoreDependencyRepo(
+        "OPEN_CONTROL_HAL_COMMON_SHA",
+        "open-control/hal-common",
+        "open-control/hal-common",
+    ),
+    CoreDependencyRepo(
         "OPEN_CONTROL_HAL_MIDI_SHA", "open-control/hal-midi", "open-control/hal-midi"
     ),
     CoreDependencyRepo("OPEN_CONTROL_HAL_NET_SHA", "open-control/hal-net", "open-control/hal-net"),
