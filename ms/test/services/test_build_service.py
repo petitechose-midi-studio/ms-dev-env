@@ -1,0 +1,137 @@
+# pyright: reportPrivateUsage=false
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from ms.core.result import Err, Ok, Result
+from ms.core.workspace import Workspace
+from ms.output.console import MockConsole
+from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
+from ms.platform.process import ProcessError
+from ms.services.build.service import BuildService
+from ms.services.build_errors import PrereqMissing
+
+
+def _service(root: Path) -> BuildService:
+    return BuildService(
+        workspace=Workspace(root=root),
+        platform=PlatformInfo(
+            platform=Platform.LINUX,
+            arch=Arch.X64,
+            distro=LinuxDistro.DEBIAN,
+        ),
+        config=None,
+        console=MockConsole(),
+    )
+
+
+def _prepare_sdl_workspace(root: Path) -> Path:
+    core_dir = root / "midi-studio" / "core"
+    (core_dir / "sdl").mkdir(parents=True)
+    (root / "open-control").mkdir()
+    return core_dir
+
+
+def test_sdl_dependency_cmake_args_are_explicit_workspace_roots(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+
+    assert service._sdl_dependency_cmake_args() == [
+        f"-DOPEN_CONTROL_FRAMEWORK_DIR={tmp_path / 'open-control' / 'framework'}",
+        f"-DOPEN_CONTROL_UI_LVGL_DIR={tmp_path / 'open-control' / 'ui-lvgl'}",
+        (
+            "-DOPEN_CONTROL_UI_COMPONENTS_DIR="
+            f"{tmp_path / 'open-control' / 'ui-lvgl-components'}"
+        ),
+        f"-DOPEN_CONTROL_HAL_SDL_DIR={tmp_path / 'open-control' / 'hal-sdl'}",
+        f"-DOPEN_CONTROL_HAL_NET_DIR={tmp_path / 'open-control' / 'hal-net'}",
+        f"-DOPEN_CONTROL_HAL_MIDI_DIR={tmp_path / 'open-control' / 'hal-midi'}",
+        f"-DOPEN_CONTROL_NOTE_DIR={tmp_path / 'open-control' / 'note'}",
+        f"-DMIDI_STUDIO_UI_DIR={tmp_path / 'midi-studio' / 'ui'}",
+        (
+            f"-DLVGL_DIR={tmp_path / 'midi-studio' / 'core' / '.pio' / 'libdeps' / 'dev' / 'lvgl'}"
+        ),
+    ]
+
+
+def test_build_prereqs_reuse_existing_dev_lvgl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    core_dir = _prepare_sdl_workspace(tmp_path)
+    lvgl_cmake = core_dir / ".pio" / "libdeps" / "dev" / "lvgl" / "CMakeLists.txt"
+    lvgl_cmake.parent.mkdir(parents=True)
+    lvgl_cmake.touch()
+    service = _service(tmp_path)
+
+    def unexpected_platformio(_self: BuildService) -> list[str] | None:
+        raise AssertionError("PlatformIO must not run when the dev LVGL checkout exists")
+
+    monkeypatch.setattr(BuildService, "_platformio_cmd", unexpected_platformio)
+
+    assert isinstance(service._check_build_prereqs(dry_run=False), Ok)
+
+
+def test_build_prereqs_install_platformio_dev_dependencies(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    core_dir = _prepare_sdl_workspace(tmp_path)
+    service = _service(tmp_path)
+    seen: dict[str, object] = {}
+
+    def fake_platformio(_self: BuildService) -> list[str] | None:
+        return ["pio"]
+
+    def fake_run_silent(
+        cmd: list[str],
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        *,
+        timeout: float | None = None,
+    ) -> Result[None, ProcessError]:
+        seen.update(cmd=cmd, cwd=cwd, env=env, timeout=timeout)
+        lvgl_cmake = core_dir / ".pio" / "libdeps" / "dev" / "lvgl" / "CMakeLists.txt"
+        lvgl_cmake.parent.mkdir(parents=True)
+        lvgl_cmake.touch()
+        return Ok(None)
+
+    monkeypatch.setattr(BuildService, "_platformio_cmd", fake_platformio)
+    monkeypatch.setattr("ms.services.build.helpers.run_silent", fake_run_silent)
+
+    assert isinstance(service._check_build_prereqs(dry_run=False), Ok)
+    assert seen["cmd"] == ["pio", "pkg", "install", "-e", "dev"]
+    assert seen["cwd"] == core_dir
+    assert seen["timeout"] == 15 * 60.0
+    env = seen["env"]
+    assert isinstance(env, dict)
+    assert env["PLATFORMIO_CORE_DIR"] == str(tmp_path / ".ms" / "platformio")
+
+
+def test_build_prereqs_fail_when_install_does_not_supply_lvgl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _prepare_sdl_workspace(tmp_path)
+    service = _service(tmp_path)
+
+    def fake_platformio(_self: BuildService) -> list[str] | None:
+        return ["pio"]
+
+    def fake_run_silent(
+        cmd: list[str],
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        *,
+        timeout: float | None = None,
+    ) -> Result[None, ProcessError]:
+        del cmd, cwd, env, timeout
+        return Ok(None)
+
+    monkeypatch.setattr(BuildService, "_platformio_cmd", fake_platformio)
+    monkeypatch.setattr("ms.services.build.helpers.run_silent", fake_run_silent)
+
+    result = service._check_build_prereqs(dry_run=False)
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, PrereqMissing)
+    assert result.error.name == "LVGL source"

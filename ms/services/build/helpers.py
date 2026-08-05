@@ -27,6 +27,25 @@ class BuildHelpersMixin(BuildContextBase):
     def _core_sdl_dir(self) -> Path:
         return self._workspace.midi_studio_dir / "core" / "sdl"
 
+    def _sdl_lvgl_dir(self) -> Path:
+        return self._workspace.midi_studio_dir / "core" / ".pio" / "libdeps" / "dev" / "lvgl"
+
+    def _sdl_dependency_cmake_args(self) -> list[str]:
+        open_control = self._workspace.open_control_dir
+        midi_studio = self._workspace.midi_studio_dir
+        roots = (
+            ("OPEN_CONTROL_FRAMEWORK_DIR", open_control / "framework"),
+            ("OPEN_CONTROL_UI_LVGL_DIR", open_control / "ui-lvgl"),
+            ("OPEN_CONTROL_UI_COMPONENTS_DIR", open_control / "ui-lvgl-components"),
+            ("OPEN_CONTROL_HAL_SDL_DIR", open_control / "hal-sdl"),
+            ("OPEN_CONTROL_HAL_NET_DIR", open_control / "hal-net"),
+            ("OPEN_CONTROL_HAL_MIDI_DIR", open_control / "hal-midi"),
+            ("OPEN_CONTROL_NOTE_DIR", open_control / "note"),
+            ("MIDI_STUDIO_UI_DIR", midi_studio / "ui"),
+            ("LVGL_DIR", self._sdl_lvgl_dir()),
+        )
+        return [f"-D{variable}={root}" for variable, root in roots]
+
     def _base_env(self) -> dict[str, str]:
         env = os.environ.copy()
         env.update(self._registry.get_env_vars())
@@ -63,15 +82,14 @@ class BuildHelpersMixin(BuildContextBase):
             return Err(PrereqMissing(name="SDL build system", hint=str(self._core_sdl_dir())))
 
         core_dir = self._workspace.midi_studio_dir / "core"
-        libdeps = core_dir / ".pio" / "libdeps"
-        if libdeps.is_dir():
+        if (self._sdl_lvgl_dir() / "CMakeLists.txt").is_file():
             return Ok(None)
 
         pio = self._platformio_cmd()
         if pio is None:
             return Err(ToolMissing(tool_id="platformio"))
 
-        cmd = [*pio, "pkg", "install"]
+        cmd = [*pio, "pkg", "install", "-e", "dev"]
         self._console.print(" ".join(cmd), Style.DIM)
         if dry_run:
             return Ok(None)
@@ -84,6 +102,13 @@ class BuildHelpersMixin(BuildContextBase):
         )
         if isinstance(result, Err):
             return Err(PrereqMissing(name="PlatformIO libdeps", hint="pio pkg install failed"))
+        if not (self._sdl_lvgl_dir() / "CMakeLists.txt").is_file():
+            return Err(
+                PrereqMissing(
+                    name="LVGL source",
+                    hint="PlatformIO dev dependencies did not install LVGL",
+                )
+            )
         return Ok(None)
 
     def _get_tool_path(self, tool_id: str) -> Result[Path, BuildError]:

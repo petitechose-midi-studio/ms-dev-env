@@ -79,6 +79,7 @@ class BuildTargetsMixin(BuildHelpersMixin):
             f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
             "-DCMAKE_INSTALL_LIBDIR=lib",
         ]
+        configure_args += self._sdl_dependency_cmake_args()
 
         if self._platform.platform.is_windows:
             toolchain_file = self._core_sdl_dir() / "zig-toolchain.cmake"
@@ -193,6 +194,7 @@ class BuildTargetsMixin(BuildHelpersMixin):
             "-DCMAKE_BUILD_TYPE=Release",
             f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
         ]
+        configure_args += self._sdl_dependency_cmake_args()
 
         self._console.print(" ".join(str(x) for x in configure_args), Style.DIM)
         if not dry_run:
