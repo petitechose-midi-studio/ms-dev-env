@@ -42,6 +42,7 @@ class BuildHelpersMixin(BuildContextBase):
             ("OPEN_CONTROL_HAL_MIDI_DIR", open_control / "hal-midi"),
             ("OPEN_CONTROL_NOTE_DIR", open_control / "note"),
             ("MIDI_STUDIO_UI_DIR", midi_studio / "ui"),
+            ("MS_DEVICE_SUPPORT_DIR", midi_studio / "device-support"),
             ("LVGL_DIR", self._sdl_lvgl_dir()),
         )
         return [f"-D{variable}={root}" for variable, root in roots]
@@ -76,6 +77,22 @@ class BuildHelpersMixin(BuildContextBase):
     def _check_build_prereqs(self, *, dry_run: bool) -> Result[None, BuildError]:
         if not (self._workspace.midi_studio_dir / "core").is_dir():
             return Err(PrereqMissing(name="midi-studio/core", hint="Run: uv run ms sync --repos"))
+        device_support_version = (
+            self._workspace.midi_studio_dir
+            / "device-support"
+            / "src"
+            / "ms"
+            / "device_support"
+            / "v1"
+            / "Version.hpp"
+        )
+        if not device_support_version.is_file():
+            return Err(
+                PrereqMissing(
+                    name="midi-studio/device-support",
+                    hint="Run: uv run ms sync --repos",
+                )
+            )
         if not self._workspace.open_control_dir.is_dir():
             return Err(PrereqMissing(name="open-control", hint="Run: uv run ms sync --repos"))
         if not self._core_sdl_dir().is_dir():
