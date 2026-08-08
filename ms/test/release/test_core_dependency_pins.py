@@ -26,6 +26,7 @@ _CI_ENV_KEYS = (
     "OPEN_CONTROL_FRAMEWORK_SHA",
     "OPEN_CONTROL_NOTE_SHA",
     "OPEN_CONTROL_HAL_COMMON_SHA",
+    "OPEN_CONTROL_HAL_TEENSY_SHA",
     "OPEN_CONTROL_HAL_MIDI_SHA",
     "OPEN_CONTROL_HAL_NET_SHA",
     "OPEN_CONTROL_HAL_SDL_SHA",
@@ -63,6 +64,7 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
         "open-control/framework": _git_repo(workspace / "open-control" / "framework"),
         "open-control/note": _git_repo(workspace / "open-control" / "note"),
         "open-control/hal-common": _git_repo(workspace / "open-control" / "hal-common"),
+        "open-control/hal-teensy": _git_repo(workspace / "open-control" / "hal-teensy"),
         "open-control/hal-midi": _git_repo(workspace / "open-control" / "hal-midi"),
         "open-control/hal-net": _git_repo(workspace / "open-control" / "hal-net"),
         "open-control/hal-sdl": _git_repo(workspace / "open-control" / "hal-sdl"),
@@ -88,6 +90,7 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
     ci = (core_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert f"MS_DEV_ENV_SHA: {shas['.']}" in ci
     assert f"OPEN_CONTROL_HAL_COMMON_SHA: {shas['open-control/hal-common']}" in ci
+    assert f"OPEN_CONTROL_HAL_TEENSY_SHA: {shas['open-control/hal-teensy']}" in ci
     assert f"OPEN_CONTROL_HAL_SDL_SHA: {shas['open-control/hal-sdl']}" in ci
 
     verified = plan_core_dependency_pin_sync(workspace_root=workspace, core_root=core_root)
@@ -102,6 +105,7 @@ def test_sync_core_dependency_pins_inserts_missing_ci_env_pins(tmp_path: Path) -
         "open-control/framework": _git_repo(workspace / "open-control" / "framework"),
         "open-control/note": _git_repo(workspace / "open-control" / "note"),
         "open-control/hal-common": _git_repo(workspace / "open-control" / "hal-common"),
+        "open-control/hal-teensy": _git_repo(workspace / "open-control" / "hal-teensy"),
         "open-control/hal-midi": _git_repo(workspace / "open-control" / "hal-midi"),
         "open-control/hal-net": _git_repo(workspace / "open-control" / "hal-net"),
         "open-control/hal-sdl": _git_repo(workspace / "open-control" / "hal-sdl"),
@@ -151,6 +155,7 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
         "open-control/framework": "2" * 40,
         "open-control/note": "3" * 40,
         "open-control/hal-common": "a" * 40,
+        "open-control/hal-teensy": "b" * 40,
         "open-control/hal-midi": "4" * 40,
         "open-control/hal-net": "5" * 40,
         "open-control/hal-sdl": "6" * 40,
@@ -186,6 +191,9 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
     assert remote_shas["petitechose-midi-studio/ui"] in platformio
     assert f"MS_DEV_ENV_SHA: {remote_shas['petitechose-midi-studio/ms-dev-env']}" in ci
     assert (f"OPEN_CONTROL_HAL_COMMON_SHA: {remote_shas['open-control/hal-common']}") in ci
+    assert (
+        f"OPEN_CONTROL_HAL_TEENSY_SHA: {remote_shas['open-control/hal-teensy']}"
+    ) in ci
     assert (
         f"OPEN_CONTROL_UI_LVGL_COMPONENTS_SHA: {remote_shas['open-control/ui-lvgl-components']}"
     ) in ci
