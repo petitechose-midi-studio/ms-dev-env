@@ -86,6 +86,24 @@ role = "dev_dependency"
 depends_on = ["oc-ui-lvgl"]
 
 [[nodes]]
+id = "device-support"
+repo = "petitechose-midi-studio/device-support"
+role = "release_consumer"
+depends_on = [
+  "oc-framework",
+  "oc-hal-common",
+  "oc-hal-teensy",
+  "oc-ui-lvgl",
+]
+pin_dependencies = [
+  "oc-framework",
+  "oc-hal-common",
+  "oc-hal-teensy",
+  "oc-ui-lvgl",
+]
+validations = ["device-support-release"]
+
+[[nodes]]
 id = "core"
 repo = "petitechose-midi-studio/core"
 role = "bom_consumer"
@@ -100,6 +118,7 @@ depends_on = [
   "oc-ui-lvgl",
   "oc-ui-lvgl-components",
   "ms-ui",
+  "device-support",
 ]
 validations = ["core-dev", "core-release", "core-unit-tests"]
 
@@ -109,6 +128,7 @@ repo = "petitechose-midi-studio/plugin-bitwig"
 role = "release_consumer"
 depends_on = [
   "core",
+  "device-support",
   "ms-ui",
   "oc-protocol-codegen",
 ]
