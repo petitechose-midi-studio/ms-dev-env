@@ -31,6 +31,18 @@ def _service(root: Path) -> BuildService:
 def _prepare_sdl_workspace(root: Path) -> Path:
     core_dir = root / "midi-studio" / "core"
     (core_dir / "sdl").mkdir(parents=True)
+    device_support_version = (
+        root
+        / "midi-studio"
+        / "device-support"
+        / "src"
+        / "ms"
+        / "device_support"
+        / "v1"
+        / "Version.hpp"
+    )
+    device_support_version.parent.mkdir(parents=True)
+    device_support_version.touch()
     (root / "open-control").mkdir()
     return core_dir
 
@@ -50,10 +62,33 @@ def test_sdl_dependency_cmake_args_are_explicit_workspace_roots(tmp_path: Path) 
         f"-DOPEN_CONTROL_HAL_MIDI_DIR={tmp_path / 'open-control' / 'hal-midi'}",
         f"-DOPEN_CONTROL_NOTE_DIR={tmp_path / 'open-control' / 'note'}",
         f"-DMIDI_STUDIO_UI_DIR={tmp_path / 'midi-studio' / 'ui'}",
+        f"-DMS_DEVICE_SUPPORT_DIR={tmp_path / 'midi-studio' / 'device-support'}",
         (
             f"-DLVGL_DIR={tmp_path / 'midi-studio' / 'core' / '.pio' / 'libdeps' / 'dev' / 'lvgl'}"
         ),
     ]
+
+
+def test_build_prereqs_require_device_support_checkout(tmp_path: Path) -> None:
+    _prepare_sdl_workspace(tmp_path)
+    device_support_version = (
+        tmp_path
+        / "midi-studio"
+        / "device-support"
+        / "src"
+        / "ms"
+        / "device_support"
+        / "v1"
+        / "Version.hpp"
+    )
+    device_support_version.unlink()
+
+    result = _service(tmp_path)._check_build_prereqs(dry_run=True)
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, PrereqMissing)
+    assert result.error.name == "midi-studio/device-support"
+    assert result.error.hint == "Run: uv run ms sync --repos"
 
 
 def test_build_prereqs_reuse_existing_dev_lvgl(
