@@ -126,7 +126,9 @@ def test_consumer_pin_plan_allows_workflow_owned_dependency_checkouts(
     assert not planned.value.requires_write
 
 
-def test_consumer_pin_sync_bootstraps_unpinned_release_dependency(tmp_path: Path) -> None:
+def test_consumer_pin_sync_bootstraps_unpinned_release_dependency_without_adding_alias(
+    tmp_path: Path,
+) -> None:
     platformio = tmp_path / "open-control" / "hal-teensy" / "platformio.ini"
     platformio.parent.mkdir(parents=True)
     platformio.write_text(
@@ -157,7 +159,8 @@ lib_deps =
 
     assert isinstance(synced, Ok)
     rendered = platformio.read_text(encoding="utf-8")
-    assert (f"oc-hal-common=https://github.com/open-control/hal-common.git#{'b' * 40}") in rendered
+    assert (f"https://github.com/open-control/hal-common.git#{'b' * 40}") in rendered
+    assert "oc-hal-common=https://github.com/open-control/hal-common" not in rendered
 
 
 def test_consumer_pin_plan_rejects_missing_release_dependency(tmp_path: Path) -> None:
