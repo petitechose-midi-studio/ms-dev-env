@@ -104,7 +104,7 @@ def plan_consumer_dependency_pin_sync(
                     hint=str(platformio),
                 )
             )
-        current = match.group(2).lower() if match.group(2) is not None else None
+        current = match.group(3).lower() if match.group(3) is not None else None
         target_head = heads.get(dependency_id)
         if target_head is None:
             return Err(
@@ -169,8 +169,8 @@ def sync_consumer_dependency_pin_plan(
                 )
             section, count = _dependency_line_pattern(dependency).subn(
                 (
-                    rf"\g<1>{dependency.id}=https://github.com/"
-                    rf"{dependency.repo}.git#{item.to_sha}\g<3>"
+                    rf"\g<1>\g<2>https://github.com/"
+                    rf"{dependency.repo}.git#{item.to_sha}\g<4>"
                 ),
                 release_section.group(0),
             )
@@ -223,14 +223,14 @@ def _workspace_dependency_heads(
 
 def _pin_pattern(dependency: ReleaseGraphNode) -> re.Pattern[str]:
     return re.compile(
-        rf"(?m)^(\s*{re.escape(dependency.id)}=https://github\.com/"
-        rf"{re.escape(dependency.repo)}\.git#)({_SHA_RE})(\s*)$"
+        rf"(?m)^(\s*)({re.escape(dependency.id)}=)?https://github\.com/"
+        rf"{re.escape(dependency.repo)}\.git#({_SHA_RE})(\s*)$"
     )
 
 
 def _dependency_line_pattern(dependency: ReleaseGraphNode) -> re.Pattern[str]:
     return re.compile(
-        rf"(?m)^(\s*)(?:{re.escape(dependency.id)}=)?https://github\.com/"
+        rf"(?m)^(\s*)({re.escape(dependency.id)}=)?https://github\.com/"
         rf"{re.escape(dependency.repo)}(?:\.git)?(?:#({_SHA_RE}))?(\s*)$"
     )
 
@@ -254,7 +254,7 @@ def _verify_written_plan(
             if release_section is not None
             else None
         )
-        current = match.group(2).lower() if match is not None else None
+        current = match.group(3).lower() if match is not None else None
         if current != item.to_sha:
             return Err(
                 ReleaseError(
