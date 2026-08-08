@@ -180,6 +180,7 @@ def test_default_release_graph_covers_dev_workspace_repos() -> None:
         "oc-ui-lvgl-components",
         "ms-loader",
         "ms-ui",
+        "device-support",
         "core",
         "plugin-bitwig",
     ]
@@ -197,9 +198,11 @@ def test_default_release_graph_covers_dev_workspace_repos() -> None:
         "oc-ui-lvgl",
         "oc-ui-lvgl-components",
         "ms-ui",
+        "device-support",
     )
     assert by_id["plugin-bitwig"].depends_on == (
         "core",
+        "device-support",
         "ms-ui",
         "oc-protocol-codegen",
     )

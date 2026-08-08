@@ -176,6 +176,13 @@ branch = "main"
 
 [[repos]]
 org = "petitechose-midi-studio"
+name = "device-support"
+url = "https://github.com/petitechose-midi-studio/device-support"
+path = "midi-studio/device-support"
+branch = "main"
+
+[[repos]]
+org = "petitechose-midi-studio"
 name = "plugin-bitwig"
 url = "https://github.com/petitechose-midi-studio/plugin-bitwig"
 path = "midi-studio/plugin-bitwig"

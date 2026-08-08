@@ -4,7 +4,7 @@
 # This file defines *which* repos exist and *where* they are cloned.
 #
 # Notes:
-# - We keep the set minimal but complete for dev (core + bitwig):
+# - We keep the set minimal but complete for dev (Core + device support + Bitwig):
 #   - Teensy firmware builds use local open-control libs via PlatformIO symlinks.
 #   - SDL native/wasm builds use additional open-control HAL repos.
 #   - Bitwig protocol generation uses open-control/protocol-codegen.
@@ -98,6 +98,13 @@ org = "petitechose-midi-studio"
 name = "core"
 url = "https://github.com/petitechose-midi-studio/core"
 path = "midi-studio/core"
+branch = "main"
+
+[[repos]]
+org = "petitechose-midi-studio"
+name = "device-support"
+url = "https://github.com/petitechose-midi-studio/device-support"
+path = "midi-studio/device-support"
 branch = "main"
 
 [[repos]]
