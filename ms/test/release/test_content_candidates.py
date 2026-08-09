@@ -66,20 +66,29 @@ def _tooling() -> ReleaseTooling:
     )
 
 
-def test_plan_content_candidates_resolves_tags_and_ui_sha(
+def _platformio_text(*, ui_sha: str | None = None, device_support_sha: str | None = None) -> str:
+    lines: list[str] = []
+    if ui_sha is not None:
+        lines.append(f"ms-ui=https://github.com/petitechose-midi-studio/ui.git#{ui_sha}")
+    if device_support_sha is not None:
+        lines.append(
+            f"https://github.com/petitechose-midi-studio/device-support.git#{device_support_sha}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def test_plan_content_candidates_resolves_tags_and_dependency_shas(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
     import ms.release.flow.content_candidate_planning as planning
 
-    def fake_get_repo_file_text(
-        *, workspace_root: Path, repo: str, path: str, ref: str
-    ) -> Ok[str]:
-        del workspace_root, repo, path, ref
-        return Ok(
-            "ms-ui=https://github.com/petitechose-midi-studio/ui.git#"
-            + ("a" * 40)
-            + "\n"
-        )
+    def fake_get_repo_file_text(*, workspace_root: Path, repo: str, path: str, ref: str) -> Ok[str]:
+        del workspace_root, path, ref
+        if repo == "petitechose-midi-studio/core":
+            return Ok(_platformio_text(ui_sha="a" * 40, device_support_sha="b" * 40))
+        if repo == "petitechose-midi-studio/plugin-bitwig":
+            return Ok(_platformio_text(device_support_sha="c" * 40))
+        raise AssertionError(f"unexpected repository: {repo}")
 
     monkeypatch.setattr(planning, "get_repo_file_text", fake_get_repo_file_text)
 
@@ -99,16 +108,55 @@ def test_plan_content_candidates_resolves_tags_and_ui_sha(
         "plugin-bitwig-firmware",
     ]
     assert planned.value[2].candidate_tag == "rc-" + ("3" * 40) + "-tooling-" + ("f" * 40)
-    assert (
-        planned.value[3].candidate_tag
-        == "rc-core-host-tools-" + ("3" * 40) + "-tooling-" + ("f" * 40)
+    assert planned.value[3].candidate_tag == "rc-core-host-tools-" + ("3" * 40) + "-tooling-" + (
+        "f" * 40
     )
-    assert (
-        planned.value[5].candidate_tag
-        == "rc-plugin-bitwig-firmware-" + ("3" * 40) + "-" + ("4" * 40) + "-tooling-" + ("f" * 40)
-    )
+    assert planned.value[5].candidate_tag == "rc-plugin-bitwig-firmware-" + ("3" * 40) + "-" + (
+        "4" * 40
+    ) + "-tooling-" + ("f" * 40)
+    assert [item.id for item in planned.value[2].expected_input_repos] == [
+        "core",
+        "device-support",
+        "ms-dev-env",
+    ]
+    assert planned.value[2].expected_input_repos[1].sha == "b" * 40
+    assert planned.value[3].expected_input_repos == planned.value[2].expected_input_repos
+    assert [item.id for item in planned.value[5].expected_input_repos] == [
+        "plugin-bitwig",
+        "core",
+        "ui",
+        "device-support",
+        "ms-dev-env",
+    ]
     assert planned.value[5].expected_input_repos[2].sha == "a" * 40
-    assert planned.value[5].expected_input_repos[3].id == "ms-dev-env"
+    assert planned.value[5].expected_input_repos[3].sha == "c" * 40
+
+
+def test_plan_content_candidates_rejects_missing_device_support_pin(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    import ms.release.flow.content_candidate_planning as planning
+
+    def fake_get_repo_file_text(*, workspace_root: Path, repo: str, path: str, ref: str) -> Ok[str]:
+        del workspace_root, path, ref
+        if repo == "petitechose-midi-studio/core":
+            return Ok(_platformio_text(ui_sha="a" * 40, device_support_sha="b" * 40))
+        if repo == "petitechose-midi-studio/plugin-bitwig":
+            return Ok("[env:release]\n")
+        raise AssertionError(f"unexpected repository: {repo}")
+
+    monkeypatch.setattr(planning, "get_repo_file_text", fake_get_repo_file_text)
+
+    planned = plan_content_candidates(
+        workspace_root=tmp_path,
+        pinned=_pinned(),
+        tooling=_tooling(),
+    )
+
+    assert isinstance(planned, Err)
+    assert planned.error.message == (
+        "missing pinned device-support dependency in plugin-bitwig/platformio.ini"
+    )
 
 
 def test_ensure_content_candidates_dispatches_only_missing_targets(

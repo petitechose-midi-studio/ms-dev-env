@@ -15,6 +15,11 @@ from .release_tooling import tooling_input_repo
 _UI_DEP_RE = re.compile(
     r"(?m)^\s*ms-ui=https://github\.com/petitechose-midi-studio/ui\.git#([0-9a-f]{40})\s*$"
 )
+_DEVICE_SUPPORT_DEP_RE = re.compile(
+    r"(?m)^\s*https://github\.com/petitechose-midi-studio/"
+    r"device-support\.git#([0-9a-f]{40})\s*$"
+)
+_DEVICE_SUPPORT_REPO = "petitechose-midi-studio/device-support"
 
 
 def plan_content_candidates(
@@ -46,6 +51,21 @@ def plan_content_candidates(
     loader_pin = pinned_by_id["loader"]
     bridge_pin = pinned_by_id["oc-bridge"]
     bitwig_pin = pinned_by_id["plugin-bitwig"]
+
+    core_device_support_sha = resolve_device_support_sha(
+        workspace_root=workspace_root,
+        source_pin=core_pin,
+    )
+    if isinstance(core_device_support_sha, Err):
+        return core_device_support_sha
+
+    bitwig_device_support_sha = resolve_device_support_sha(
+        workspace_root=workspace_root,
+        source_pin=bitwig_pin,
+    )
+    if isinstance(bitwig_device_support_sha, Err):
+        return bitwig_device_support_sha
+
     producer_keys = _resolve_candidate_public_keys(
         (
             "loader-binaries",
@@ -59,6 +79,11 @@ def plan_content_candidates(
     if isinstance(producer_keys, Err):
         return producer_keys
 
+    core_device_support_input = CandidateInputRepo(
+        id="device-support",
+        repo=_DEVICE_SUPPORT_REPO,
+        sha=core_device_support_sha.value,
+    )
     targets = (
         _single_repo_candidate_target(
             target_id="loader-binaries",
@@ -98,6 +123,7 @@ def plan_content_candidates(
             source_sha=core_pin.sha,
             tooling=tooling,
             public_key_b64=producer_keys.value["core-default-firmware"],
+            additional_input_repos=(core_device_support_input,),
         ),
         _single_repo_candidate_target(
             target_id="core-host-tools",
@@ -111,6 +137,7 @@ def plan_content_candidates(
             source_sha=core_pin.sha,
             tooling=tooling,
             public_key_b64=producer_keys.value["core-host-tools"],
+            additional_input_repos=(core_device_support_input,),
         ),
         _single_repo_candidate_target(
             target_id="plugin-bitwig-extension",
@@ -129,6 +156,7 @@ def plan_content_candidates(
             bitwig_pin=bitwig_pin,
             core_pin=core_pin,
             ui_sha=ui_sha.value,
+            device_support_sha=bitwig_device_support_sha.value,
             tooling=tooling,
             public_key_b64=producer_keys.value["plugin-bitwig-firmware"],
         ),
@@ -164,6 +192,35 @@ def resolve_core_ui_sha(
     return Ok(match.group(1))
 
 
+def resolve_device_support_sha(
+    *,
+    workspace_root: Path,
+    source_pin: PinnedRepo,
+) -> Result[str, ReleaseError]:
+    text = get_repo_file_text(
+        workspace_root=workspace_root,
+        repo=source_pin.repo.slug,
+        path="platformio.ini",
+        ref=source_pin.sha,
+    )
+    if isinstance(text, Err):
+        return text
+
+    match = _DEVICE_SUPPORT_DEP_RE.search(text.value)
+    if match is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=(
+                    "missing pinned device-support dependency in "
+                    f"{source_pin.repo.id}/platformio.ini"
+                ),
+                hint=source_pin.sha,
+            )
+        )
+    return Ok(match.group(1))
+
+
 def _resolve_candidate_public_keys(
     producer_ids: tuple[str, ...],
 ) -> Result[dict[str, str], ReleaseError]:
@@ -189,6 +246,7 @@ def _single_repo_candidate_target(
     source_sha: str,
     tooling: ReleaseTooling,
     public_key_b64: str,
+    additional_input_repos: tuple[CandidateInputRepo, ...] = (),
 ) -> ContentCandidateTarget:
     return ContentCandidateTarget(
         id=target_id,
@@ -201,6 +259,7 @@ def _single_repo_candidate_target(
         workflow_inputs=(("source_sha", source_sha), ("tooling_sha", tooling.sha)),
         expected_input_repos=(
             CandidateInputRepo(id=input_repo_id, repo=repo_slug, sha=source_sha),
+            *additional_input_repos,
             tooling_input_repo(tooling=tooling),
         ),
         public_key_b64=public_key_b64,
@@ -212,6 +271,7 @@ def _plugin_bitwig_firmware_target(
     bitwig_pin: PinnedRepo,
     core_pin: PinnedRepo,
     ui_sha: str,
+    device_support_sha: str,
     tooling: ReleaseTooling,
     public_key_b64: str,
 ) -> ContentCandidateTarget:
@@ -238,6 +298,11 @@ def _plugin_bitwig_firmware_target(
             ),
             CandidateInputRepo(id="core", repo=core_pin.repo.slug, sha=core_pin.sha),
             CandidateInputRepo(id="ui", repo="petitechose-midi-studio/ui", sha=ui_sha),
+            CandidateInputRepo(
+                id="device-support",
+                repo=_DEVICE_SUPPORT_REPO,
+                sha=device_support_sha,
+            ),
             tooling_input_repo(tooling=tooling),
         ),
         public_key_b64=public_key_b64,
