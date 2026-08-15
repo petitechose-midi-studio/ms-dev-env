@@ -22,6 +22,14 @@ def test(
             "Test target or group. Run without a target to list available entries."
         ),
     ),
+    test_name: list[str] | None = typer.Option(
+        None,
+        "--test",
+        help=(
+            "Build and run one CMake test executable. Accepts names with or "
+            "without the 'test_' prefix and can be passed more than once."
+        ),
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without running them."),
     verbose: bool = typer.Option(
         False,
@@ -47,7 +55,12 @@ def test(
         )
         return
 
-    result = service.run(target=target, dry_run=dry_run, verbose=verbose)
+    result = service.run(
+        target=target,
+        tests=tuple(test_name or ()),
+        dry_run=dry_run,
+        verbose=verbose,
+    )
     match result:
         case Ok(runs):
             _print_runs(
@@ -113,8 +126,8 @@ def _print_runs(
         style,
     )
     console.print(
-        f"  {'scope':<8} {'check':<22} {'runner':<11} {'res':<3} "
-        f"{'tests':>7} {'time':>7} {'run':>7}",
+        f"  {'scope':<8} {'check':<22} {'res':<3} {'tests':>7} "
+        f"{'cfg':>6} {'build':>6} {'run':>6} {'total':>6}",
         Style.DIM,
     )
 
@@ -140,9 +153,14 @@ def _print_run(scope: str, run: UnitTestRun, console: ConsoleProtocol) -> None:
         else "-"
     )
     runner_time = f"{run.runner_seconds:.2f}s" if run.runner_seconds is not None else "-"
+    configure_time = (
+        f"{run.configure_seconds:.2f}s" if run.configure_seconds is not None else "-"
+    )
+    build_time = f"{run.build_seconds:.2f}s" if run.build_seconds is not None else "-"
     console.print(
-        f"  {scope:<8} {run.name:<22} {run.runner.value:<11} {status:<3} "
-        f"{tests:>7} {run.elapsed_seconds:>6.2f}s {runner_time:>7}",
+        f"  {scope:<8} {run.name:<22} {status:<3} {tests:>7} "
+        f"{configure_time:>6} {build_time:>6} {runner_time:>6} "
+        f"{run.elapsed_seconds:>5.2f}s",
     )
 
 

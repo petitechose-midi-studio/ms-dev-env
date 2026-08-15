@@ -82,6 +82,8 @@ uv run ms test firmware
 uv run ms test ms-manager-svelte
 uv run ms test ms-manager-tauri
 uv run ms test core
+uv run ms test core --test RealtimeMidiQueue
+uv run ms test core --test RealtimeMidiQueue --test RealtimeMidiProducerEnvelope
 uv run ms test all
 
 # SDL UX workflows (Core scripts + captures stay in the Core repo)

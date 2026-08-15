@@ -58,6 +58,8 @@ class UnitTestRun:
     total_tests: int | None = None
     failed_tests: int | None = None
     runner_seconds: float | None = None
+    configure_seconds: float | None = None
+    build_seconds: float | None = None
     dry_run: bool = False
 
 
@@ -65,6 +67,12 @@ class UnitTestRun:
 class UnitTestTargetNotFound:
     name: str
     available: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class UnitTestSelectionInvalid:
+    target: str
+    message: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +105,7 @@ class UnitTestFailed:
 UnitTestError = (
     ToolMissing
     | UnitTestTargetNotFound
+    | UnitTestSelectionInvalid
     | UnitTestHarnessMissing
     | UnitTestDependencyError
     | UnitTestConfigureFailed
@@ -137,12 +146,43 @@ class UnitTestService(BaseService):
         self,
         *,
         target: str,
+        tests: tuple[str, ...] = (),
         dry_run: bool = False,
         verbose: bool = False,
     ) -> Result[tuple[UnitTestRun, ...], UnitTestError]:
         targets_result = self._resolve_targets(target)
         if isinstance(targets_result, Err):
             return targets_result
+
+        selected_tests: tuple[str, ...] = ()
+        if tests:
+            if target in self.target_groups():
+                return Err(
+                    UnitTestSelectionInvalid(
+                        target=target,
+                        message="--test requires one CMake target, not a group",
+                    )
+                )
+            unit_target = targets_result.value[0]
+            if unit_target.runner != UnitTestRunner.CMAKE:
+                return Err(
+                    UnitTestSelectionInvalid(
+                        target=target,
+                        message="--test is available only for CMake test targets",
+                    )
+                )
+            normalized = normalize_cmake_test_targets(tests)
+            if normalized is None:
+                return Err(
+                    UnitTestSelectionInvalid(
+                        target=target,
+                        message=(
+                            "test names may contain only letters, digits, '.', "
+                            "'_', '+', and '-'"
+                        ),
+                    )
+                )
+            selected_tests = normalized
 
         if target in self.target_groups():
             return self._run_group(
@@ -155,6 +195,7 @@ class UnitTestService(BaseService):
         for unit_target in targets_result.value:
             run_result = self._run_single_target(
                 unit_target=unit_target,
+                selected_tests=selected_tests,
                 dry_run=dry_run,
                 verbose=verbose,
             )
@@ -168,6 +209,7 @@ class UnitTestService(BaseService):
         self,
         *,
         unit_target: UnitTestTarget,
+        selected_tests: tuple[str, ...] = (),
         dry_run: bool,
         verbose: bool,
     ) -> Result[UnitTestRun, UnitTestError]:
@@ -219,17 +261,28 @@ class UnitTestService(BaseService):
         built = self._build(
             target_name=unit_target.name,
             build_dir=unit_target.build_dir,
+            build_targets=selected_tests,
             dry_run=dry_run,
             verbose=verbose,
         )
         if isinstance(built, Err):
             return built
 
-        return self._run_ctest(
+        tested = self._run_ctest(
             unit_target=unit_target,
             build_dir=unit_target.build_dir,
+            test_names=selected_tests,
             dry_run=dry_run,
             verbose=verbose,
+        )
+        if isinstance(tested, Err):
+            return tested
+        return Ok(
+            _with_cmake_timings(
+                tested.value,
+                configure_seconds=configured.value,
+                build_seconds=built.value,
+            )
         )
 
     def _run_group(
@@ -324,7 +377,7 @@ class UnitTestService(BaseService):
             return built
 
         runs: list[UnitTestRun] = []
-        for unit_target in targets:
+        for index, unit_target in enumerate(targets):
             tested = self._run_ctest(
                 unit_target=unit_target,
                 build_dir=build_dir,
@@ -334,7 +387,13 @@ class UnitTestService(BaseService):
             )
             if isinstance(tested, Err):
                 return tested
-            runs.append(tested.value)
+            runs.append(
+                _with_cmake_timings(
+                    tested.value,
+                    configure_seconds=configured.value if index == 0 else 0.0,
+                    build_seconds=built.value if index == 0 else 0.0,
+                )
+            )
 
         return Ok(tuple(runs))
 
@@ -347,7 +406,8 @@ class UnitTestService(BaseService):
         dry_run: bool,
         verbose: bool,
         extra_args: list[str],
-    ) -> Result[None, UnitTestError]:
+    ) -> Result[float, UnitTestError]:
+        started_at = time.perf_counter()
         cmake = self._get_tool_path("cmake")
         if isinstance(cmake, Err):
             return cmake
@@ -377,7 +437,7 @@ class UnitTestService(BaseService):
         if verbose or dry_run:
             self._console.print(" ".join(configure_args), Style.DIM)
         if dry_run:
-            return Ok(None)
+            return Ok(0.0)
 
         configure = run(
             configure_args,
@@ -398,25 +458,29 @@ class UnitTestService(BaseService):
             )
         if verbose and configure.value:
             self._console.print(configure.value.rstrip(), Style.DIM)
-        return Ok(None)
+        return Ok(time.perf_counter() - started_at)
 
     def _build(
         self,
         *,
         target_name: str,
         build_dir: Path,
+        build_targets: tuple[str, ...] = (),
         dry_run: bool,
         verbose: bool,
-    ) -> Result[None, UnitTestError]:
+    ) -> Result[float, UnitTestError]:
+        started_at = time.perf_counter()
         cmake = self._get_tool_path("cmake")
         if isinstance(cmake, Err):
             return cmake
 
         build_args = [str(cmake.value), "--build", str(build_dir)]
+        if build_targets:
+            build_args.extend(["--target", *build_targets])
         if verbose or dry_run:
             self._console.print(" ".join(build_args), Style.DIM)
         if dry_run:
-            return Ok(None)
+            return Ok(0.0)
 
         build = run(
             build_args,
@@ -434,7 +498,7 @@ class UnitTestService(BaseService):
             )
         if verbose and build.value:
             self._console.print(build.value.rstrip(), Style.DIM)
-        return Ok(None)
+        return Ok(time.perf_counter() - started_at)
 
     def _run_ctest(
         self,
@@ -444,6 +508,7 @@ class UnitTestService(BaseService):
         dry_run: bool,
         verbose: bool,
         label: str | None = None,
+        test_names: tuple[str, ...] = (),
     ) -> Result[UnitTestRun, UnitTestError]:
         started_at = time.perf_counter()
         ctest = self._ctest_path()
@@ -459,6 +524,9 @@ class UnitTestService(BaseService):
         ]
         if label is not None:
             ctest_args.extend(["-L", label])
+        if test_names:
+            names_pattern = "|".join(re.escape(name) for name in test_names)
+            ctest_args.extend(["-R", f"^({names_pattern})$", "--no-tests=error"])
 
         if verbose or dry_run:
             self._console.print(" ".join(ctest_args), Style.DIM)
@@ -964,6 +1032,25 @@ class UnitTestService(BaseService):
         (source_dir / "CMakeLists.txt").write_text("\n".join(lines), encoding="utf-8")
 
 
+def _with_cmake_timings(
+    run: UnitTestRun,
+    *,
+    configure_seconds: float,
+    build_seconds: float,
+) -> UnitTestRun:
+    return UnitTestRun(
+        name=run.name,
+        runner=run.runner,
+        elapsed_seconds=run.elapsed_seconds + configure_seconds + build_seconds,
+        total_tests=run.total_tests,
+        failed_tests=run.failed_tests,
+        runner_seconds=run.runner_seconds,
+        configure_seconds=configure_seconds,
+        build_seconds=build_seconds,
+        dry_run=run.dry_run,
+    )
+
+
 def print_unit_test_error(error: UnitTestError, console: ConsoleProtocol) -> None:
     match error:
         case ToolMissing(tool_id=tool_id, hint=hint):
@@ -972,6 +1059,9 @@ def print_unit_test_error(error: UnitTestError, console: ConsoleProtocol) -> Non
         case UnitTestTargetNotFound(name=name, available=available):
             console.error(f"Unknown test target: {name}")
             console.print(f"Available: {', '.join(available)}", Style.DIM)
+        case UnitTestSelectionInvalid(target=target, message=message):
+            console.error(f"{target}: invalid test selection")
+            console.print(message, Style.DIM)
         case UnitTestHarnessMissing(target=target, path=path):
             console.error(f"{target}: CMake unit-test harness missing")
             console.print(f"expected: {path}", Style.DIM)
@@ -992,13 +1082,31 @@ def unit_test_error_exit_code(error: UnitTestError) -> int:
     match error:
         case ToolMissing() | UnitTestHarnessMissing():
             return int(ErrorCode.ENV_ERROR)
-        case UnitTestTargetNotFound():
+        case UnitTestTargetNotFound() | UnitTestSelectionInvalid():
             return int(ErrorCode.USER_ERROR)
         case UnitTestDependencyError():
             return int(ErrorCode.NETWORK_ERROR)
         case UnitTestConfigureFailed() | UnitTestFailed():
             return int(ErrorCode.BUILD_ERROR)
     return int(ErrorCode.INTERNAL_ERROR)
+
+
+def normalize_cmake_test_targets(names: tuple[str, ...]) -> tuple[str, ...] | None:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_name in names:
+        name = raw_name.strip()
+        if not name:
+            return None
+        if not name.startswith("test_"):
+            name = f"test_{name}"
+        if re.fullmatch(r"[A-Za-z0-9_.+-]+", name) is None:
+            return None
+        if name in seen:
+            continue
+        seen.add(name)
+        normalized.append(name)
+    return tuple(normalized)
 
 
 def _topological_targets(targets: dict[str, UnitTestTarget]) -> tuple[UnitTestTarget, ...]:

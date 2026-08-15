@@ -152,3 +152,33 @@ def test_ctest_path_filter_removes_workspace_venv(tmp_path: Path) -> None:
     filtered = unit_tests.remove_env_path_entry(value, venv_scripts)
 
     assert filtered == str(other)
+
+
+def test_cmake_test_selection_normalizes_prefix_and_deduplicates() -> None:
+    normalized = unit_tests.normalize_cmake_test_targets(
+        (
+            "RealtimeMidiQueue",
+            "test_RealtimeMidiProducerEnvelope",
+            "RealtimeMidiQueue",
+        )
+    )
+
+    assert normalized == (
+        "test_RealtimeMidiQueue",
+        "test_RealtimeMidiProducerEnvelope",
+    )
+
+
+def test_cmake_test_selection_rejects_groups(tmp_path: Path) -> None:
+    service = UnitTestService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+    )
+
+    result = service.run(target="firmware", tests=("RealtimeMidiQueue",), dry_run=True)
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, unit_tests.UnitTestSelectionInvalid)
+    assert "not a group" in result.error.message
