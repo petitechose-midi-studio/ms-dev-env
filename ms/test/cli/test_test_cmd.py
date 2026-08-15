@@ -40,10 +40,12 @@ def test_unit_test_command_reports_success(
             self,
             *,
             target: str,
+            tests: tuple[str, ...] = (),
             dry_run: bool = False,
             verbose: bool = False,
         ) -> Ok[tuple[object, ...]]:
             assert target == "core"
+            assert tests == ("RealtimeMidiQueue",)
             assert dry_run is True
             assert verbose is False
             return Ok(())
@@ -53,7 +55,12 @@ def test_unit_test_command_reports_success(
 
     monkeypatch.setattr(test_cmd, "UnitTestService", FakeUnitTestService)
 
-    test_cmd.test(target="core", dry_run=True, verbose=False)
+    test_cmd.test(
+        target="core",
+        test_name=["RealtimeMidiQueue"],
+        dry_run=True,
+        verbose=False,
+    )
 
 
 def test_unit_test_command_lists_targets_without_target(
@@ -77,7 +84,7 @@ def test_unit_test_command_lists_targets_without_target(
 
     monkeypatch.setattr(test_cmd, "UnitTestService", FakeUnitTestService)
 
-    test_cmd.test(target=None)
+    test_cmd.test(target=None, test_name=None)
 
     console = ctx.console
     assert isinstance(console, MockConsole)
@@ -103,15 +110,16 @@ def test_unit_test_command_exits_on_unknown_target(
             self,
             *,
             target: str,
+            tests: tuple[str, ...] = (),
             dry_run: bool = False,
             verbose: bool = False,
         ) -> Err[UnitTestTargetNotFound]:
-            del dry_run, verbose
+            del tests, dry_run, verbose
             return Err(UnitTestTargetNotFound(name=target, available=("all", "core")))
 
     monkeypatch.setattr(test_cmd, "UnitTestService", FakeUnitTestService)
 
     with pytest.raises(typer.Exit) as exc:
-        test_cmd.test(target="missing")
+        test_cmd.test(target="missing", test_name=None)
 
     assert exc.value.exit_code == int(ErrorCode.USER_ERROR)
