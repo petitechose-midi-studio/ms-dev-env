@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 from ms.core.result import Err, Ok
@@ -98,7 +100,7 @@ def test_resolve_selection_reports_missing_workflow(tmp_path: Path) -> None:
 
 
 def test_run_validates_trace_dispatch_captures_and_expectations(tmp_path: Path) -> None:
-    _write_workflow(
+    workflow_path = _write_workflow(
         tmp_path,
         "sequencer/undo/step-toggle.ux",
         """
@@ -158,6 +160,49 @@ def test_run_validates_trace_dispatch_captures_and_expectations(tmp_path: Path) 
     assert runs[0].capture_count == 2
     assert runs[0].expected_capture_count == 2
     assert runs[0].expectations == ("capture_match:first=second", "playhead_progress")
+
+    manifest_path = runs[0].output_dir / "run-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    binary_sha256 = hashlib.sha256(exe.read_bytes()).hexdigest()
+    assert manifest == {
+        "app": "core",
+        "capture_sha256": {
+            "001_first_screen.bmp": hashlib.sha256(b"same").hexdigest(),
+            "002_second_screen.bmp": hashlib.sha256(b"same").hexdigest(),
+        },
+        "captures": ["001_first_screen.bmp", "002_second_screen.bmp"],
+        "executable": exe.name,
+        "executable_sha256": binary_sha256,
+        "exit_code": 0,
+        "run_utc": manifest["run_utc"],
+        "schema": 1,
+        "verified": True,
+        "workflow": "sequencer/undo/step-toggle.ux",
+        "workflow_sha256": hashlib.sha256(workflow_path.read_bytes()).hexdigest(),
+    }
+    assert manifest["run_utc"].endswith("Z")
+
+    report = _ok(
+        service.write_report(
+            app_name="core",
+            selections=("sequencer/undo/step-toggle",),
+            all_workflows=False,
+        )
+    )
+    report_text = report.read_text(encoding="utf-8")
+    assert "| sequencer/undo/step-toggle.ux | verified |" in report_text
+    assert f"- Binary SHA-256: `{binary_sha256}`" in report_text
+    assert f"- Run UTC: {manifest['run_utc']}" in report_text
+
+    (runs[0].output_dir / "001_first_screen.bmp").write_bytes(b"replaced")
+    stale_report = _ok(
+        service.write_report(
+            app_name="core",
+            selections=("sequencer/undo/step-toggle",),
+            all_workflows=False,
+        )
+    )
+    assert "| sequencer/undo/step-toggle.ux | stale |" in stale_report.read_text(encoding="utf-8")
 
 
 def test_run_validates_semantic_facts_bound_to_named_captures(tmp_path: Path) -> None:
@@ -621,3 +666,5 @@ def test_write_report_uses_existing_capture_outputs(tmp_path: Path) -> None:
     text = report.read_text(encoding="utf-8")
     assert "overlay-exclusivity.ux" in text
     assert "001_first_screen.bmp" in text
+    assert "| overlay-exclusivity.ux | missing |" in text
+    assert "Provenance: unavailable (capture predates run manifests)" in text
