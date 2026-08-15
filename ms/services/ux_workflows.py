@@ -6,6 +6,7 @@ import re
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -22,6 +23,7 @@ _SEMANTIC_EXPECT_RE = re.compile(r"^semantic:([A-Za-z0-9_-]+):([A-Za-z][A-Za-z0-
 _SEMANTIC_LABEL_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _OVERLAY_EXCLUSIVE_MAX_CHANGED_BYTE_RATIO = 0.02
 _CAPTURE_CHANGED_MIN_BYTES = 16
+_RUN_MANIFEST_NAME = "run-manifest.json"
 
 if TYPE_CHECKING:
     from ms.core.config import Config
@@ -345,6 +347,7 @@ class UxWorkflowService(BaseService):
         if isinstance(exe_result, Err):
             return exe_result
         exe = exe_result.value
+        executable_sha256 = _sha256(exe)
 
         root = (output_root or catalog.app.output_root).resolve()
         root.mkdir(parents=True, exist_ok=True)
@@ -357,6 +360,7 @@ class UxWorkflowService(BaseService):
                 app=catalog.app,
                 workflow=workflow,
                 executable=exe,
+                executable_sha256=executable_sha256,
                 output_root=root,
             )
             if isinstance(run_result, Err):
@@ -436,6 +440,7 @@ class UxWorkflowService(BaseService):
         app: UxWorkflowApp,
         workflow: UxWorkflow,
         executable: Path,
+        executable_sha256: str,
         output_root: Path,
     ) -> Result[UxWorkflowRun, UxWorkflowError]:
         output_dir = (output_root / workflow.id).resolve()
@@ -444,6 +449,7 @@ class UxWorkflowService(BaseService):
         if output_dir.exists():
             shutil.rmtree(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
+        run_utc = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
         process_result = self._runner(
             [str(executable), "--ux-script", str(workflow.path), "--ux-output", str(output_dir)],
@@ -457,6 +463,23 @@ class UxWorkflowService(BaseService):
             exit_code = process_error.returncode
 
         run = _inspect_run(workflow=workflow, output_dir=output_dir, exit_code=exit_code)
+        try:
+            _write_run_manifest(
+                app=app,
+                workflow=workflow,
+                executable=executable,
+                executable_sha256=executable_sha256,
+                output_dir=output_dir,
+                run=run,
+                run_utc=run_utc,
+            )
+        except OSError as error:
+            return Err(
+                UxReportFailed(
+                    message=f"failed to write UX run provenance for "
+                    f"'{workflow.relative_path}': {error}"
+                )
+            )
         if process_error is not None:
             return Err(UxRunFailed(workflow=workflow, process_error=process_error, run=run))
         return Ok(run)
@@ -818,9 +841,7 @@ def _valid_semantic_capture_row(row: dict[str, object]) -> bool:
 
     surface_context = cast(bool, row["surface_context"])
     source_seq = cast(int, row["source_seq"])
-    return (surface_context and source_seq >= 0) or (
-        not surface_context and source_seq == 0
-    )
+    return (surface_context and source_seq >= 0) or (not surface_context and source_seq == 0)
 
 
 def _parse_semantic_expectation(expectation: str) -> tuple[str, str, str] | None:
@@ -947,6 +968,84 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
+def _write_run_manifest(
+    *,
+    app: UxWorkflowApp,
+    workflow: UxWorkflow,
+    executable: Path,
+    executable_sha256: str,
+    output_dir: Path,
+    run: UxWorkflowRun,
+    run_utc: str,
+) -> None:
+    captures = sorted(output_dir.glob("*.bmp"))
+    manifest = {
+        "schema": 1,
+        "app": app.name,
+        "workflow": workflow.relative_path,
+        "workflow_sha256": _sha256(workflow.path),
+        "executable": executable.name,
+        "executable_sha256": executable_sha256,
+        "run_utc": run_utc,
+        "exit_code": run.exit_code,
+        "verified": run.ok,
+        "captures": [path.name for path in captures],
+        "capture_sha256": {path.name: _sha256(path) for path in captures},
+    }
+    (output_dir / _RUN_MANIFEST_NAME).write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _read_run_manifest(output_dir: Path) -> dict[str, object] | None:
+    try:
+        payload = json.loads((output_dir / _RUN_MANIFEST_NAME).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    manifest = cast(dict[str, object], payload)
+    if manifest.get("schema") != 1:
+        return None
+    required = (
+        "workflow",
+        "workflow_sha256",
+        "captures",
+        "capture_sha256",
+        "executable",
+        "executable_sha256",
+        "run_utc",
+        "verified",
+    )
+    if any(field not in manifest for field in required):
+        return None
+    return manifest
+
+
+def _run_manifest_provenance(
+    *, workflow: UxWorkflow, output_dir: Path, manifest: dict[str, object] | None
+) -> str:
+    if manifest is None:
+        return "missing"
+    if manifest["verified"] is not True:
+        return "failed"
+    captures = sorted(output_dir.glob("*.bmp"))
+    capture_names = [path.name for path in captures]
+    expected_capture_hashes = manifest["capture_sha256"]
+    if not isinstance(expected_capture_hashes, dict):
+        return "stale"
+    capture_hashes = cast(dict[str, object], expected_capture_hashes)
+    if (
+        manifest["workflow"] != workflow.relative_path
+        or manifest["workflow_sha256"] != _sha256(workflow.path)
+        or manifest["captures"] != capture_names
+        or any(capture_hashes.get(path.name) != _sha256(path) for path in captures)
+    ):
+        return "stale"
+    return "verified"
+
+
 def _report_lines(
     *,
     catalog: UxWorkflowCatalog,
@@ -963,28 +1062,47 @@ def _report_lines(
         "",
         "## Summary",
         "",
-        "| Workflow | Captures | Semantic | Schema | Run End | Dispatch | Expectations |",
-        "|---|---:|---:|---:|---:|---:|---|",
+        "| Workflow | Provenance | Captures | Semantic | Schema | Run End | Dispatch | "
+        "Expectations |",
+        "|---|---|---:|---:|---:|---:|---:|---|",
     ]
 
     sections: list[str] = []
     for workflow in workflows:
         run = _inspect_run(workflow=workflow, output_dir=output_root / workflow.id, exit_code=0)
+        manifest = _read_run_manifest(run.output_dir)
+        provenance = _run_manifest_provenance(
+            workflow=workflow,
+            output_dir=run.output_dir,
+            manifest=manifest,
+        )
         expectations = ", ".join(run.expectations) if run.expectations else "-"
         lines.append(
-            f"| {workflow.relative_path} | {run.capture_count}/{run.expected_capture_count} | "
+            f"| {workflow.relative_path} | {provenance} | "
+            f"{run.capture_count}/{run.expected_capture_count} | "
             f"{run.semantic_capture_count}/{run.expected_semantic_capture_count} | "
             f"{run.semantic_schema_valid} | "
             f"{run.run_ended} | {run.has_dispatch} | {expectations} |"
         )
-        sections.extend(_workflow_report_section(workflow=workflow, run=run, report_dir=report_dir))
+        sections.extend(
+            _workflow_report_section(
+                workflow=workflow,
+                run=run,
+                manifest=manifest,
+                report_dir=report_dir,
+            )
+        )
 
     lines.extend(["", "## Workflows", "", *sections])
     return tuple(lines)
 
 
 def _workflow_report_section(
-    *, workflow: UxWorkflow, run: UxWorkflowRun, report_dir: Path
+    *,
+    workflow: UxWorkflow,
+    run: UxWorkflowRun,
+    manifest: dict[str, object] | None,
+    report_dir: Path,
 ) -> tuple[str, ...]:
     lines = [
         f"### {workflow.relative_path}",
@@ -995,8 +1113,20 @@ def _workflow_report_section(
         f"- Semantic schema: {run.semantic_schema_valid}",
         f"- Run end: {run.run_ended}",
         f"- Dispatch: {run.has_dispatch}",
-        "",
     ]
+    if manifest is None:
+        lines.append("- Provenance: unavailable (capture predates run manifests)")
+    else:
+        lines.extend(
+            [
+                f"- Run UTC: {manifest['run_utc']}",
+                f"- Executable: {Path(str(manifest['executable'])).name}",
+                f"- Binary SHA-256: `{manifest['executable_sha256']}`",
+                f"- Workflow SHA-256: `{manifest['workflow_sha256']}`",
+                f"- Manifest result: {str(manifest['verified']).lower()}",
+            ]
+        )
+    lines.append("")
     captures = sorted(run.output_dir.glob("*.bmp"))
     if captures:
         lines.extend(["#### Captures", ""])

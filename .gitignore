@@ -16,6 +16,7 @@ target/
 node_modules/
 
 # Local binary artifacts
+/core-settings.bin
 macros.bin
 macro-library.bin
 macro-workspace.bin
