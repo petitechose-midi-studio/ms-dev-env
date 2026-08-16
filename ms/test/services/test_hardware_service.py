@@ -11,6 +11,7 @@ from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
 from ms.services.hardware import HardwareService
+from ms.services.hardware.service import _parse_profiles
 
 
 def _platform() -> PlatformInfo:
@@ -81,3 +82,25 @@ def test_hardware_build_dry_run_skips_subprocess(
     result = svc.build(app, env="dev", dry_run=True)
     assert result.is_ok()
     assert called["n"] == 0
+
+
+def test_profile_discovery_only_exposes_explicit_environment_owner() -> None:
+    raw = """[
+      ["env:dev", [
+        ["custom_ms_manager_profile", "dev"],
+        ["custom_ms_manager_label", "Normal"]
+      ]],
+      ["env:hidden_child", [
+        ["custom_ms_manager_profile", "dev"],
+        ["custom_ms_manager_label", "Normal"]
+      ]],
+      ["env:dev_diagnostics", [
+        ["custom_ms_manager_profile", "dev_diagnostics"],
+        ["custom_ms_manager_label", "Diagnostics"]
+      ]]
+    ]"""
+
+    assert [(profile.id, profile.label) for profile in _parse_profiles(raw)] == [
+        ("dev", "Normal"),
+        ("dev_diagnostics", "Diagnostics"),
+    ]

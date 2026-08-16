@@ -3,8 +3,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-HardwareErrorKind = Literal["script_missing", "build_failed", "upload_failed", "no_platformio"]
+HardwareErrorKind = Literal[
+    "script_missing",
+    "build_failed",
+    "upload_failed",
+    "no_platformio",
+    "profile_discovery_failed",
+]
 HardwareAction = Literal["build", "upload"]
+
+
+@dataclass(frozen=True, slots=True)
+class FirmwareProfile:
+    id: str
+    label: str
 
 
 @dataclass(frozen=True, slots=True)
