@@ -34,14 +34,19 @@ def profiles(
         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
 
     source_dirty = not Repository(resolved.value.path).is_clean()
-    rows: list[dict[str, str | bool]] = []
+    rows: list[dict[str, str | bool | int | None]] = []
     for profile in result.value:
         artifact = ctx.workspace.bin_dir / app / "teensy" / profile.id / "firmware.hex"
+        artifact_ready = artifact.is_file()
         rows.append(
             {
                 "id": profile.id,
+                "source_path": str(resolved.value.path),
                 "artifact_path": str(artifact),
-                "artifact_ready": artifact.is_file(),
+                "artifact_ready": artifact_ready,
+                "artifact_built_at_ms": (
+                    artifact.stat().st_mtime_ns // 1_000_000 if artifact_ready else None
+                ),
                 "source_dirty": source_dirty,
             }
         )
