@@ -32,20 +32,20 @@ def profiles(
         ctx.console.error(result.error.message)
         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
 
-    rows = [
-        {
-            "id": profile.id,
-            "label": profile.label,
-            "artifact_path": str(
-                ctx.workspace.bin_dir / app / "teensy" / profile.id / "firmware.hex"
-            ),
-        }
-        for profile in result.value
-    ]
+    rows: list[dict[str, str | bool]] = []
+    for profile in result.value:
+        artifact = ctx.workspace.bin_dir / app / "teensy" / profile.id / "firmware.hex"
+        rows.append(
+            {
+                "id": profile.id,
+                "artifact_path": str(artifact),
+                "artifact_ready": artifact.is_file(),
+            }
+        )
     if json_output:
         typer.echo(json.dumps(rows))
         return
 
     ctx.console.header(f"{app} firmware profiles")
     for row in rows:
-        ctx.console.print(f"- {row['id']}: {row['label']}")
+        ctx.console.print(f"- {row['id']}")

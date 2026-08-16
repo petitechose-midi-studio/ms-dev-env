@@ -16,7 +16,6 @@ HardwareAction = Literal["build", "upload"]
 @dataclass(frozen=True, slots=True)
 class FirmwareProfile:
     id: str
-    label: str
 
 
 @dataclass(frozen=True, slots=True)

@@ -118,13 +118,7 @@ def _parse_profiles(raw: str) -> list[FirmwareProfile]:
         if options.get("custom_ms_manager_profile") != env_name:
             continue
 
-        label = options.get("custom_ms_manager_label")
-        profiles.append(
-            FirmwareProfile(
-                id=env_name,
-                label=label.strip() if isinstance(label, str) and label.strip() else env_name,
-            )
-        )
+        profiles.append(FirmwareProfile(id=env_name))
 
     return profiles
 

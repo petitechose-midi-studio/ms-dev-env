@@ -87,20 +87,14 @@ def test_hardware_build_dry_run_skips_subprocess(
 def test_profile_discovery_only_exposes_explicit_environment_owner() -> None:
     raw = """[
       ["env:dev", [
-        ["custom_ms_manager_profile", "dev"],
-        ["custom_ms_manager_label", "Normal"]
+        ["custom_ms_manager_profile", "dev"]
       ]],
       ["env:hidden_child", [
-        ["custom_ms_manager_profile", "dev"],
-        ["custom_ms_manager_label", "Normal"]
+        ["custom_ms_manager_profile", "dev"]
       ]],
       ["env:dev_diagnostics", [
-        ["custom_ms_manager_profile", "dev_diagnostics"],
-        ["custom_ms_manager_label", "Diagnostics"]
+        ["custom_ms_manager_profile", "dev_diagnostics"]
       ]]
     ]"""
 
-    assert [(profile.id, profile.label) for profile in _parse_profiles(raw)] == [
-        ("dev", "Normal"),
-        ("dev_diagnostics", "Diagnostics"),
-    ]
+    assert [profile.id for profile in _parse_profiles(raw)] == ["dev", "dev_diagnostics"]
