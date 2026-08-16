@@ -44,13 +44,13 @@ def test_hardware_build_invokes_oc_build_module(
     monkeypatch.setattr("ms.services.hardware.subprocess.run", fake_run)
 
     svc = HardwareService(workspace=ws, platform=_platform(), config=None, console=console)
-    result = svc.build(app, env="dev")
+    result = svc.build(app, env="dev", stream=True)
     assert result.is_ok()
 
     cmd = seen["cmd"]
     assert isinstance(cmd, list)
     assert cmd[:3] == [sys.executable, "-m", "ms.oc_cli.oc_build"]
-    assert cmd[-1] == "dev"
+    assert cmd[-2:] == ["dev", "--stream"]
     assert seen["cwd"] == app_dir
 
     env = seen["env"]

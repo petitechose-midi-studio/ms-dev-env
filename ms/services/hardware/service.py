@@ -25,13 +25,21 @@ class HardwareService(BaseService, OCHardwareAdapterMixin, HardwareExporterMixin
         app: App,
         *,
         env: str | None = None,
+        stream: bool = False,
         dry_run: bool = False,
     ) -> Result[None, HardwareError]:
         if not app.has_teensy:
             return Err(HardwareError("no_platformio", f"no platformio.ini in {app.path}"))
 
         env_name = detect_env(app.path, env)
-        result = self._run_oc("oc_build", app.path, "build", env=env_name, dry_run=dry_run)
+        result = self._run_oc(
+            "oc_build",
+            app.path,
+            "build",
+            env=env_name,
+            stream=stream,
+            dry_run=dry_run,
+        )
         if isinstance(result, Err) or dry_run:
             return result
 

@@ -8,6 +8,7 @@ from ms.cli.context import build_context
 from ms.core.app import resolve
 from ms.core.errors import ErrorCode
 from ms.core.result import Err
+from ms.git import Repository
 from ms.services.hardware import HardwareService
 
 
@@ -32,6 +33,7 @@ def profiles(
         ctx.console.error(result.error.message)
         raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
 
+    source_dirty = not Repository(resolved.value.path).is_clean()
     rows: list[dict[str, str | bool]] = []
     for profile in result.value:
         artifact = ctx.workspace.bin_dir / app / "teensy" / profile.id / "firmware.hex"
@@ -40,6 +42,7 @@ def profiles(
                 "id": profile.id,
                 "artifact_path": str(artifact),
                 "artifact_ready": artifact.is_file(),
+                "source_dirty": source_dirty,
             }
         )
     if json_output:
