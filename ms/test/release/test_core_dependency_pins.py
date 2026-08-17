@@ -32,6 +32,7 @@ _CI_ENV_KEYS = (
     "OPEN_CONTROL_HAL_SDL_SHA",
     "OPEN_CONTROL_UI_LVGL_SHA",
     "OPEN_CONTROL_UI_LVGL_COMPONENTS_SHA",
+    "MIDI_STUDIO_BITWIG_SHA",
     "MIDI_STUDIO_DEVICE_SUPPORT_SHA",
     "MIDI_STUDIO_UI_SHA",
 )
@@ -80,6 +81,9 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
         "midi-studio/device-support": _git_repo(
             workspace / "midi-studio" / "device-support"
         ),
+        "midi-studio/plugin-bitwig": _git_repo(
+            workspace / "midi-studio" / "plugin-bitwig"
+        ),
         "midi-studio/ui": _git_repo(workspace / "midi-studio" / "ui"),
     }
     core_root = workspace / "midi-studio" / "core"
@@ -103,6 +107,7 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
     assert f"OPEN_CONTROL_HAL_COMMON_SHA: {shas['open-control/hal-common']}" in ci
     assert f"OPEN_CONTROL_HAL_TEENSY_SHA: {shas['open-control/hal-teensy']}" in ci
     assert f"OPEN_CONTROL_HAL_SDL_SHA: {shas['open-control/hal-sdl']}" in ci
+    assert f"MIDI_STUDIO_BITWIG_SHA: {shas['midi-studio/plugin-bitwig']}" in ci
 
     verified = plan_core_dependency_pin_sync(workspace_root=workspace, core_root=core_root)
     assert isinstance(verified, Ok)
@@ -126,6 +131,9 @@ def test_sync_core_dependency_pins_inserts_missing_ci_env_pins(tmp_path: Path) -
         ),
         "midi-studio/device-support": _git_repo(
             workspace / "midi-studio" / "device-support"
+        ),
+        "midi-studio/plugin-bitwig": _git_repo(
+            workspace / "midi-studio" / "plugin-bitwig"
         ),
         "midi-studio/ui": _git_repo(workspace / "midi-studio" / "ui"),
     }
@@ -176,6 +184,7 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
         "open-control/ui-lvgl": "7" * 40,
         "open-control/ui-lvgl-components": "8" * 40,
         "petitechose-midi-studio/device-support": "b" * 40,
+        "petitechose-midi-studio/plugin-bitwig": "c" * 40,
         "petitechose-midi-studio/ui": "9" * 40,
     }
 
@@ -216,4 +225,8 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
     assert (
         "MIDI_STUDIO_DEVICE_SUPPORT_SHA: "
         f"{remote_shas['petitechose-midi-studio/device-support']}"
+    ) in ci
+    assert (
+        "MIDI_STUDIO_BITWIG_SHA: "
+        f"{remote_shas['petitechose-midi-studio/plugin-bitwig']}"
     ) in ci
