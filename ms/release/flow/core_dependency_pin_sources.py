@@ -54,6 +54,11 @@ CI_ENV_REPOS: tuple[CoreDependencyRepo, ...] = (
         "midi-studio/device-support",
         "petitechose-midi-studio/device-support",
     ),
+    CoreDependencyRepo(
+        "MIDI_STUDIO_BITWIG_SHA",
+        "midi-studio/plugin-bitwig",
+        "petitechose-midi-studio/plugin-bitwig",
+    ),
     CoreDependencyRepo("MIDI_STUDIO_UI_SHA", "midi-studio/ui", "petitechose-midi-studio/ui"),
 )
 
