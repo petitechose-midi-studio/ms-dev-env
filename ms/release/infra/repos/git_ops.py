@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.git.sha import is_git_sha
 from ms.output.console import ConsoleProtocol, Style
 from ms.platform.process import run as run_process
 from ms.release.errors import ReleaseError
@@ -222,7 +223,7 @@ def commit_and_push(
         )
 
     sha = head.value.strip()
-    if len(sha) != 40:
+    if not is_git_sha(sha):
         return Err(
             ReleaseError(
                 kind="repo_failed",

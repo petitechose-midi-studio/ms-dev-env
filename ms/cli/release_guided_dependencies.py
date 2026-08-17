@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ms.cli.release_guided_common import to_guided_selection
-from ms.cli.selector import SelectorOption, SelectorResult, select_one
+from ms.cli.release_guided_selectors import select_menu, to_guided_selection
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.config import MS_REPO_SLUG
@@ -31,39 +30,16 @@ from ms.release.infra.github.workflows import dispatch_release_alignment_workflo
 from ms.release.view.dependency_console import print_dependency_readiness_report
 
 
-def _select_menu(
-    *,
-    title: str,
-    subtitle: str,
-    options: list[MenuOption[str]],
-    initial_index: int,
-    allow_back: bool,
-) -> SelectorResult[str]:
-    selector_options = [
-        SelectorOption(value=option.value, label=option.label, detail=option.detail)
-        for option in options
-    ]
-    return select_one(
-        title=title,
-        subtitle=subtitle,
-        options=selector_options,
-        initial_index=initial_index,
-        allow_back=allow_back,
-    )
-
-
 def run_guided_dependencies_release(
     *,
     workspace_root: Path,
     console: ConsoleProtocol,
-    notes_file: Path | None,
     watch: bool,
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
     return run_dependencies_release(
         workspace_root=workspace_root,
         console=console,
-        notes_file=notes_file,
         watch=watch,
         dry_run=dry_run,
         promote=False,
@@ -76,15 +52,12 @@ def run_dependencies_release(
     *,
     workspace_root: Path,
     console: ConsoleProtocol,
-    notes_file: Path | None,
     watch: bool,
     dry_run: bool,
     promote: bool,
     interactive: bool,
     prepare: str | None = None,
 ) -> Result[None, ReleaseError]:
-    del notes_file
-
     graph = load_release_graph()
     if isinstance(graph, Err):
         return graph
@@ -161,6 +134,7 @@ def run_dependencies_release(
             watch=watch,
             interactive=interactive,
             dry_run=False,
+            core_sha=None,
         )
 
     console.header("BOM promotion plan")
@@ -181,7 +155,7 @@ def run_dependencies_release(
 
     if interactive:
         choice = to_guided_selection(
-            _select_menu(
+            select_menu(
                 title="Dependency Promotion",
                 subtitle="Create and merge a core dependency PR from the validated dev workspace",
                 options=[
@@ -234,6 +208,7 @@ def run_dependencies_release(
         watch=watch,
         interactive=interactive,
         dry_run=False,
+        core_sha=promoted.value.merged_core_sha,
     )
 
 
@@ -244,11 +219,12 @@ def _maybe_watch_release_alignment(
     watch: bool,
     interactive: bool,
     dry_run: bool,
+    core_sha: str | None,
 ) -> Result[None, ReleaseError]:
     should_watch = watch
     if interactive and not watch:
         watch_choice = to_guided_selection(
-            _select_menu(
+            select_menu(
                 title="Release Alignment",
                 subtitle="Run and watch the deterministic release-alignment workflow?",
                 options=[
@@ -282,6 +258,7 @@ def _maybe_watch_release_alignment(
     dispatched = dispatch_release_alignment_workflow(
         workspace_root=workspace_root,
         build_wasm=False,
+        core_sha=core_sha,
         console=console,
         dry_run=dry_run,
     )

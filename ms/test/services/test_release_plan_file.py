@@ -16,7 +16,7 @@ def _tooling() -> ReleaseTooling:
     )
 
 
-def test_plan_file_roundtrip_content_schema_v2(tmp_path: Path) -> None:
+def test_plan_file_roundtrip_content_schema_v3(tmp_path: Path) -> None:
     pinned = (
         PinnedRepo(repo=RELEASE_REPOS[0], sha="0" * 40),
         PinnedRepo(repo=RELEASE_REPOS[1], sha="1" * 40),
@@ -91,7 +91,7 @@ def test_plan_file_rejects_missing_repos(tmp_path: Path) -> None:
     path = tmp_path / "plan.json"
     path.write_text(
         """{
-  "schema": 2,
+  "schema": 3,
   "product": "content",
   "channel": "stable",
   "tag": "v1.0.0",
@@ -136,11 +136,11 @@ def test_plan_file_roundtrip_app_product(tmp_path: Path) -> None:
     assert [p.sha for p in read.value.pinned] == ["a" * 40]
 
 
-def test_plan_file_rejects_schema_v1(tmp_path: Path) -> None:
-    path = tmp_path / "plan-v1.json"
+def test_plan_file_rejects_old_schema(tmp_path: Path) -> None:
+    path = tmp_path / "plan-v2.json"
     path.write_text(
         """{
-  "schema": 1,
+  "schema": 2,
   "product": "app",
   "channel": "stable",
   "tag": "v1.0.0",
@@ -166,7 +166,7 @@ def test_plan_file_rejects_missing_slug(tmp_path: Path) -> None:
     path = tmp_path / "plan-missing-slug.json"
     path.write_text(
         """{
-  "schema": 2,
+  "schema": 3,
   "product": "app",
   "channel": "stable",
   "tag": "v1.0.0",

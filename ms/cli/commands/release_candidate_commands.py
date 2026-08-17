@@ -87,7 +87,6 @@ def write_candidate_cmd(
     config = _unwrap_or_exit(_load_optional_pairs(config_json))
 
     written = write_candidate_bundle(
-        workspace_root=ctx.workspace.root,
         request=CandidateWriteRequest(
             artifacts_dir=artifacts_dir,
             manifest_path=manifest_path,
@@ -148,7 +147,6 @@ def verify_candidate_cmd(
     expected_repos = _load_expected_input_repos(expected_input_repos_json)
 
     verified = verify_candidate_bundle(
-        workspace_root=ctx.workspace.root,
         request=CandidateVerifyRequest(
             artifacts_dir=artifacts_dir,
             manifest_path=manifest_path,

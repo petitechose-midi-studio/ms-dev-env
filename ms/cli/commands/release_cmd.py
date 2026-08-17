@@ -10,6 +10,8 @@ from ms.cli.commands.release_candidate_commands import register_candidate_comman
 from ms.cli.commands.release_common import exit_release, release_error_code
 from ms.cli.commands.release_content_commands import register_content_commands
 from ms.cli.commands.release_dependencies_commands import register_dependencies_commands
+from ms.cli.commands.release_preflight import release_preflight_cmd
+from ms.cli.commands.release_status import release_status_cmd
 from ms.cli.context import build_context
 from ms.cli.release_guided import run_guided_release
 from ms.core.result import Err
@@ -89,6 +91,8 @@ register_app_commands(namespace=release_product_app)
 register_bom_commands(namespace=release_app)
 register_candidate_commands(namespace=release_candidate_app)
 register_dependencies_commands(namespace=release_app)
+release_app.command("preflight")(release_preflight_cmd)
+release_app.command("status")(release_status_cmd)
 
 release_app.add_typer(release_content_app, name="content")
 release_app.add_typer(release_product_app, name="app")

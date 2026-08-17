@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.git.sha import is_git_sha
 from ms.platform.process import ProcessError
 from ms.platform.process import run as run_process
 
@@ -240,7 +241,7 @@ class Repository:
         match result:
             case Ok(stdout):
                 sha = stdout.strip()
-                if len(sha) != 40:
+                if not is_git_sha(sha):
                     return Err(
                         GitError(
                             command="rev-parse HEAD",

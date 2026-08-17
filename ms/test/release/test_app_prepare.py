@@ -1,3 +1,4 @@
+# pyright: reportUnknownArgumentType=false, reportUnknownLambdaType=false
 from __future__ import annotations
 
 from pathlib import Path
@@ -19,6 +20,8 @@ def test_prepare_app_pr_reuses_versioned_main_head(
 
     def fake_prepare_app_repo(**_: object) -> Ok[Path]:
         return Ok(tmp_path)
+
+    monkeypatch.setattr(app_prepare, "find_matching_pull_request", lambda **_: Ok(None))
 
     def fake_version_present(**_: object) -> Ok[bool]:
         return Ok(True)
@@ -64,6 +67,8 @@ def test_prepare_app_pr_uses_versioned_main_head_after_merge(
 
     def fake_prepare_app_repo(**_: object) -> Ok[Path]:
         return Ok(tmp_path)
+
+    monkeypatch.setattr(app_prepare, "find_matching_pull_request", lambda **_: Ok(None))
 
     def fake_version_present(**_: object) -> Ok[bool]:
         return Ok(False)
@@ -128,6 +133,45 @@ def test_prepare_app_pr_uses_versioned_main_head_after_merge(
     assert isinstance(prepared, Ok)
     assert prepared.value.source_sha == main_sha
     assert prepared.value.pr.kind == "merged_pr"
+
+
+def test_prepare_app_pr_resumes_matching_open_pr_before_touching_local_repo(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    import ms.release.flow.app_prepare as app_prepare
+
+    pr_url = "https://example.test/pr/1"
+    monkeypatch.setattr(
+        app_prepare,
+        "find_matching_pull_request",
+        lambda **_: Ok(pr_url),
+    )
+    monkeypatch.setattr(app_prepare, "_merge_app_pr", lambda **_: Ok(None))
+    monkeypatch.setattr(
+        app_prepare,
+        "_resolve_versioned_app_source_sha",
+        lambda **_: Ok("c" * 40),
+    )
+    monkeypatch.setattr(
+        app_prepare,
+        "_prepare_app_repo",
+        lambda **_: (_ for _ in ()).throw(AssertionError("local repo must not be touched")),
+    )
+
+    prepared = prepare_app_pr(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        tag="v1.2.3",
+        version="1.2.3",
+        base_sha="a" * 40,
+        pinned=(),
+        dry_run=False,
+    )
+
+    assert isinstance(prepared, Ok)
+    assert prepared.value.pr.url == pr_url
+    assert prepared.value.source_sha == "c" * 40
 
 
 def test_resolve_versioned_app_source_rejects_remote_version_mismatch(

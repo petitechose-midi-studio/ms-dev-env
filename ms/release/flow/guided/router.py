@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
@@ -8,20 +7,14 @@ from ms.core.result import Err, Result
 from ms.output.console import ConsoleProtocol
 from ms.release.errors import ReleaseError
 
+from .menu_option import MenuOption
 from .selection import Selection
-
-
-@dataclass(frozen=True, slots=True)
-class MenuOption[T]:
-    value: T
-    label: str
-    detail: str | None = None
 
 
 class GuidedRouterDependencies(Protocol):
     def is_interactive_terminal(self) -> bool: ...
 
-    def select_product(
+    def select_menu(
         self,
         *,
         title: str,
@@ -56,7 +49,6 @@ class GuidedRouterDependencies(Protocol):
         *,
         workspace_root: Path,
         console: ConsoleProtocol,
-        notes_file: Path | None,
         watch: bool,
         dry_run: bool,
     ) -> Result[None, ReleaseError]: ...
@@ -80,7 +72,7 @@ def run_guided_release_flow(
             )
         )
 
-    product = deps.select_product(
+    product = deps.select_menu(
         title="Release Product",
         subtitle="Choose release type",
         options=[
@@ -115,7 +107,6 @@ def run_guided_release_flow(
         return deps.run_guided_dependencies_release(
             workspace_root=workspace_root,
             console=console,
-            notes_file=notes_file,
             watch=watch,
             dry_run=dry_run,
         )

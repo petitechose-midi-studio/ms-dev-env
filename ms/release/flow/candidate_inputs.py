@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_str
+from ms.git.sha import is_git_sha
 from ms.release.domain import CandidateInputRepo
 from ms.release.errors import ReleaseError
 
@@ -25,6 +26,7 @@ def load_candidate_input_repos(path: Path) -> Result[tuple[CandidateInputRepo, .
         )
 
     repos: list[CandidateInputRepo] = []
+    repo_ids: set[str] = set()
     for idx, row in enumerate(rows):
         table = as_str_dict(row)
         if table is None:
@@ -37,13 +39,14 @@ def load_candidate_input_repos(path: Path) -> Result[tuple[CandidateInputRepo, .
         repo_id = get_str(table, "id")
         repo_slug = get_str(table, "repo")
         sha = get_str(table, "sha")
-        if repo_id is None or repo_slug is None or sha is None:
+        if repo_id is None or repo_slug is None or not is_git_sha(sha) or repo_id in repo_ids:
             return Err(
                 ReleaseError(
                     kind="invalid_input",
                     message=f"candidate input repos missing fields at index {idx}: {path}",
                 )
             )
+        repo_ids.add(repo_id)
         repos.append(CandidateInputRepo(id=repo_id, repo=repo_slug, sha=sha))
     return Ok(tuple(repos))
 

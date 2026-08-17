@@ -147,7 +147,6 @@ def _probe_app_candidate(
             return Ok(AppCandidateState.INCOMPLETE)
 
         inspected = inspect_candidate_metadata(
-            workspace_root=workspace_root,
             request=CandidateVerifyRequest(
                 artifacts_dir=metadata_dir,
                 manifest_path=metadata_dir / "candidate.json",

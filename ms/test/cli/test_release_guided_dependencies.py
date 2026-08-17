@@ -116,7 +116,6 @@ def test_guided_dependencies_blocks_on_readiness_report(
     result = deps.run_guided_dependencies_release(
         workspace_root=tmp_path,
         console=console,
-        notes_file=None,
         watch=False,
         dry_run=True,
     )
@@ -171,7 +170,6 @@ def test_guided_dependencies_dry_run_prints_bom_plan_without_promoting(
     result = deps.run_guided_dependencies_release(
         workspace_root=tmp_path,
         console=console,
-        notes_file=None,
         watch=False,
         dry_run=True,
     )
@@ -250,7 +248,6 @@ def test_dependencies_prepare_dry_run_allows_dirty_consumer_and_skips_writes(
     result = deps.run_dependencies_release(
         workspace_root=tmp_path,
         console=console,
-        notes_file=None,
         watch=False,
         dry_run=True,
         promote=False,
@@ -328,7 +325,7 @@ def test_guided_dependencies_watch_dispatches_and_watches_release_alignment(
     monkeypatch.setattr(deps, "validate_workspace_dev_targets", fake_dev_validation)
     monkeypatch.setattr(deps, "plan_github_bom_sync", fake_plan)
     monkeypatch.setattr(deps, "plan_core_dependency_pin_sync", _fake_core_pin_plan)
-    monkeypatch.setattr(deps, "_select_menu", fake_select_menu)
+    monkeypatch.setattr(deps, "select_menu", fake_select_menu)
     monkeypatch.setattr(deps, "promote_open_control_bom", fake_promote)
     monkeypatch.setattr(deps, "dispatch_release_alignment_workflow", fake_dispatch)
     monkeypatch.setattr(deps, "watch_run", fake_watch)
@@ -337,7 +334,6 @@ def test_guided_dependencies_watch_dispatches_and_watches_release_alignment(
     result = deps.run_guided_dependencies_release(
         workspace_root=tmp_path,
         console=console,
-        notes_file=None,
         watch=True,
         dry_run=False,
     )
@@ -416,7 +412,7 @@ def test_guided_dependencies_prompts_for_watch_when_not_preselected(
     monkeypatch.setattr(deps, "validate_workspace_dev_targets", fake_dev_validation)
     monkeypatch.setattr(deps, "plan_github_bom_sync", fake_plan)
     monkeypatch.setattr(deps, "plan_core_dependency_pin_sync", _fake_core_pin_plan)
-    monkeypatch.setattr(deps, "_select_menu", fake_select_menu)
+    monkeypatch.setattr(deps, "select_menu", fake_select_menu)
     monkeypatch.setattr(deps, "promote_open_control_bom", fake_promote)
     monkeypatch.setattr(deps, "dispatch_release_alignment_workflow", fake_dispatch)
     monkeypatch.setattr(deps, "watch_run", fake_watch)
@@ -424,7 +420,6 @@ def test_guided_dependencies_prompts_for_watch_when_not_preselected(
     result = deps.run_guided_dependencies_release(
         workspace_root=tmp_path,
         console=MockConsole(),
-        notes_file=None,
         watch=False,
         dry_run=False,
     )
@@ -489,7 +484,7 @@ def test_guided_dependencies_aligned_path_can_watch_release_alignment(
     monkeypatch.setattr(deps, "validate_workspace_dev_targets", fake_dev_validation)
     monkeypatch.setattr(deps, "plan_github_bom_sync", fake_plan)
     monkeypatch.setattr(deps, "plan_core_dependency_pin_sync", _fake_core_pin_plan)
-    monkeypatch.setattr(deps, "_select_menu", fake_select_menu)
+    monkeypatch.setattr(deps, "select_menu", fake_select_menu)
     monkeypatch.setattr(deps, "promote_open_control_bom", fake_promote)
     monkeypatch.setattr(deps, "dispatch_release_alignment_workflow", fake_dispatch)
     monkeypatch.setattr(deps, "watch_run", fake_watch)
@@ -498,7 +493,6 @@ def test_guided_dependencies_aligned_path_can_watch_release_alignment(
     result = deps.run_guided_dependencies_release(
         workspace_root=tmp_path,
         console=console,
-        notes_file=None,
         watch=False,
         dry_run=False,
     )
@@ -548,13 +542,12 @@ def test_guided_dependencies_aligned_path_can_skip_release_alignment(
     monkeypatch.setattr(deps, "validate_workspace_dev_targets", fake_dev_validation)
     monkeypatch.setattr(deps, "plan_github_bom_sync", fake_plan)
     monkeypatch.setattr(deps, "plan_core_dependency_pin_sync", _fake_core_pin_plan)
-    monkeypatch.setattr(deps, "_select_menu", fake_select_menu)
+    monkeypatch.setattr(deps, "select_menu", fake_select_menu)
     monkeypatch.setattr(deps, "dispatch_release_alignment_workflow", fake_dispatch)
 
     result = deps.run_guided_dependencies_release(
         workspace_root=tmp_path,
         console=MockConsole(),
-        notes_file=None,
         watch=False,
         dry_run=False,
     )

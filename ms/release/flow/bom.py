@@ -12,7 +12,6 @@ from ms.release.domain.open_control_models import (
     BomRepoState,
     BomStateComparison,
     DerivedBomLock,
-    OcSdkLoad,
     OcSdkLock,
     OcSdkPin,
     OpenControlRepoState,
@@ -98,8 +97,6 @@ def compare_bom_state(
                 bom_sha=bom_sha,
                 workspace_sha=workspace_sha,
                 derived_sha=derived_sha,
-                workspace_exists=exists,
-                workspace_dirty=dirty,
             )
         )
 
@@ -253,23 +250,6 @@ def sync_bom_files(
     written.append(native.value)
 
     return Ok(tuple(written))
-
-
-def describe_bom_alignment(
-    *,
-    oc_sdk: OcSdkLoad,
-    workspace_repos: tuple[OpenControlRepoState, ...],
-    derived_lock: DerivedBomLock | None,
-    allow_dirty_workspace: bool = False,
-) -> BomStateComparison | None:
-    if oc_sdk.lock is None:
-        return None
-    return compare_bom_state(
-        bom_lock=oc_sdk.lock,
-        workspace_repos=workspace_repos,
-        derived_lock=derived_lock,
-        allow_dirty_workspace=allow_dirty_workspace,
-    )
 
 
 def _dedupe_preserve_order(items: list[str]) -> list[str]:

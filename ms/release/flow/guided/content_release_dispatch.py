@@ -116,10 +116,14 @@ def dispatch_content_release(
         return run
 
     console.success(f"Workflow run: {run.value}")
-    console.print(
-        "Next: approve the 'release' environment in GitHub Actions to sign + publish.",
-        Style.DIM,
-    )
+    if watch:
+        console.success("Distribution release completed")
+    else:
+        console.print(
+            "Release session retained; rerun with --watch after approving 'release'.",
+            Style.DIM,
+        )
+        return Ok(None)
 
     cleared = deps.clear_session()
     if isinstance(cleared, Err):

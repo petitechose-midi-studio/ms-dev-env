@@ -2,17 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ms.cli.release_guided_common import (
+from ms.cli.release_guided_bootstrap import (
     bootstrap_app_session,
     preflight_with_permission,
     save_app_state,
-    select_bump,
-    select_channel,
-    select_green_commit,
-    to_guided_selection,
 )
-from ms.cli.selector import SelectorOption, SelectorResult, confirm_yn, select_one
-from ms.core.result import Err, Ok, Result
+from ms.cli.release_guided_selectors import GuidedCliDependencies
+from ms.core.result import Result
 from ms.output.console import ConsoleProtocol
 from ms.release.domain.config import APP_RELEASE_REPO, APP_REPO_SLUG
 from ms.release.domain.models import AppReleasePlan, PinnedRepo, ReleaseBump, ReleaseChannel
@@ -20,33 +16,9 @@ from ms.release.errors import ReleaseError
 from ms.release.flow.app_plan import plan_app_release
 from ms.release.flow.app_prepare import AppPrepareResult, prepare_app_pr
 from ms.release.flow.app_publish import AppPublishResult, publish_app_release
-from ms.release.flow.ci_gate import ensure_ci_green
-from ms.release.flow.guided.app_steps import MenuOption, run_guided_app_release_flow
-from ms.release.flow.guided.selection import Selection
+from ms.release.flow.guided.app_steps import run_guided_app_release_flow
 from ms.release.flow.guided.sessions import AppReleaseSession, clear_app_session
 from ms.release.flow.permissions import ensure_app_release_permissions
-from ms.release.view.guided_console import print_notes_status
-
-
-def _select_menu(
-    *,
-    title: str,
-    subtitle: str,
-    options: list[MenuOption[str]],
-    initial_index: int,
-    allow_back: bool,
-) -> SelectorResult[str]:
-    selector_options = [
-        SelectorOption(value=option.value, label=option.label, detail=option.detail)
-        for option in options
-    ]
-    return select_one(
-        title=title,
-        subtitle=subtitle,
-        options=selector_options,
-        initial_index=initial_index,
-        allow_back=allow_back,
-    )
 
 
 def run_guided_app_release(
@@ -57,7 +29,7 @@ def run_guided_app_release(
     watch: bool,
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
-    class _Deps:
+    class _Deps(GuidedCliDependencies):
         def preflight(self) -> Result[str, ReleaseError]:
             return preflight_with_permission(
                 workspace_root=workspace_root,
@@ -81,93 +53,6 @@ def run_guided_app_release(
 
         def clear_session(self) -> Result[None, ReleaseError]:
             return clear_app_session(workspace_root=workspace_root)
-
-        def select_channel(
-            self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-        ) -> Selection[ReleaseChannel]:
-            return to_guided_selection(
-                select_channel(
-                    title=title,
-                    subtitle=subtitle,
-                    initial_index=initial_index,
-                    allow_back=allow_back,
-                )
-            )
-
-        def select_bump(
-            self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-        ) -> Selection[ReleaseBump]:
-            return to_guided_selection(
-                select_bump(
-                    title=title,
-                    subtitle=subtitle,
-                    initial_index=initial_index,
-                    allow_back=allow_back,
-                )
-            )
-
-        def select_green_commit(
-            self,
-            *,
-            workspace_root: Path,
-            repo_slug: str,
-            ref: str,
-            workflow_file: str | None,
-            title: str,
-            subtitle: str,
-            current_sha: str | None,
-            initial_index: int,
-            allow_back: bool,
-        ) -> Result[Selection[str], ReleaseError]:
-            selected = select_green_commit(
-                workspace_root=workspace_root,
-                repo_slug=repo_slug,
-                ref=ref,
-                workflow_file=workflow_file,
-                title=title,
-                subtitle=subtitle,
-                current_sha=current_sha,
-                initial_index=initial_index,
-                allow_back=allow_back,
-            )
-            if isinstance(selected, Err):
-                return selected
-            return Ok(to_guided_selection(selected.value))
-
-        def select_menu(
-            self,
-            *,
-            title: str,
-            subtitle: str,
-            options: list[MenuOption[str]],
-            initial_index: int,
-            allow_back: bool,
-        ) -> Selection[str]:
-            return to_guided_selection(
-                _select_menu(
-                    title=title,
-                    subtitle=subtitle,
-                    options=options,
-                    initial_index=initial_index,
-                    allow_back=allow_back,
-                )
-            )
-
-        def confirm(self, *, prompt: str) -> bool:
-            return confirm_yn(prompt=prompt)
-
-        def ensure_ci_green(
-            self,
-            *,
-            workspace_root: Path,
-            pinned: tuple[PinnedRepo, ...],
-            allow_non_green: bool,
-        ) -> Result[None, ReleaseError]:
-            return ensure_ci_green(
-                workspace_root=workspace_root,
-                pinned=pinned,
-                allow_non_green=allow_non_green,
-            )
 
         def plan_app_release(
             self,
@@ -232,23 +117,6 @@ def run_guided_app_release(
                 watch=watch,
                 dry_run=dry_run,
                 remote_coherence_checked=remote_coherence_checked,
-            )
-
-        def print_notes_status(
-            self,
-            *,
-            console: ConsoleProtocol,
-            notes_markdown: str | None,
-            notes_path: str | None,
-            notes_sha256: str | None,
-            auto_label: str,
-        ) -> None:
-            print_notes_status(
-                console=console,
-                notes_markdown=notes_markdown,
-                notes_path=notes_path,
-                notes_sha256=notes_sha256,
-                auto_label=auto_label,
             )
 
     return run_guided_app_release_flow(

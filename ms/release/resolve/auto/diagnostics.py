@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.git.repository import GitError, Repository
+from ms.git.sha import is_git_sha
 from ms.platform.process import run as run_process
 from ms.release.domain import config
 from ms.release.domain.diagnostics import RepoReadiness
@@ -106,7 +107,7 @@ def _git_head_sha(*, repo_root: Path) -> str | None:
     if isinstance(result, Err):
         return None
     sha = result.value.strip()
-    return sha if len(sha) == 40 else None
+    return sha if is_git_sha(sha) else None
 
 
 def probe_release_readiness(

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from ms.core.hashing import is_sha256
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import ObjList, StrDict, as_str_dict, get_int, get_list, get_str, get_table
+from ms.git.sha import is_git_sha
+from ms.platform.files import atomic_write_text
 from ms.release.domain.candidate_models import (
     CANDIDATE_SCHEMA,
     CandidateArtifact,
@@ -13,6 +16,18 @@ from ms.release.domain.candidate_models import (
     CandidateManifest,
 )
 from ms.release.errors import ReleaseError
+
+
+@dataclass(frozen=True, slots=True)
+class _CandidateHeader:
+    producer_repo: str
+    producer_kind: str
+    workflow_file: str
+    run_id: int
+    run_attempt: int
+    generated_at: str
+    build_input_fingerprint: str
+    recipe_fingerprint: str
 
 
 def render_candidate_manifest(manifest: CandidateManifest) -> str:
@@ -41,7 +56,7 @@ def write_candidate_manifest(
 ) -> Result[None, ReleaseError]:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(render_candidate_manifest(manifest), encoding="utf-8")
+        atomic_write_text(path, render_candidate_manifest(manifest), encoding="utf-8")
     except OSError as e:
         return Err(
             ReleaseError(
@@ -71,48 +86,18 @@ def load_candidate_manifest(path: Path) -> Result[CandidateManifest, ReleaseErro
             ReleaseError(kind="invalid_input", message=f"invalid candidate manifest object: {path}")
         )
 
-    schema = get_str(table, "schema")
-    producer_repo = get_str(table, "producer_repo")
-    producer_kind = get_str(table, "producer_kind")
-    workflow_file = get_str(table, "workflow_file")
-    generated_at = get_str(table, "generated_at")
-    build_input_fingerprint = get_str(table, "build_input_fingerprint")
-    recipe_fingerprint = get_str(table, "recipe_fingerprint")
-    run_id = get_int(table, "run_id")
-    run_attempt = get_int(table, "run_attempt")
+    header = _load_header(table=table, path=path)
+    if isinstance(header, Err):
+        return header
     inputs = get_table(table, "inputs")
     artifacts_raw = get_list(table, "artifacts")
-    missing = (
-        schema != CANDIDATE_SCHEMA
-        or producer_repo is None
-        or producer_kind is None
-        or workflow_file is None
-        or generated_at is None
-        or build_input_fingerprint is None
-        or recipe_fingerprint is None
-        or run_id is None
-        or run_attempt is None
-        or inputs is None
-        or artifacts_raw is None
-    )
-    if missing:
+    if inputs is None or artifacts_raw is None:
         return Err(
             ReleaseError(
                 kind="invalid_input",
                 message=f"candidate manifest missing required fields: {path}",
             )
         )
-    assert schema is not None
-    assert producer_repo is not None
-    assert producer_kind is not None
-    assert workflow_file is not None
-    assert generated_at is not None
-    assert build_input_fingerprint is not None
-    assert recipe_fingerprint is not None
-    assert run_id is not None
-    assert run_attempt is not None
-    assert inputs is not None
-    assert artifacts_raw is not None
 
     repos = _load_input_repos(inputs=inputs, path=path)
     if isinstance(repos, Err):
@@ -129,7 +114,71 @@ def load_candidate_manifest(path: Path) -> Result[CandidateManifest, ReleaseErro
 
     return Ok(
         CandidateManifest(
-            schema=schema,
+            schema=CANDIDATE_SCHEMA,
+            producer_repo=header.value.producer_repo,
+            producer_kind=header.value.producer_kind,
+            workflow_file=header.value.workflow_file,
+            run_id=header.value.run_id,
+            run_attempt=header.value.run_attempt,
+            generated_at=header.value.generated_at,
+            build_input_fingerprint=header.value.build_input_fingerprint,
+            recipe_fingerprint=header.value.recipe_fingerprint,
+            input_repos=repos.value,
+            toolchain=toolchain.value,
+            config=config.value,
+            artifacts=artifacts.value,
+        )
+    )
+
+
+def _load_header(*, table: StrDict, path: Path) -> Result[_CandidateHeader, ReleaseError]:
+    schema = get_str(table, "schema")
+    producer_repo = get_str(table, "producer_repo")
+    producer_kind = get_str(table, "producer_kind")
+    workflow_file = get_str(table, "workflow_file")
+    generated_at = get_str(table, "generated_at")
+    build_input_fingerprint = get_str(table, "build_input_fingerprint")
+    recipe_fingerprint = get_str(table, "recipe_fingerprint")
+    run_id = get_int(table, "run_id")
+    run_attempt = get_int(table, "run_attempt")
+
+    if schema != CANDIDATE_SCHEMA:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"unsupported candidate manifest schema: {schema!r}",
+                hint=str(path),
+            )
+        )
+    if (
+        producer_repo is None
+        or producer_kind is None
+        or workflow_file is None
+        or generated_at is None
+    ):
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"candidate manifest missing producer fields: {path}",
+            )
+        )
+    if not is_sha256(build_input_fingerprint) or not is_sha256(recipe_fingerprint):
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"candidate manifest has invalid fingerprints: {path}",
+            )
+        )
+    if run_id is None or run_id < 1 or run_attempt is None or run_attempt < 1:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"candidate manifest has invalid workflow run identity: {path}",
+            )
+        )
+
+    return Ok(
+        _CandidateHeader(
             producer_repo=producer_repo,
             producer_kind=producer_kind,
             workflow_file=workflow_file,
@@ -138,10 +187,6 @@ def load_candidate_manifest(path: Path) -> Result[CandidateManifest, ReleaseErro
             generated_at=generated_at,
             build_input_fingerprint=build_input_fingerprint,
             recipe_fingerprint=recipe_fingerprint,
-            input_repos=repos.value,
-            toolchain=toolchain.value,
-            config=config.value,
-            artifacts=artifacts.value,
         )
     )
 
@@ -161,6 +206,7 @@ def _load_input_repos(
         )
 
     repos: list[CandidateInputRepo] = []
+    repo_ids: set[str] = set()
     for idx, item in enumerate(repos_raw):
         repo = as_str_dict(item)
         if repo is None:
@@ -173,13 +219,14 @@ def _load_input_repos(
         repo_id = get_str(repo, "id")
         repo_slug = get_str(repo, "repo")
         sha = get_str(repo, "sha")
-        if repo_id is None or repo_slug is None or sha is None:
+        if repo_id is None or repo_slug is None or not is_git_sha(sha) or repo_id in repo_ids:
             return Err(
                 ReleaseError(
                     kind="invalid_input",
                     message=f"candidate manifest invalid repo entry at index {idx}: {path}",
                 )
             )
+        repo_ids.add(repo_id)
         repos.append(CandidateInputRepo(id=repo_id, repo=repo_slug, sha=sha))
     return Ok(tuple(repos))
 
@@ -221,50 +268,69 @@ def _load_artifacts(
     path: Path,
 ) -> Result[tuple[CandidateArtifact, ...], ReleaseError]:
     artifacts: list[CandidateArtifact] = []
+    artifact_ids: set[str] = set()
+    filenames: set[str] = set()
     for idx, item in enumerate(artifacts_raw):
-        artifact_table = as_str_dict(item)
-        if artifact_table is None:
+        parsed = _load_artifact(item=item, index=idx, path=path)
+        if isinstance(parsed, Err):
+            return parsed
+        artifact = parsed.value
+        if artifact.id in artifact_ids or artifact.filename in filenames:
             return Err(
                 ReleaseError(
                     kind="invalid_input",
-                    message=f"candidate manifest invalid artifact entry at index {idx}: {path}",
+                    message=f"candidate manifest duplicate artifact at index {idx}: {path}",
                 )
             )
-        artifact_id = get_str(artifact_table, "id")
-        filename = get_str(artifact_table, "filename")
-        kind = get_str(artifact_table, "kind")
-        os_name = get_str(artifact_table, "os")
-        arch = get_str(artifact_table, "arch")
-        size = get_int(artifact_table, "size")
-        sha256 = get_str(artifact_table, "sha256")
-        missing = (
-            artifact_id is None
-            or filename is None
-            or kind is None
-            or size is None
-            or sha256 is None
-        )
-        if missing:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"candidate manifest invalid artifact fields at index {idx}: {path}",
-                )
-            )
-        assert artifact_id is not None
-        assert filename is not None
-        assert kind is not None
-        assert size is not None
-        assert sha256 is not None
-        artifacts.append(
-            CandidateArtifact(
-                id=artifact_id,
-                filename=filename,
-                kind=kind,
-                os=os_name,
-                arch=arch,
-                size=size,
-                sha256=sha256,
-            )
-        )
+        artifact_ids.add(artifact.id)
+        filenames.add(artifact.filename)
+        artifacts.append(artifact)
     return Ok(tuple(artifacts))
+
+
+def _load_artifact(
+    *, item: object, index: int, path: Path
+) -> Result[CandidateArtifact, ReleaseError]:
+    table = as_str_dict(item)
+    if table is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"candidate manifest invalid artifact entry at index {index}: {path}",
+            )
+        )
+
+    artifact_id = get_str(table, "id")
+    filename = get_str(table, "filename")
+    kind = get_str(table, "kind")
+    size = get_int(table, "size")
+    sha256 = get_str(table, "sha256")
+    if (
+        artifact_id is None
+        or filename is None
+        or kind is None
+        or size is None
+        or size < 0
+        or not is_sha256(sha256)
+        or filename in {".", ".."}
+        or "/" in filename
+        or "\\" in filename
+    ):
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message=f"candidate manifest invalid artifact fields at index {index}: {path}",
+            )
+        )
+
+    return Ok(
+        CandidateArtifact(
+            id=artifact_id,
+            filename=filename,
+            kind=kind,
+            os=get_str(table, "os"),
+            arch=get_str(table, "arch"),
+            size=size,
+            sha256=sha256,
+        )
+    )

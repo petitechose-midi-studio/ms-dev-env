@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import replace
-
-from ms.core.result import Err, Ok, Result
+from ms.core.result import Result
 from ms.release.errors import ReleaseError
 
 from .content_contracts import ContentGuidedDependencies
 from .menu_option import MenuOption
+from .notes_transition import apply_notes_selection
 from .sessions import ContentReleaseSession
 
 
@@ -42,19 +41,4 @@ def run_content_notes_step(
         initial_index=0,
         allow_back=True,
     )
-    if choice.action == "cancel":
-        return Err(ReleaseError(kind="invalid_input", message="release cancelled"))
-    if choice.action == "back":
-        return Ok(replace(session, step="summary", return_to_summary=False))
-    if choice.value == "clear":
-        return Ok(
-            replace(
-                session,
-                notes_path=None,
-                notes_markdown=None,
-                notes_sha256=None,
-                step="summary",
-                return_to_summary=False,
-            )
-        )
-    return Ok(replace(session, step="summary", return_to_summary=False))
+    return apply_notes_selection(session, choice)

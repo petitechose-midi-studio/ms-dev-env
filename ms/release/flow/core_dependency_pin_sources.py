@@ -7,7 +7,7 @@ from typing import Literal
 
 from ms.core.result import Err, Ok, Result
 from ms.git.repository import Repository
-from ms.release.domain.config import MS_DEFAULT_BRANCH, MS_REPO_SLUG
+from ms.release.domain.config import MS_DEFAULT_BRANCH
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.client import get_ref_head_sha
 
@@ -22,8 +22,9 @@ class CoreDependencyRepo:
     repo_slug: str
 
 
-CI_ENV_REPOS: tuple[CoreDependencyRepo, ...] = (
-    CoreDependencyRepo("MS_DEV_ENV_SHA", ".", MS_REPO_SLUG),
+# Product dependencies only. Tooling and integration pins are deliberately
+# excluded from product promotion.
+PRODUCT_CI_ENV_REPOS: tuple[CoreDependencyRepo, ...] = (
     CoreDependencyRepo(
         "OPEN_CONTROL_FRAMEWORK_SHA", "open-control/framework", "open-control/framework"
     ),
@@ -54,11 +55,6 @@ CI_ENV_REPOS: tuple[CoreDependencyRepo, ...] = (
         "midi-studio/device-support",
         "petitechose-midi-studio/device-support",
     ),
-    CoreDependencyRepo(
-        "MIDI_STUDIO_BITWIG_SHA",
-        "midi-studio/plugin-bitwig",
-        "petitechose-midi-studio/plugin-bitwig",
-    ),
     CoreDependencyRepo("MIDI_STUDIO_UI_SHA", "midi-studio/ui", "petitechose-midi-studio/ui"),
 )
 
@@ -75,7 +71,7 @@ def dependency_shas(
 
 
 def _workspace_shas(*, workspace_root: Path) -> Result[dict[str, str], ReleaseError]:
-    paths = {repo.repo_path for repo in CI_ENV_REPOS}
+    paths = {repo.repo_path for repo in PRODUCT_CI_ENV_REPOS}
     paths.add("midi-studio/ui")
 
     shas: dict[str, str] = {}
@@ -110,7 +106,7 @@ def _github_shas(
 ) -> Result[dict[str, str], ReleaseError]:
     resolver = ref_resolver or _github_ref_resolver(workspace_root=workspace_root)
     shas: dict[str, str] = {}
-    for repo in CI_ENV_REPOS:
+    for repo in PRODUCT_CI_ENV_REPOS:
         resolved = resolver(repo.repo_slug, MS_DEFAULT_BRANCH)
         if isinstance(resolved, Err):
             return resolved

@@ -7,7 +7,7 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.release.errors import ReleaseError
 from ms.release.flow.core_dependency_pin_sources import (
-    CI_ENV_REPOS,
+    PRODUCT_CI_ENV_REPOS,
     DependencyPinSource,
     RefResolver,
     dependency_shas,
@@ -90,8 +90,7 @@ def plan_core_dependency_pin_sync(
                 kind="invalid_input",
                 message="missing pinned device-support dependency in core/platformio.ini",
                 hint=(
-                    "Expected: https://github.com/petitechose-midi-studio/"
-                    "device-support.git#<sha>"
+                    "Expected: https://github.com/petitechose-midi-studio/device-support.git#<sha>"
                 ),
             )
         )
@@ -113,7 +112,7 @@ def plan_core_dependency_pin_sync(
         ),
     ]
 
-    for repo in CI_ENV_REPOS:
+    for repo in PRODUCT_CI_ENV_REPOS:
         current = _extract_ci_env_pin(ci_text.value, repo.env_key)
         target = shas.value[repo.repo_path]
         items.append(
@@ -132,46 +131,6 @@ def plan_core_dependency_pin_sync(
             requires_write=any(item.changed for item in items),
         )
     )
-
-
-def sync_core_dependency_pins(
-    *,
-    workspace_root: Path,
-    core_root: Path | None = None,
-    source: DependencyPinSource = "workspace",
-    ref_resolver: RefResolver | None = None,
-) -> Result[CoreDependencyPinSyncResult, ReleaseError]:
-    core = core_root or workspace_root / "midi-studio" / "core"
-    plan = plan_core_dependency_pin_sync(
-        workspace_root=workspace_root,
-        core_root=core,
-        source=source,
-        ref_resolver=ref_resolver,
-    )
-    if isinstance(plan, Err):
-        return plan
-    synced = sync_core_dependency_pin_plan(plan=plan.value)
-    if isinstance(synced, Err):
-        return synced
-
-    verified = plan_core_dependency_pin_sync(
-        workspace_root=workspace_root,
-        core_root=core,
-        source=source,
-        ref_resolver=ref_resolver,
-    )
-    if isinstance(verified, Err):
-        return verified
-    if verified.value.requires_write:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="post-write verification failed for core dependency pins",
-                hint=", ".join(item.key for item in verified.value.items if item.changed),
-            )
-        )
-
-    return synced
 
 
 def sync_core_dependency_pin_plan(
@@ -225,9 +184,7 @@ def _apply_items(*, text: str, items: tuple[CoreDependencyPinItem, ...]) -> str:
             rendered = _MS_UI_RELEASE_RE.sub(rf"\g<1>{item.to_sha}\g<3>", rendered)
             continue
         if item.key == "platformio.device-support":
-            rendered = _DEVICE_SUPPORT_RELEASE_RE.sub(
-                rf"\g<1>{item.to_sha}\g<3>", rendered
-            )
+            rendered = _DEVICE_SUPPORT_RELEASE_RE.sub(rf"\g<1>{item.to_sha}\g<3>", rendered)
             continue
         if item.key.startswith("ci."):
             env_key = item.key.removeprefix("ci.")

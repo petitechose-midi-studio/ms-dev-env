@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_int, get_list, get_str
+from ms.git.sha import is_git_sha
 from ms.release.domain.planner import ReleaseHistory, compute_history
 from ms.release.domain.semver import format_beta_tag
 from ms.release.errors import ReleaseError
@@ -61,7 +62,7 @@ def _parse_spec_pins(text: str) -> Result[dict[str, tuple[str, str]], ReleaseErr
         ref = get_str(data, "ref")
         if repo_id is None or sha is None or ref is None:
             continue
-        if len(sha) != 40:
+        if not is_git_sha(sha):
             continue
         parsed[repo_id] = (sha, ref)
     return Ok(parsed)

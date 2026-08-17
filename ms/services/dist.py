@@ -14,13 +14,15 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from ms.core.hashing import sha256_file
 from ms.core.result import Err
+from ms.git.sha import is_git_sha
 from ms.platform.detection import Arch, Platform, detect
+from ms.platform.files import atomic_write_text
 from ms.platform.process import run as run_process
 
 
@@ -43,14 +45,6 @@ def _platform_str(platform: Platform) -> str:
     return {Platform.WINDOWS: "windows", Platform.MACOS: "macos", Platform.LINUX: "linux"}.get(
         platform, "unknown"
     )
-
-
-def _sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def _zip_files(zip_path: Path, *, files: list[tuple[Path, str]]) -> None:
@@ -245,7 +239,7 @@ def generate_manifest(
     assets: list[DistAsset] = []
     for p in sorted(dist_dir.glob("*.zip")):
         size = p.stat().st_size
-        sha256 = _sha256_file(p)
+        sha256 = sha256_file(p)
         asset_id, kind, os_name, arch = _infer_asset_metadata(p.name)
         assets.append(
             DistAsset(
@@ -280,7 +274,11 @@ def generate_manifest(
         ],
     }
 
-    out_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(
+        out_path,
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     return out_path
 
 
@@ -315,7 +313,8 @@ def _git_rev_parse(workspace_root: Path) -> str:
     out = run_process(["git", "rev-parse", "HEAD"], cwd=workspace_root, timeout=30.0)
     if isinstance(out, Err):
         return "unknown"
-    return out.value.strip()
+    sha = out.value.strip()
+    return sha if is_git_sha(sha) else "unknown"
 
 
 def _load_repos_lock(workspace_root: Path) -> list[dict[str, object]]:
@@ -339,13 +338,3 @@ def _load_repos_lock(workspace_root: Path) -> list[dict[str, object]]:
                 {"org": base.name, "name": child.name, "path": str(child), "head_sha": sha}
             )
     return repos
-
-
-def read_manifest(path: Path) -> dict[str, object]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def write_text_atomic(path: Path, content: str) -> None:
-    tmp = Path(f"{path}.tmp")
-    tmp.write_text(content, encoding="utf-8")
-    os.replace(tmp, path)

@@ -54,48 +54,36 @@ def _state(*, status: BomComparisonStatus) -> BomWorkspaceState:
             bom_sha="1" * 40,
             workspace_sha=("9" * 40 if status != "aligned" else "1" * 40),
             derived_sha="1" * 40,
-            workspace_exists=True,
-            workspace_dirty=False,
         ),
         BomRepoState(
             repo="note",
             bom_sha="2" * 40,
             workspace_sha="2" * 40,
             derived_sha="2" * 40,
-            workspace_exists=True,
-            workspace_dirty=False,
         ),
         BomRepoState(
             repo="hal-common",
             bom_sha="3" * 40,
             workspace_sha="3" * 40,
             derived_sha=None,
-            workspace_exists=True,
-            workspace_dirty=False,
         ),
         BomRepoState(
             repo="hal-teensy",
             bom_sha="4" * 40,
             workspace_sha="4" * 40,
             derived_sha=None,
-            workspace_exists=True,
-            workspace_dirty=False,
         ),
         BomRepoState(
             repo="ui-lvgl",
             bom_sha="5" * 40,
             workspace_sha="5" * 40,
             derived_sha=None,
-            workspace_exists=True,
-            workspace_dirty=False,
         ),
         BomRepoState(
             repo="ui-lvgl-components",
             bom_sha="6" * 40,
             workspace_sha="6" * 40,
             derived_sha=None,
-            workspace_exists=True,
-            workspace_dirty=False,
         ),
     )
     blockers = ("native_ci BOM unavailable",) if status == "blocked" else ()
@@ -228,9 +216,7 @@ def test_sync_bom_cmd_preview_warns_when_write_needed(
     assert any("rerun with --write" in message for message in console.messages)
 
 
-def test_sync_bom_cmd_write_runs_sync(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_sync_bom_cmd_write_runs_sync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import ms.cli.commands.release_bom_commands as bom_cmd
 
     console = MockConsole()

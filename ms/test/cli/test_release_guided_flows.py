@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import ms.cli.release_guided_selectors as selectors
 from ms.cli.selector import SelectorResult
 from ms.core.result import Ok
 from ms.output.console import MockConsole
@@ -215,13 +216,13 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     monkeypatch.setattr(app, "preflight_with_permission", fake_preflight)
     monkeypatch.setattr(app, "bootstrap_app_session", fake_bootstrap)
     monkeypatch.setattr(app, "save_app_state", fake_save_state)
-    monkeypatch.setattr(app, "select_channel", fake_channel)
-    monkeypatch.setattr(app, "select_bump", fake_bump)
-    monkeypatch.setattr(app, "select_green_commit", fake_green)
+    monkeypatch.setattr(selectors, "select_channel", fake_channel)
+    monkeypatch.setattr(selectors, "select_bump", fake_bump)
+    monkeypatch.setattr(selectors, "select_green_commit", fake_green)
     monkeypatch.setattr(app, "plan_app_release", fake_plan)
-    monkeypatch.setattr(app, "select_one", fake_select_one)
-    monkeypatch.setattr(app, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(app, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(selectors, "select_one", fake_select_one)
+    monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
+    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(app, "prepare_app_pr", fake_prepare)
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
@@ -344,13 +345,13 @@ def test_guided_app_summary_edit_recomputes_tag(
     monkeypatch.setattr(app, "preflight_with_permission", fake_preflight)
     monkeypatch.setattr(app, "bootstrap_app_session", fake_bootstrap)
     monkeypatch.setattr(app, "save_app_state", fake_save_state)
-    monkeypatch.setattr(app, "select_channel", fake_channel)
-    monkeypatch.setattr(app, "select_bump", fake_bump)
-    monkeypatch.setattr(app, "select_green_commit", fake_green)
+    monkeypatch.setattr(selectors, "select_channel", fake_channel)
+    monkeypatch.setattr(selectors, "select_bump", fake_bump)
+    monkeypatch.setattr(selectors, "select_green_commit", fake_green)
     monkeypatch.setattr(app, "plan_app_release", fake_plan)
-    monkeypatch.setattr(app, "select_one", fake_select_one)
-    monkeypatch.setattr(app, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(app, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(selectors, "select_one", fake_select_one)
+    monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
+    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(app, "prepare_app_pr", fake_prepare)
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
@@ -479,13 +480,13 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr(content, "preflight_with_permission", fake_preflight)
     monkeypatch.setattr(content, "bootstrap_content_session", fake_bootstrap)
     monkeypatch.setattr(content, "save_content_state", fake_save_state)
-    monkeypatch.setattr(content, "select_channel", fake_channel)
-    monkeypatch.setattr(content, "select_bump", fake_bump)
-    monkeypatch.setattr(content, "select_green_commit", fake_green)
+    monkeypatch.setattr(selectors, "select_channel", fake_channel)
+    monkeypatch.setattr(selectors, "select_bump", fake_bump)
+    monkeypatch.setattr(selectors, "select_green_commit", fake_green)
     monkeypatch.setattr(content, "plan_release", fake_plan)
-    monkeypatch.setattr(content, "select_one", fake_select_one)
-    monkeypatch.setattr(content, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(selectors, "select_one", fake_select_one)
+    monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
+    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
@@ -672,16 +673,17 @@ def test_guided_content_bom_promotion_updates_core_sha(
     monkeypatch.setattr(content, "preflight_with_permission", fake_preflight)
     monkeypatch.setattr(content, "bootstrap_content_session", fake_bootstrap)
     monkeypatch.setattr(content, "save_content_state", fake_save_state)
-    monkeypatch.setattr(content, "select_channel", fake_channel)
-    monkeypatch.setattr(content, "select_bump", fake_bump)
-    monkeypatch.setattr(content, "select_green_commit", fake_green)
+    monkeypatch.setattr(selectors, "select_channel", fake_channel)
+    monkeypatch.setattr(selectors, "select_bump", fake_bump)
+    monkeypatch.setattr(selectors, "select_green_commit", fake_green)
     monkeypatch.setattr(content, "plan_release", fake_plan)
-    monkeypatch.setattr(content, "select_one", fake_select_one)
-    monkeypatch.setattr(content, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(selectors, "select_one", fake_select_one)
+    monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
+    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
+
     def fake_ensure_core_release_permissions(**_: object) -> Ok[None]:
         return Ok(None)
 
@@ -838,13 +840,13 @@ def test_guided_content_candidates_step_builds_missing(
     monkeypatch.setattr(content, "preflight_with_permission", fake_preflight)
     monkeypatch.setattr(content, "bootstrap_content_session", fake_bootstrap)
     monkeypatch.setattr(content, "save_content_state", fake_save_state)
-    monkeypatch.setattr(content, "select_channel", fake_channel)
-    monkeypatch.setattr(content, "select_bump", fake_bump)
-    monkeypatch.setattr(content, "select_green_commit", fake_green)
+    monkeypatch.setattr(selectors, "select_channel", fake_channel)
+    monkeypatch.setattr(selectors, "select_bump", fake_bump)
+    monkeypatch.setattr(selectors, "select_green_commit", fake_green)
     monkeypatch.setattr(content, "plan_release", fake_plan)
-    monkeypatch.setattr(content, "select_one", fake_select_one)
-    monkeypatch.setattr(content, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(selectors, "select_one", fake_select_one)
+    monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
+    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
@@ -903,7 +905,7 @@ def test_release_guided_routes_by_product(monkeypatch: pytest.MonkeyPatch, tmp_p
     def fake_select_dependencies(*args: object, **kwargs: object) -> SelectorResult[str]:
         return _sel("dependencies")
 
-    monkeypatch.setattr(guided, "select_one", fake_select_dependencies)
+    monkeypatch.setattr(selectors, "select_one", fake_select_dependencies)
     res_dependencies = guided.run_guided_release(
         workspace_root=tmp_path,
         console=MockConsole(),
@@ -916,7 +918,7 @@ def test_release_guided_routes_by_product(monkeypatch: pytest.MonkeyPatch, tmp_p
     def fake_select_content(*args: object, **kwargs: object) -> SelectorResult[str]:
         return _sel("content")
 
-    monkeypatch.setattr(guided, "select_one", fake_select_content)
+    monkeypatch.setattr(selectors, "select_one", fake_select_content)
 
     res_content = guided.run_guided_release(
         workspace_root=tmp_path,
@@ -930,7 +932,7 @@ def test_release_guided_routes_by_product(monkeypatch: pytest.MonkeyPatch, tmp_p
     def fake_select_app(*args: object, **kwargs: object) -> SelectorResult[str]:
         return _sel("app")
 
-    monkeypatch.setattr(guided, "select_one", fake_select_app)
+    monkeypatch.setattr(selectors, "select_one", fake_select_app)
     res_app = guided.run_guided_release(
         workspace_root=tmp_path,
         console=MockConsole(),

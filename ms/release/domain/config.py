@@ -18,6 +18,7 @@ DIST_SPEC_DIR = "release-specs"
 DIST_NOTES_DIR = "release-notes"
 
 DIST_PUBLISH_WORKFLOW = "publish.yml"
+DIST_RELEASE_ENV = "release"
 
 APP_REPO_SLUG = "petitechose-midi-studio/ms-manager"
 APP_LOCAL_DIR = "ms-manager"

@@ -15,6 +15,49 @@ Authoritative sources:
 - Release dependency promotion is remote-first: local repositories are audited for unsafe
   states, but release BOM/pin SHAs are resolved from GitHub refs.
 
+## Canonical low-friction release
+
+Run the complete read-only gate before creating a branch, PR, tag, or workflow run:
+
+```text
+uv run ms release preflight
+```
+
+It verifies GitHub authentication and write access, Core/app/distribution merge settings, the
+`app-release` and `release` environments, and the whole dependency graph. A missing prerequisite is
+therefore reported before the first mutation.
+
+The supported order is:
+
+1. promote dependencies, if required: `uv run ms release dependencies --promote --watch`;
+2. freeze one immutable plan per independent product;
+3. publish the app and content plans (these two may run in parallel);
+4. approve the named GitHub environment when the watcher reports `approval required`.
+
+Example plan locks:
+
+```text
+uv run ms release app plan --channel stable --auto --out .ms/release/plans/app.json
+uv run ms release content plan --channel stable --auto --out .ms/release/plans/content.json
+```
+
+Publish with the saved plan, the same notes file, and `--watch`. A retry of the same command reuses
+the exact open PR and workflow run instead of creating another one. Candidate builds missing from a
+content plan are dispatched together before they are watched, so independent platforms do not
+serialize the release.
+
+Guided releases persist their exact selections in `.ms/release/sessions`. Inspect or resume them
+with:
+
+```text
+uv run ms release status
+uv run ms release --watch
+```
+
+App and content deliberately keep separate plan locks: neither product depends on the other's tag,
+so a combined release-train state machine would add coupling without adding integrity. Their common
+ordering constraint is the dependency promotion completed in step 1.
+
 ## Dependency Promotion Contract
 
 `uv run ms release dependencies` is the supported path for promoting Core dependency pins.
@@ -72,6 +115,18 @@ before committing it. For `core`, preparation updates the canonical OpenControl 
 native CI BOM, the pinned `ms-ui` release dependency, and Core CI dependency SHAs from merged
 workspace heads. Pin values must never be edited by hand.
 
+Core pins have three distinct roles:
+
+- product pins (OpenControl, `ms-ui`, and `device-support`) are promoted automatically;
+- `MS_DEV_ENV_SHA` is a reproducible tooling pin and changes only during explicit tooling
+  maintenance;
+- `MIDI_STUDIO_BITWIG_SHA` is an integration-fixture pin and changes only when that compatibility
+  fixture is deliberately advanced.
+
+The tooling and integration pins remain immutable in Core CI, but product promotion no longer
+advances them implicitly. This removes the artificial reverse dependency from Core to Bitwig and
+prevents unrelated tooling commits from cascading into product releases.
+
 The plain `--dry-run` remains a whole-graph readiness inspection and also runs no tests. Tests are
 part of the explicit repository preflight and of the actual promotion path, not of either dry-run.
 
@@ -104,6 +159,16 @@ requires a valid approval from a different identity before the PR can merge.
 architecture checks that CI runs, so release tooling layering/import regressions fail locally before
 the branch is pushed. The dedicated CI architecture job remains as the remote double-check.
 
+The release tooling has two complementary end-to-end gates:
+
+- `uv run pytest ms/test/e2e -q` runs the installed `ms` launcher in an isolated temporary
+  workspace. It covers CLI discovery, setup planning, session persistence/resume, and dry-run versus
+  executed cleanup without network access or writes outside that workspace. CI runs it separately on
+  Windows, Linux, macOS, and Fedora.
+- `uv run ms release preflight` is the read-only production rehearsal. It queries the real GitHub
+  permissions, repository settings, environments, dependency graph, and workspace readiness. It is
+  required immediately before the first release mutation.
+
 For a fully unattended PR + terminal approval flow with required reviews enabled, the PR author and
 approver must be separate GitHub identities. The target architecture is:
 
@@ -134,6 +199,8 @@ to create pull requests. The maintainer account must remain a different identity
 
 - Guided: `uv run ms release`
 - Explicit:
+  - `uv run ms release preflight`
+  - `uv run ms release status`
   - `uv run ms release content plan|prepare|publish ...`
   - `uv run ms release app plan|prepare|publish ...`
   - `uv run ms release dependencies --dry-run`

@@ -135,11 +135,66 @@ def test_watch_run_deduplicates_unchanged_progress(
     )
 
     assert isinstance(result, Ok)
-    progress_lines = [
-        message for message in console.messages if "progress: in_progress" in message
-    ]
+    progress_lines = [message for message in console.messages if "progress: in_progress" in message]
     assert progress_lines == ["progress: in_progress | jobs 0/1 | active: release alignment"]
     assert "progress: completed | jobs 1/1 | result: success" in console.text
+
+
+def test_watch_run_names_environment_awaiting_approval(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    import ms.release.infra.github.run_watch as run_watch
+
+    payloads = iter(
+        (
+            _run_payload(
+                status="waiting",
+                jobs=[
+                    {
+                        "name": "publish",
+                        "status": "waiting",
+                        "conclusion": None,
+                    },
+                ],
+            ),
+            _run_payload(
+                status="completed",
+                conclusion="success",
+                jobs=[
+                    {
+                        "name": "publish",
+                        "status": "completed",
+                        "conclusion": "success",
+                    },
+                ],
+            ),
+        )
+    )
+
+    def fake_run_gh_process(cmd: list[str], **_: object) -> Ok[str]:
+        return Ok(next(payloads))
+
+    def fake_gh_api_json(**_: object) -> Ok[object]:
+        return Ok([{"environment": {"name": "app-release"}}])
+
+    monkeypatch.setattr(run_watch, "run_gh_process", fake_run_gh_process)
+    monkeypatch.setattr(run_watch, "gh_api_json", fake_gh_api_json)
+    console = MockConsole()
+
+    result = watch_run(
+        workspace_root=tmp_path,
+        run_id=123,
+        repo_slug="owner/repo",
+        console=console,
+        dry_run=False,
+        poll_interval_seconds=0.1,
+        sleep_fn=lambda _: None,
+        clock_fn=lambda: 0.0,
+    )
+
+    assert isinstance(result, Ok)
+    assert "progress: waiting | jobs 0/1 | approval required: app-release" in console.text
 
 
 def test_watch_run_failure_reports_failed_jobs_and_log_command(

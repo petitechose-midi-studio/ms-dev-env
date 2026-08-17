@@ -12,7 +12,7 @@ from ms.release.flow.candidate_types import CandidateVerifyRequest
 from ms.release.flow.candidate_verify import inspect_candidate_metadata
 from ms.release.infra.github.releases import download_release_assets, release_exists_by_tag
 from ms.release.infra.github.run_watch import watch_run
-from ms.release.infra.github.workflows import dispatch_candidate_workflow
+from ms.release.infra.github.workflows import WorkflowRun, dispatch_candidate_workflow
 
 from .content_candidate_planning import plan_content_candidates
 from .content_candidate_types import (
@@ -66,7 +66,8 @@ def ensure_content_candidates(
     if isinstance(planned, Err):
         return planned
 
-    ensured: list[EnsuredContentCandidate] = []
+    ensured: dict[str, EnsuredContentCandidate] = {}
+    dispatched_runs: list[tuple[ContentCandidateTarget, WorkflowRun]] = []
     for target in planned.value:
         ready = _probe_content_candidate(
             workspace_root=workspace_root,
@@ -76,7 +77,9 @@ def ensure_content_candidates(
             return ready
         if ready.value is ContentCandidateState.READY:
             console.print(f"candidate ready: {target.label}", Style.DIM)
-            ensured.append(EnsuredContentCandidate(target=target, ready_on_entry=True, run=None))
+            ensured[target.id] = EnsuredContentCandidate(
+                target=target, ready_on_entry=True, run=None
+            )
             continue
 
         if ready.value is ContentCandidateState.INCOMPLETE and not dry_run:
@@ -89,8 +92,8 @@ def ensure_content_candidates(
                 return waited
             if waited.value is ContentCandidateState.READY:
                 console.print(f"candidate ready after retry: {target.label}", Style.DIM)
-                ensured.append(
-                    EnsuredContentCandidate(target=target, ready_on_entry=True, run=None)
+                ensured[target.id] = EnsuredContentCandidate(
+                    target=target, ready_on_entry=True, run=None
                 )
                 continue
 
@@ -106,10 +109,12 @@ def ensure_content_candidates(
         )
         if isinstance(dispatched, Err):
             return dispatched
+        dispatched_runs.append((target, dispatched.value))
 
+    for target, run in dispatched_runs:
         watched = watch_run(
             workspace_root=workspace_root,
-            run_id=dispatched.value.id,
+            run_id=run.id,
             repo_slug=target.repo_slug,
             console=console,
             dry_run=dry_run,
@@ -129,22 +134,19 @@ def ensure_content_candidates(
                     ReleaseError(
                         kind="workflow_failed",
                         message=(
-                            "candidate still not ready after successful workflow: "
-                            f"{target.label}"
+                            f"candidate still not ready after successful workflow: {target.label}"
                         ),
                         hint=f"{target.candidate_tag} ({confirmed.value})",
                     )
                 )
 
-        ensured.append(
-            EnsuredContentCandidate(
-                target=target,
-                ready_on_entry=False,
-                run=dispatched.value,
-            )
+        ensured[target.id] = EnsuredContentCandidate(
+            target=target,
+            ready_on_entry=False,
+            run=run,
         )
 
-    return Ok(tuple(ensured))
+    return Ok(tuple(ensured[target.id] for target in planned.value))
 
 
 def _probe_content_candidate(
@@ -178,7 +180,6 @@ def _probe_content_candidate(
             return Ok(ContentCandidateState.INCOMPLETE)
 
         inspected = inspect_candidate_metadata(
-            workspace_root=workspace_root,
             request=CandidateVerifyRequest(
                 artifacts_dir=metadata_dir,
                 manifest_path=metadata_dir / "candidate.json",

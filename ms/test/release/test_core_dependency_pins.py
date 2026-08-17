@@ -6,7 +6,7 @@ from pathlib import Path
 from ms.core.result import Ok
 from ms.release.flow.core_dependency_pins import (
     plan_core_dependency_pin_sync,
-    sync_core_dependency_pins,
+    sync_core_dependency_pin_plan,
 )
 
 
@@ -37,6 +37,11 @@ _CI_ENV_KEYS = (
     "MIDI_STUDIO_UI_SHA",
 )
 
+_NON_PRODUCT_CI_ENV_KEYS = {
+    "MS_DEV_ENV_SHA",
+    "MIDI_STUDIO_BITWIG_SHA",
+}
+
 
 def _write_core_files(core_root: Path, *, ci_keys: tuple[str, ...] = _CI_ENV_KEYS) -> None:
     old = "0" * 40
@@ -47,10 +52,7 @@ def _write_core_files(core_root: Path, *, ci_keys: tuple[str, ...] = _CI_ENV_KEY
                 "[env:release]",
                 "lib_deps =",
                 f"    ms-ui=https://github.com/petitechose-midi-studio/ui.git#{old}",
-                (
-                    "    https://github.com/petitechose-midi-studio/"
-                    f"device-support.git#{old}"
-                ),
+                (f"    https://github.com/petitechose-midi-studio/device-support.git#{old}"),
                 "    ${oc_sdk_deps.lib_deps}",
                 "",
             )
@@ -66,7 +68,6 @@ def _write_core_files(core_root: Path, *, ci_keys: tuple[str, ...] = _CI_ENV_KEY
 def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path) -> None:
     workspace = tmp_path
     shas = {
-        ".": _git_repo(workspace),
         "open-control/framework": _git_repo(workspace / "open-control" / "framework"),
         "open-control/note": _git_repo(workspace / "open-control" / "note"),
         "open-control/hal-common": _git_repo(workspace / "open-control" / "hal-common"),
@@ -78,12 +79,7 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
         "open-control/ui-lvgl-components": _git_repo(
             workspace / "open-control" / "ui-lvgl-components"
         ),
-        "midi-studio/device-support": _git_repo(
-            workspace / "midi-studio" / "device-support"
-        ),
-        "midi-studio/plugin-bitwig": _git_repo(
-            workspace / "midi-studio" / "plugin-bitwig"
-        ),
+        "midi-studio/device-support": _git_repo(workspace / "midi-studio" / "device-support"),
         "midi-studio/ui": _git_repo(workspace / "midi-studio" / "ui"),
     }
     core_root = workspace / "midi-studio" / "core"
@@ -94,20 +90,20 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
     assert isinstance(planned, Ok)
     assert planned.value.requires_write
 
-    synced = sync_core_dependency_pins(workspace_root=workspace, core_root=core_root)
+    synced = sync_core_dependency_pin_plan(plan=planned.value)
 
     assert isinstance(synced, Ok)
     assert {path.name for path in synced.value.written} == {"platformio.ini", "ci.yml"}
     assert shas["midi-studio/ui"] in (core_root / "platformio.ini").read_text(encoding="utf-8")
-    assert shas["midi-studio/device-support"] in (
-        core_root / "platformio.ini"
-    ).read_text(encoding="utf-8")
+    assert shas["midi-studio/device-support"] in (core_root / "platformio.ini").read_text(
+        encoding="utf-8"
+    )
     ci = (core_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    assert f"MS_DEV_ENV_SHA: {shas['.']}" in ci
+    assert f"MS_DEV_ENV_SHA: {'0' * 40}" in ci
     assert f"OPEN_CONTROL_HAL_COMMON_SHA: {shas['open-control/hal-common']}" in ci
     assert f"OPEN_CONTROL_HAL_TEENSY_SHA: {shas['open-control/hal-teensy']}" in ci
     assert f"OPEN_CONTROL_HAL_SDL_SHA: {shas['open-control/hal-sdl']}" in ci
-    assert f"MIDI_STUDIO_BITWIG_SHA: {shas['midi-studio/plugin-bitwig']}" in ci
+    assert f"MIDI_STUDIO_BITWIG_SHA: {'0' * 40}" in ci
 
     verified = plan_core_dependency_pin_sync(workspace_root=workspace, core_root=core_root)
     assert isinstance(verified, Ok)
@@ -117,7 +113,6 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
 def test_sync_core_dependency_pins_inserts_missing_ci_env_pins(tmp_path: Path) -> None:
     workspace = tmp_path
     shas = {
-        ".": _git_repo(workspace),
         "open-control/framework": _git_repo(workspace / "open-control" / "framework"),
         "open-control/note": _git_repo(workspace / "open-control" / "note"),
         "open-control/hal-common": _git_repo(workspace / "open-control" / "hal-common"),
@@ -129,12 +124,7 @@ def test_sync_core_dependency_pins_inserts_missing_ci_env_pins(tmp_path: Path) -
         "open-control/ui-lvgl-components": _git_repo(
             workspace / "open-control" / "ui-lvgl-components"
         ),
-        "midi-studio/device-support": _git_repo(
-            workspace / "midi-studio" / "device-support"
-        ),
-        "midi-studio/plugin-bitwig": _git_repo(
-            workspace / "midi-studio" / "plugin-bitwig"
-        ),
+        "midi-studio/device-support": _git_repo(workspace / "midi-studio" / "device-support"),
         "midi-studio/ui": _git_repo(workspace / "midi-studio" / "ui"),
     }
     core_root = workspace / "midi-studio" / "core"
@@ -153,7 +143,7 @@ def test_sync_core_dependency_pins_inserts_missing_ci_env_pins(tmp_path: Path) -
     missing = {item.key: item for item in planned.value.items if item.from_sha is None}
     assert set(missing) == {"ci.OPEN_CONTROL_HAL_MIDI_SHA", "ci.MIDI_STUDIO_UI_SHA"}
 
-    synced = sync_core_dependency_pins(workspace_root=workspace, core_root=core_root)
+    synced = sync_core_dependency_pin_plan(plan=planned.value)
 
     assert isinstance(synced, Ok)
     ci = (core_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
@@ -173,7 +163,6 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
     _write_core_files(core_root)
 
     remote_shas = {
-        "petitechose-midi-studio/ms-dev-env": "1" * 40,
         "open-control/framework": "2" * 40,
         "open-control/note": "3" * 40,
         "open-control/hal-common": "a" * 40,
@@ -184,7 +173,6 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
         "open-control/ui-lvgl": "7" * 40,
         "open-control/ui-lvgl-components": "8" * 40,
         "petitechose-midi-studio/device-support": "b" * 40,
-        "petitechose-midi-studio/plugin-bitwig": "c" * 40,
         "petitechose-midi-studio/ui": "9" * 40,
     }
 
@@ -202,31 +190,59 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
     assert isinstance(planned, Ok)
     assert planned.value.requires_write
 
-    synced = sync_core_dependency_pins(
-        workspace_root=workspace,
-        core_root=core_root,
-        source="github",
-        ref_resolver=resolve,
-    )
+    synced = sync_core_dependency_pin_plan(plan=planned.value)
 
     assert isinstance(synced, Ok)
     platformio = (core_root / "platformio.ini").read_text(encoding="utf-8")
     ci = (core_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert remote_shas["petitechose-midi-studio/ui"] in platformio
     assert remote_shas["petitechose-midi-studio/device-support"] in platformio
-    assert f"MS_DEV_ENV_SHA: {remote_shas['petitechose-midi-studio/ms-dev-env']}" in ci
+    assert f"MS_DEV_ENV_SHA: {'0' * 40}" in ci
     assert (f"OPEN_CONTROL_HAL_COMMON_SHA: {remote_shas['open-control/hal-common']}") in ci
-    assert (
-        f"OPEN_CONTROL_HAL_TEENSY_SHA: {remote_shas['open-control/hal-teensy']}"
-    ) in ci
+    assert (f"OPEN_CONTROL_HAL_TEENSY_SHA: {remote_shas['open-control/hal-teensy']}") in ci
     assert (
         f"OPEN_CONTROL_UI_LVGL_COMPONENTS_SHA: {remote_shas['open-control/ui-lvgl-components']}"
     ) in ci
     assert (
-        "MIDI_STUDIO_DEVICE_SUPPORT_SHA: "
-        f"{remote_shas['petitechose-midi-studio/device-support']}"
+        f"MIDI_STUDIO_DEVICE_SUPPORT_SHA: {remote_shas['petitechose-midi-studio/device-support']}"
     ) in ci
-    assert (
-        "MIDI_STUDIO_BITWIG_SHA: "
-        f"{remote_shas['petitechose-midi-studio/plugin-bitwig']}"
-    ) in ci
+    assert f"MIDI_STUDIO_BITWIG_SHA: {'0' * 40}" in ci
+
+
+def test_core_dependency_plan_excludes_tooling_and_integration_pins(tmp_path: Path) -> None:
+    workspace = tmp_path
+    core_root = workspace / "midi-studio" / "core"
+    _write_core_files(core_root)
+
+    remote_shas = {
+        "open-control/framework": "1" * 40,
+        "open-control/note": "2" * 40,
+        "open-control/hal-common": "3" * 40,
+        "open-control/hal-teensy": "4" * 40,
+        "open-control/hal-midi": "5" * 40,
+        "open-control/hal-net": "6" * 40,
+        "open-control/hal-sdl": "7" * 40,
+        "open-control/ui-lvgl": "8" * 40,
+        "open-control/ui-lvgl-components": "9" * 40,
+        "petitechose-midi-studio/device-support": "a" * 40,
+        "petitechose-midi-studio/ui": "b" * 40,
+    }
+    resolved: list[str] = []
+
+    def resolve(repo: str, ref: str) -> Ok[str]:
+        assert ref == "main"
+        resolved.append(repo)
+        return Ok(remote_shas[repo])
+
+    planned = plan_core_dependency_pin_sync(
+        workspace_root=workspace,
+        core_root=core_root,
+        source="github",
+        ref_resolver=resolve,
+    )
+
+    assert isinstance(planned, Ok)
+    keys = {item.key.removeprefix("ci.") for item in planned.value.items}
+    assert keys.isdisjoint(_NON_PRODUCT_CI_ENV_KEYS)
+    assert "petitechose-midi-studio/ms-dev-env" not in resolved
+    assert "petitechose-midi-studio/plugin-bitwig" not in resolved

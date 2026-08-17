@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Literal
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_obj_list, as_str_dict, get_int, get_list, get_str
+from ms.core.structured import StrDict, as_str_dict, get_int, get_list, get_str
+from ms.git.sha import is_git_sha
 from ms.platform.files import atomic_write_text
 from ms.release.domain import config
 from ms.release.domain.models import PinnedRepo, ReleaseChannel, ReleaseRepo, ReleaseTooling
@@ -61,202 +62,147 @@ def write_plan_file(*, path: Path, plan: PlanInput) -> Result[None, ReleaseError
     return Ok(None)
 
 
-def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
+def _plan_error(*, path: Path, message: str, hint: str | None = None) -> ReleaseError:
+    return ReleaseError(
+        kind="invalid_input",
+        message=message,
+        hint=hint or str(path),
+    )
+
+
+def _read_plan_data(path: Path) -> Result[StrDict, ReleaseError]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as e:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"failed to read plan file: {e}",
-                hint=str(path),
-            )
-        )
+        return Err(_plan_error(path=path, message=f"failed to read plan file: {e}"))
 
     try:
         obj: object = json.loads(text)
     except json.JSONDecodeError as e:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"invalid JSON in plan file: {e}",
-                hint=str(path),
-            )
-        )
+        return Err(_plan_error(path=path, message=f"invalid JSON in plan file: {e}"))
 
     data = as_str_dict(obj)
     if data is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="plan file root must be a JSON object",
-                hint=str(path),
-            )
-        )
+        return Err(_plan_error(path=path, message="plan file root must be a JSON object"))
+    return Ok(data)
 
-    schema = get_int(data, "schema")
-    if schema not in {2, PLAN_SCHEMA}:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"unsupported plan schema: {schema}",
-                hint=str(path),
-            )
-        )
 
-    channel = get_str(data, "channel")
-    if channel not in ("stable", "beta"):
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"invalid channel in plan: {channel!r}",
-                hint=str(path),
-            )
-        )
-
-    product = get_str(data, "product")
-    if product not in ("content", "app"):
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"invalid product in plan: {product!r}",
-                hint=str(path),
-            )
-        )
-
-    tag = get_str(data, "tag")
-    if tag is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="missing tag in plan",
-                hint=str(path),
-            )
-        )
-
-    repos_obj = get_list(data, "repos")
-    if repos_obj is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="missing repos[] in plan",
-                hint=str(path),
-            )
-        )
-
-    repos = as_obj_list(repos_obj)
+def _parse_pinned_repos(
+    *, data: StrDict, product: Literal["content", "app"], path: Path
+) -> Result[tuple[PinnedRepo, ...], ReleaseError]:
+    repos = get_list(data, "repos")
     if repos is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="repos must be a list",
-                hint=str(path),
-            )
-        )
+        return Err(_plan_error(path=path, message="missing or invalid repos[] in plan"))
 
-    repos_cfg: tuple[ReleaseRepo, ...]
     repos_cfg = (config.APP_RELEASE_REPO,) if product == "app" else config.RELEASE_REPOS
-
-    by_id = {r.id: r for r in repos_cfg}
+    by_id = {repo.id: repo for repo in repos_cfg}
     pinned: list[PinnedRepo] = []
     seen: set[str] = set()
-    for item in repos:
-        d = as_str_dict(item)
-        if d is None:
-            continue
-        repo_id = get_str(d, "id")
-        slug = get_str(d, "slug")
-        sha = get_str(d, "sha")
-        ref = get_str(d, "ref")
+
+    for index, item in enumerate(repos):
+        entry = as_str_dict(item)
+        if entry is None:
+            return Err(_plan_error(path=path, message=f"invalid repo entry at index {index}"))
+
+        repo_id = get_str(entry, "id")
+        slug = get_str(entry, "slug")
+        sha = get_str(entry, "sha")
+        ref = get_str(entry, "ref")
         if repo_id is None or slug is None or sha is None or ref is None:
-            continue
+            return Err(
+                _plan_error(path=path, message=f"repo entry {index} is missing id/slug/sha/ref")
+            )
         if repo_id in seen:
-            continue
+            return Err(_plan_error(path=path, message=f"duplicate repo id in plan: {repo_id}"))
         seen.add(repo_id)
 
         repo = by_id.get(repo_id)
         if repo is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"unknown repo id in plan: {repo_id}",
-                    hint=str(path),
-                )
-            )
+            return Err(_plan_error(path=path, message=f"unknown repo id in plan: {repo_id}"))
         if slug != repo.slug:
             return Err(
-                ReleaseError(
-                    kind="invalid_input",
+                _plan_error(
+                    path=path,
                     message=f"repo slug mismatch for {repo_id}",
                     hint=f"expected {repo.slug}, got {slug}",
                 )
             )
-        if len(sha) != 40:
+        if not is_git_sha(sha):
             return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message=f"invalid sha for {repo_id} in plan",
-                    hint=sha,
-                )
+                _plan_error(path=path, message=f"invalid sha for {repo_id} in plan", hint=sha)
             )
 
-        repo_sel = ReleaseRepo(
-            id=repo.id,
-            slug=repo.slug,
-            ref=ref,
-            required_ci_workflow_file=repo.required_ci_workflow_file,
+        pinned.append(
+            PinnedRepo(
+                repo=ReleaseRepo(
+                    id=repo.id,
+                    slug=repo.slug,
+                    ref=ref,
+                    required_ci_workflow_file=repo.required_ci_workflow_file,
+                ),
+                sha=sha,
+            )
         )
-        pinned.append(PinnedRepo(repo=repo_sel, sha=sha))
 
-    missing = [r.id for r in repos_cfg if r.id not in {p.repo.id for p in pinned}]
+    missing = [repo.id for repo in repos_cfg if repo.id not in seen]
     if missing:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"plan missing repos: {', '.join(missing)}",
-                hint=str(path),
-            )
-        )
+        return Err(_plan_error(path=path, message=f"plan missing repos: {', '.join(missing)}"))
+    return Ok(tuple(pinned))
 
-    tooling: ReleaseTooling | None = None
-    tooling_obj = data.get("tooling")
-    if tooling_obj is not None:
-        tooling_data = as_str_dict(tooling_obj)
-        if tooling_data is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message="tooling must be an object",
-                    hint=str(path),
-                )
-            )
-        tooling_repo = get_str(tooling_data, "repo")
-        tooling_ref = get_str(tooling_data, "ref")
-        tooling_sha = get_str(tooling_data, "sha")
-        if tooling_repo is None or tooling_ref is None or tooling_sha is None:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message="tooling is missing repo/ref/sha",
-                    hint=str(path),
-                )
-            )
-        if len(tooling_sha) != 40:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message="invalid tooling sha in plan",
-                    hint=tooling_sha,
-                )
-            )
-        tooling = ReleaseTooling(repo=tooling_repo, ref=tooling_ref, sha=tooling_sha)
+
+def _parse_tooling(*, data: StrDict, path: Path) -> Result[ReleaseTooling | None, ReleaseError]:
+    raw = data.get("tooling")
+    if raw is None:
+        return Ok(None)
+    tooling = as_str_dict(raw)
+    if tooling is None:
+        return Err(_plan_error(path=path, message="tooling must be an object"))
+
+    repo = get_str(tooling, "repo")
+    ref = get_str(tooling, "ref")
+    sha = get_str(tooling, "sha")
+    if repo is None or ref is None or sha is None:
+        return Err(_plan_error(path=path, message="tooling is missing repo/ref/sha"))
+    if not is_git_sha(sha):
+        return Err(_plan_error(path=path, message="invalid tooling sha in plan", hint=sha))
+    return Ok(ReleaseTooling(repo=repo, ref=ref, sha=sha))
+
+
+def read_plan_file(*, path: Path) -> Result[PlanInput, ReleaseError]:
+    loaded = _read_plan_data(path)
+    if isinstance(loaded, Err):
+        return loaded
+    data = loaded.value
+
+    schema = get_int(data, "schema")
+    if schema != PLAN_SCHEMA:
+        return Err(_plan_error(path=path, message=f"unsupported plan schema: {schema}"))
+
+    channel = get_str(data, "channel")
+    if channel not in ("stable", "beta"):
+        return Err(_plan_error(path=path, message=f"invalid channel in plan: {channel!r}"))
+
+    product = get_str(data, "product")
+    if product not in ("content", "app"):
+        return Err(_plan_error(path=path, message=f"invalid product in plan: {product!r}"))
+
+    tag = get_str(data, "tag")
+    if tag is None:
+        return Err(_plan_error(path=path, message="missing tag in plan"))
+
+    pinned = _parse_pinned_repos(data=data, product=product, path=path)
+    if isinstance(pinned, Err):
+        return pinned
+    tooling = _parse_tooling(data=data, path=path)
+    if isinstance(tooling, Err):
+        return tooling
 
     return Ok(
         PlanInput(
             product=product,
             channel=channel,
             tag=tag,
-            pinned=tuple(pinned),
-            tooling=tooling,
+            pinned=pinned.value,
+            tooling=tooling.value,
         )
     )

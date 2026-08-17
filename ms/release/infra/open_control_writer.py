@@ -1,9 +1,8 @@
 import configparser
-import os
-import tempfile
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text
 from ms.release.domain.open_control_models import (
     OPEN_CONTROL_BOM_REPOS,
     OPEN_CONTROL_NATIVE_CI_REPOS,
@@ -67,8 +66,7 @@ def write_oc_sdk_ini(
         return reparsed
 
     expected = {
-        pin.repo: pin.sha
-        for pin in _ordered_pins(pins=pins, expected_repos=OPEN_CONTROL_BOM_REPOS)
+        pin.repo: pin.sha for pin in _ordered_pins(pins=pins, expected_repos=OPEN_CONTROL_BOM_REPOS)
     }
     actual = reparsed.value.pins_by_repo()
     if actual != expected or reparsed.value.version != version:
@@ -190,20 +188,8 @@ def _render_lib_dep_lines(pins: tuple[OcSdkPin, ...]) -> list[str]:
 
 
 def _atomic_write_text(*, path: Path, content: str) -> Result[None, ReleaseError]:
-    path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            newline="\n",
-            delete=False,
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-        ) as handle:
-            handle.write(content)
-            tmp_path = Path(handle.name)
-        os.replace(tmp_path, path)
+        atomic_write_text(path, content, encoding="utf-8")
     except OSError as error:
         return Err(
             ReleaseError(

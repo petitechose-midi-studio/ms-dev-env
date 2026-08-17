@@ -47,7 +47,7 @@ ms-dev-env/
 Notes:
 
 - Les repos requis pour build/run sont pin dans `ms/data/repos.toml`.
-- Pour un workspace "maintainer" (distribution + ms-manager + extras), utiliser `ms/data/repos.maintainer.toml` via `uv run ms sync --repos --profile maintainer`.
+- Pour un workspace "maintainer" (distribution + ms-manager + extras), `uv run ms sync --repos --profile maintainer` compose le manifeste de base avec `ms/data/repos.maintainer.toml`.
 - Les versions toolchains sont pin dans `ms/data/toolchains.toml`.
 
 ### Bundled vs system deps

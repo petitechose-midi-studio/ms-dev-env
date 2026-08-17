@@ -18,6 +18,7 @@ from ms.release.infra.artifacts.app_version_writer import (
     current_version,
 )
 from ms.release.infra.github.client import get_ref_head_sha, get_repo_file_text
+from ms.release.infra.github.pr_merge import find_matching_pull_request
 from ms.release.infra.repos.app import (
     checkout_main_and_pull as app_checkout_main_and_pull,
 )
@@ -98,8 +99,7 @@ def _resolve_versioned_app_source_sha(
                 kind="verification_failed",
                 message="remote app version does not match the requested release",
                 hint=(
-                    f"expected {version}, got {actual_version!r} "
-                    f"at {APP_REPO_SLUG}@{head.value}"
+                    f"expected {version}, got {actual_version!r} at {APP_REPO_SLUG}@{head.value}"
                 ),
             )
         )
@@ -203,6 +203,47 @@ def prepare_app_pr(
     pinned: tuple[PinnedRepo, ...],
     dry_run: bool,
 ) -> Result[AppPrepareResult, ReleaseError]:
+    branch = f"release/{tag}-{base_sha[:8]}"
+    title = f"release(app): {tag}"
+    commit_msg = f"release(app): bump version to {version}"
+    body = build_pinned_body(intro=(f"tag={tag}", f"version={version}"), pinned=pinned)
+
+    if not dry_run:
+        existing_pr = find_matching_pull_request(
+            workspace_root=workspace_root,
+            repo_slug=APP_REPO_SLUG,
+            base_branch=APP_DEFAULT_BRANCH,
+            branch=branch,
+            title=title,
+            body=body,
+        )
+        if isinstance(existing_pr, Err):
+            return existing_pr
+        if existing_pr.value is not None:
+            console.print(f"resuming app release PR: {existing_pr.value}", Style.DIM)
+            merged = _merge_app_pr(
+                workspace_root=workspace_root,
+                pr_url=existing_pr.value,
+                console=console,
+                dry_run=False,
+            )
+            if isinstance(merged, Err):
+                return merged
+            source = _resolve_versioned_app_source_sha(
+                workspace_root=workspace_root,
+                version=version,
+            )
+            if isinstance(source, Err):
+                return source
+            return Ok(
+                AppPrepareResult(
+                    pr=PrMergeOutcome(
+                        kind="merged_pr", url=existing_pr.value, label=existing_pr.value
+                    ),
+                    source_sha=source.value,
+                )
+            )
+
     app_root_r = _prepare_app_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
     if isinstance(app_root_r, Err):
         return app_root_r
@@ -231,7 +272,6 @@ def prepare_app_pr(
                 )
             )
 
-    branch = f"release/{tag}-{base_sha[:8]}"
     br = app_create_branch(
         repo_root=app_root,
         branch=branch,
@@ -248,10 +288,6 @@ def prepare_app_pr(
     if isinstance(changed_paths_r, Err):
         return changed_paths_r
     changed_paths = changed_paths_r.value
-
-    title = f"release(app): {tag}"
-    commit_msg = f"release(app): bump version to {version}"
-    body = build_pinned_body(intro=(f"tag={tag}", f"version={version}"), pinned=pinned)
 
     commit = app_commit_and_push(
         repo_root=app_root,

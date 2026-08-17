@@ -1,8 +1,8 @@
+# pyright: reportUnknownArgumentType=false, reportUnknownLambdaType=false
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from uuid import UUID
 
 import pytest
 
@@ -10,6 +10,7 @@ from ms.core.result import Err, Ok
 from ms.output.console import MockConsole
 from ms.release.infra.github import workflow_dispatch_lookup as lookup_mod
 from ms.release.infra.github import workflows as workflow_mod
+from ms.release.infra.github.workflow_dispatch_lookup import WorkflowRunResolution
 
 
 def _dispatch_artifact(*, run_id: int, request_id: str) -> dict[str, object]:
@@ -24,10 +25,20 @@ def _no_sleep(seconds: float) -> None:
     del seconds
 
 
+def _fixed_new_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        workflow_mod,
+        "_dispatch_request_id",
+        lambda **_: "ms-123456781234",
+    )
+    monkeypatch.setattr(workflow_mod, "find_dispatched_run", lambda **_: Ok(None))
+    monkeypatch.setattr(workflow_mod, "get_ref_head_sha", lambda **_: Ok("a" * 40))
+
+
 def test_dispatch_publish_workflow_matches_request_id(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(workflow_mod, "uuid4", lambda: UUID("12345678-1234-5678-1234-567812345678"))
+    _fixed_new_dispatch(monkeypatch)
 
     calls: list[list[str]] = []
 
@@ -69,7 +80,14 @@ def test_dispatch_publish_workflow_matches_request_id(
 def test_dispatch_release_alignment_workflow_uses_ms_dev_env_workflow(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(workflow_mod, "uuid4", lambda: UUID("12345678-1234-5678-1234-567812345678"))
+    _fixed_new_dispatch(monkeypatch)
+    request: dict[str, object] = {}
+
+    def fake_request_id(**kwargs: object) -> str:
+        request.update(kwargs)
+        return "ms-123456781234"
+
+    monkeypatch.setattr(workflow_mod, "_dispatch_request_id", fake_request_id)
 
     calls: list[list[str]] = []
 
@@ -90,6 +108,7 @@ def test_dispatch_release_alignment_workflow_uses_ms_dev_env_workflow(
     result = workflow_mod.dispatch_release_alignment_workflow(
         workspace_root=tmp_path,
         build_wasm=False,
+        core_sha="c" * 40,
         console=MockConsole(),
         dry_run=False,
     )
@@ -110,21 +129,21 @@ def test_dispatch_release_alignment_workflow_uses_ms_dev_env_workflow(
     assert "-f" in dispatch
     assert "build_wasm=false" in dispatch
     assert "request_id=ms-123456781234" in dispatch
+    assert request["ref"] == "a" * 40
+    assert request["identity"] == (("core_sha", "c" * 40),)
 
 
 def test_dispatch_publish_workflow_retries_until_match(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(workflow_mod, "uuid4", lambda: UUID("12345678-1234-5678-1234-567812345678"))
+    _fixed_new_dispatch(monkeypatch)
     monkeypatch.setattr(lookup_mod, "_LOOKUP_MAX_ATTEMPTS", 3)
     monkeypatch.setattr(lookup_mod, "_LOOKUP_DELAY_SECONDS", 0.0)
     monkeypatch.setattr(lookup_mod, "sleep", _no_sleep)
 
     artifact_payloads = [
         json.dumps({"artifacts": []}),
-        json.dumps(
-            {"artifacts": [_dispatch_artifact(run_id=201, request_id="ms-123456781234")]}
-        ),
+        json.dumps({"artifacts": [_dispatch_artifact(run_id=201, request_id="ms-123456781234")]}),
     ]
     calls: list[list[str]] = []
 
@@ -163,7 +182,7 @@ def test_dispatch_publish_workflow_retries_until_match(
 def test_dispatch_publish_workflow_paginates_artifact_lookup(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(workflow_mod, "uuid4", lambda: UUID("12345678-1234-5678-1234-567812345678"))
+    _fixed_new_dispatch(monkeypatch)
     monkeypatch.setattr(lookup_mod, "_LOOKUP_MAX_ATTEMPTS", 1)
 
     calls: list[list[str]] = []
@@ -218,7 +237,7 @@ def test_dispatch_publish_workflow_paginates_artifact_lookup(
 def test_dispatch_publish_workflow_fails_without_request_id_match(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    monkeypatch.setattr(workflow_mod, "uuid4", lambda: UUID("12345678-1234-5678-1234-567812345678"))
+    _fixed_new_dispatch(monkeypatch)
     monkeypatch.setattr(lookup_mod, "_LOOKUP_MAX_ATTEMPTS", 2)
     monkeypatch.setattr(lookup_mod, "_LOOKUP_DELAY_SECONDS", 0.0)
     monkeypatch.setattr(lookup_mod, "sleep", _no_sleep)
@@ -251,3 +270,45 @@ def test_dispatch_publish_workflow_fails_without_request_id_match(
     assert "deterministically identify" in result.error.message
     assert result.error.hint is not None
     assert "dispatch-ms-123456781234" in result.error.hint
+
+
+def test_dispatch_publish_workflow_reuses_matching_dispatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        workflow_mod,
+        "_dispatch_request_id",
+        lambda **_: "ms-stable-request",
+    )
+    monkeypatch.setattr(workflow_mod, "get_ref_head_sha", lambda **_: Ok("a" * 40))
+    monkeypatch.setattr(
+        workflow_mod,
+        "find_dispatched_run",
+        lambda **_: Ok(
+            WorkflowRunResolution(
+                run_id=501,
+                url="https://github.com/owner/repo/actions/runs/501",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        workflow_mod,
+        "run_gh_process",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("matching dispatch must not be duplicated")
+        ),
+    )
+
+    result = workflow_mod.dispatch_publish_workflow(
+        workspace_root=tmp_path,
+        channel="stable",
+        tag="v1.2.3",
+        spec_path="releases/stable/spec-v1.2.3.json",
+        tooling_sha="f" * 40,
+        console=MockConsole(),
+        dry_run=False,
+    )
+
+    assert isinstance(result, Ok)
+    assert result.value.id == 501
+    assert result.value.request_id == "ms-stable-request"

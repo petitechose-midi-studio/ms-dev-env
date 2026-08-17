@@ -42,7 +42,6 @@ def fetch_candidate_assets(
             return downloaded
 
         verified = verify_candidate_bundle(
-            workspace_root=workspace_root,
             request=CandidateVerifyRequest(
                 artifacts_dir=artifacts_dir,
                 manifest_path=artifacts_dir / "candidate.json",

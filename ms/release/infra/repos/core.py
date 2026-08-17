@@ -30,10 +30,7 @@ class CoreRepoPaths:
 def ensure_core_repo(
     *,
     workspace_root: Path,
-    console: ConsoleProtocol,
-    dry_run: bool,
 ) -> Result[CoreRepoPaths, ReleaseError]:
-    del console, dry_run
     repo_root = workspace_root / CORE_LOCAL_DIR
     if repo_root.is_dir() and (repo_root / ".git").exists():
         return Ok(CoreRepoPaths(root=repo_root))
