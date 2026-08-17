@@ -11,7 +11,7 @@ from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
 from ms.services.hardware import HardwareService
-from ms.services.hardware.service import _parse_profiles
+from ms.services.hardware.service import parse_profiles
 
 
 def _platform() -> PlatformInfo:
@@ -97,4 +97,4 @@ def test_profile_discovery_only_exposes_explicit_environment_owner() -> None:
       ]]
     ]"""
 
-    assert [profile.id for profile in _parse_profiles(raw)] == ["dev", "dev_diagnostics"]
+    assert [profile.id for profile in parse_profiles(raw)] == ["dev", "dev_diagnostics"]

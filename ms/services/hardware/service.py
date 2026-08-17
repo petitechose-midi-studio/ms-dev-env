@@ -74,7 +74,7 @@ class HardwareService(BaseService, OCHardwareAdapterMixin, HardwareExporterMixin
             )
 
         try:
-            return Ok(_parse_profiles(completed.value))
+            return Ok(parse_profiles(completed.value))
         except (json.JSONDecodeError, ValueError) as error:
             return Err(HardwareError("profile_discovery_failed", str(error)))
 
@@ -102,7 +102,7 @@ class HardwareService(BaseService, OCHardwareAdapterMixin, HardwareExporterMixin
         return self._run_monitor(app.path, env=env)
 
 
-def _parse_profiles(raw: str) -> list[FirmwareProfile]:
+def parse_profiles(raw: str) -> list[FirmwareProfile]:
     config: object = json.loads(raw)
     if not isinstance(config, list):
         raise ValueError("PlatformIO config output is not a section list")
