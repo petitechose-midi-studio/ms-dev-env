@@ -11,6 +11,7 @@ from __future__ import annotations
 import shutil
 from typing import TYPE_CHECKING
 
+from ms.platform.files import remove_tree
 from ms.tools.base import Mode, ToolSpec
 from ms.tools.github import GitHubTool
 
@@ -87,12 +88,12 @@ class CMakeTool(GitHubTool):
                         dest = install_dir / item.name
                         if dest.exists():
                             if dest.is_dir():
-                                shutil.rmtree(dest)
+                                remove_tree(dest)
                             else:
                                 dest.unlink()
                         shutil.move(str(item), str(dest))
                     # Remove the now-empty .app bundle
-                    shutil.rmtree(app_bundle)
+                    remove_tree(app_bundle)
 
         # Make binary executable on Unix
         if platform.is_unix:

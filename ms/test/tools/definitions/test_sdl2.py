@@ -40,12 +40,6 @@ class TestSdl2Tool:
 
         assert tool.strip_components() == 1
 
-    def test_is_windows_only(self) -> None:
-        """SDL2 auto-install is Windows-only."""
-        tool = Sdl2Tool()
-
-        assert tool.is_windows_only() is True
-
 
 class TestSdl2ToolLatestVersion:
     """Tests for Sdl2Tool.latest_version()."""
@@ -123,14 +117,6 @@ class TestSdl2ToolBinPath:
 class TestSdl2ToolPaths:
     """Tests for Sdl2Tool include and lib paths."""
 
-    def test_include_path(self) -> None:
-        """include_path returns SDL2 headers location."""
-        tool = Sdl2Tool()
-
-        path = tool.include_path(Path("/tools"))
-
-        assert path == Path("/tools/sdl2/include")
-
     def test_lib_path(self) -> None:
         """lib_path returns SDL2 library location (MinGW)."""
         tool = Sdl2Tool()
@@ -176,31 +162,3 @@ class TestSdl2ToolIsInstalled:
 
         with patch("shutil.which", return_value="/usr/local/bin/sdl2-config"):
             assert tool.is_installed(Path("/tools"), Platform.MACOS) is True
-
-
-class TestSdl2ToolInstallHints:
-    """Tests for Sdl2Tool install hints."""
-
-    def test_linux_hint(self) -> None:
-        """Get Linux install hint."""
-        tool = Sdl2Tool()
-
-        hint = tool.get_install_hint(Platform.LINUX)
-
-        assert hint == "sudo apt install libsdl2-dev"
-
-    def test_macos_hint(self) -> None:
-        """Get macOS install hint."""
-        tool = Sdl2Tool()
-
-        hint = tool.get_install_hint(Platform.MACOS)
-
-        assert hint == "brew install sdl2"
-
-    def test_windows_no_hint(self) -> None:
-        """Windows has no hint (auto-installed)."""
-        tool = Sdl2Tool()
-
-        hint = tool.get_install_hint(Platform.WINDOWS)
-
-        assert hint is None

@@ -6,16 +6,19 @@ import time
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 
 from ms.core.result import Ok
 from ms.oc_cli.common import (
-    OCPlatform,
+    build_and_upload,
     build_pio_env,
     detect_env,
+    execution,
     find_project_root,
     list_serial_ports,
     resolve_pio_runtime,
 )
+from ms.oc_cli.common.runtime import OCCommandContext
 
 
 def _platformio_python_path(workspace_root: Path) -> Path:
@@ -80,7 +83,7 @@ def test_build_pio_env_isolates_platformio_state(
     ]:
         monkeypatch.delenv(k, raising=False)
 
-    env = build_pio_env(project, OCPlatform())
+    env = build_pio_env(project)
     assert env["PLATFORMIO_CORE_DIR"].endswith(str(Path(".ms") / "platformio"))
     assert env["PLATFORMIO_CACHE_DIR"].endswith(str(Path(".ms") / "platformio-cache"))
     assert env["PLATFORMIO_BUILD_CACHE_DIR"].endswith(str(Path(".ms") / "platformio-build-cache"))
@@ -112,6 +115,52 @@ def test_list_serial_ports_parses_json_and_filters(monkeypatch: pytest.MonkeyPat
     def fake_run(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args=[], returncode=0, stdout=json_out, stderr="")
 
-    monkeypatch.setattr("ms.oc_cli.common.subprocess.run", fake_run)
+    monkeypatch.setattr("ms.oc_cli.common.serial.subprocess.run", fake_run)
     ports = list_serial_ports(["python", "-m", "platformio"], env={})
     assert ports == ["COM3"]
+
+
+def test_command_context_builds_platformio_run_command(tmp_path: Path) -> None:
+    context = OCCommandContext(
+        console=Console(),
+        project_root=tmp_path,
+        pio=("python", "-m", "platformio"),
+        pio_env={},
+        env_name="dev",
+    )
+
+    assert context.run_command("-t", "upload") == [
+        "python",
+        "-m",
+        "platformio",
+        "run",
+        "-e",
+        "dev",
+        "-d",
+        str(tmp_path),
+        "-t",
+        "upload",
+    ]
+
+
+def test_build_and_upload_stops_when_build_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = OCCommandContext(
+        console=Console(),
+        project_root=tmp_path,
+        pio=("pio",),
+        pio_env={},
+        env_name="dev",
+    )
+    calls: list[str] = []
+
+    def fake_run(label: str, *args: object, **kwargs: object) -> tuple[int, str, int]:
+        del args, kwargs
+        calls.append(label)
+        return 1, "build failed", 1
+
+    monkeypatch.setattr(execution, "run_with_spinner", fake_run)
+
+    assert build_and_upload(context, compilation_database=True) == (1, "build failed")
+    assert calls == ["Building"]

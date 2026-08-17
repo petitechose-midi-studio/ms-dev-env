@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
+import typer
 from rich.console import Console
 
 from ms.core.platformio_runtime import (
@@ -12,7 +14,25 @@ from ms.core.platformio_runtime import (
 )
 from ms.core.result import Err, Result
 
-from .models import OCPlatform
+
+@dataclass(frozen=True, slots=True)
+class OCCommandContext:
+    console: Console
+    project_root: Path
+    pio: tuple[str, ...]
+    pio_env: dict[str, str]
+    env_name: str
+
+    def run_command(self, *args: str) -> list[str]:
+        return [
+            *self.pio,
+            "run",
+            "-e",
+            self.env_name,
+            "-d",
+            str(self.project_root),
+            *args,
+        ]
 
 
 def get_console() -> Console:
@@ -35,8 +55,7 @@ def _find_workspace_root(start: Path) -> Path | None:
     return None
 
 
-def build_pio_env(start: Path, platform: OCPlatform) -> dict[str, str]:
-    del platform
+def build_pio_env(start: Path) -> dict[str, str]:
     runtime = resolve_pio_runtime(start)
     if isinstance(runtime, Err):
         env = dict(os.environ)
@@ -54,6 +73,35 @@ def build_pio_env(start: Path, platform: OCPlatform) -> dict[str, str]:
 
 def resolve_pio_runtime(start: Path) -> Result[PlatformioRuntime, PlatformioRuntimeError]:
     return resolve_platformio_runtime(start)
+
+
+def prepare_command_context(explicit_env: str | None) -> OCCommandContext:
+    console = get_console()
+    try:
+        project_root = find_project_root()
+    except FileNotFoundError as error:
+        console.print(f"error: {error}", style="red bold")
+        raise typer.Exit(code=1) from error
+
+    runtime = resolve_pio_runtime(project_root)
+    if isinstance(runtime, Err):
+        console.print(f"error: {runtime.error.message}", style="red bold")
+        if runtime.error.hint:
+            console.print(f"hint: {runtime.error.hint}", style="dim")
+        raise typer.Exit(code=1)
+
+    env_name = detect_env(project_root, explicit_env)
+    console.clear()
+    console.print(project_root.name, style="bold")
+    console.print(env_name, style="dim")
+    console.print()
+    return OCCommandContext(
+        console=console,
+        project_root=project_root,
+        pio=tuple(runtime.value.command()),
+        pio_env=runtime.value.env,
+        env_name=env_name,
+    )
 
 
 def detect_env(project_root: Path, explicit: str | None) -> str:

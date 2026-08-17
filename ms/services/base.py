@@ -39,5 +39,4 @@ class BaseService:
         self._registry = ToolRegistry(
             tools_dir=tools_dir,
             platform=platform.platform,
-            arch=platform.arch,
         )

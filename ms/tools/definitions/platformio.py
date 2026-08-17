@@ -66,7 +66,3 @@ class PlatformioTool(Tool):
     def is_installed(self, tools_dir: Path, platform: Platform) -> bool:
         pio = self.bin_path(tools_dir, platform)
         return pio is not None and pio.exists()
-
-    def post_install(self, install_dir: Path, platform: Platform) -> None:
-        """No post-install needed - script handles everything."""
-        pass

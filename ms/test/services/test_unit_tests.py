@@ -5,11 +5,11 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
+import ms.services.unit_tests as unit_tests
 from ms.core.result import Err, Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import detect
-from ms.services import unit_tests
 from ms.services.unit_tests import UnitTestDependencyError, UnitTestService
 
 
@@ -94,11 +94,7 @@ def test_ms_manager_targets_cover_svelte_node_and_tauri(tmp_path: Path) -> None:
         console=MockConsole(),
     )
 
-    entries = {
-        name: kind
-        for name, kind, _detail in service.list_entries()
-        if kind != "group"
-    }
+    entries = {name: kind for name, kind, _detail in service.list_entries() if kind != "group"}
 
     assert entries["ms-manager-svelte"] == "npm"
     assert entries["ms-manager-node"] == "npm"

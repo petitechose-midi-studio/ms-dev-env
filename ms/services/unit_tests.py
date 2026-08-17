@@ -12,12 +12,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from ms.core.errors import ErrorCode
+from ms.core.hashing import is_sha256, sha256_file
 from ms.core.result import Err, Ok, Result
 from ms.output.console import Style
+from ms.platform.files import atomic_write_text
 from ms.platform.process import run
 from ms.services.base import BaseService
 from ms.services.build_errors import ToolMissing
-from ms.services.toolchains.checksum import sha256_file
 from ms.tools.download import Downloader
 from ms.tools.http import RealHttpClient
 from ms.tools.installer import Installer
@@ -126,7 +127,7 @@ class UnitTestService(BaseService):
     """Run workspace tests through one guided CLI path."""
 
     def target_groups(self) -> dict[str, tuple[str, ...]]:
-        return _target_groups(self._target_map())
+        return _target_groups()
 
     def available_targets(self) -> tuple[str, ...]:
         return tuple(self._target_map())
@@ -177,8 +178,7 @@ class UnitTestService(BaseService):
                     UnitTestSelectionInvalid(
                         target=target,
                         message=(
-                            "test names may contain only letters, digits, '.', "
-                            "'_', '+', and '-'"
+                            "test names may contain only letters, digits, '.', '_', '+', and '-'"
                         ),
                     )
                 )
@@ -966,6 +966,7 @@ class UnitTestService(BaseService):
 
         actual = sha256_file(downloaded.value.path)
         if actual != pin.value.sha256:
+            downloader.clear_cache(pin.value.url)
             return Err(
                 UnitTestDependencyError(
                     dependency=name,
@@ -1000,7 +1001,7 @@ class UnitTestService(BaseService):
                 )
             )
 
-        marker.write_text(f"{pin.value.sha256}\n", encoding="utf-8")
+        atomic_write_text(marker, f"{pin.value.sha256}\n", encoding="utf-8")
         self._console.print(f"{name}: test dependency ready", Style.DIM)
         return Ok(install_dir)
 
@@ -1019,17 +1020,15 @@ class UnitTestService(BaseService):
             'set(OC_NOTE_BUILD_TESTS ON CACHE BOOL "Build OpenControl note tests" FORCE)',
             'set(MS_CORE_BUILD_TESTS ON CACHE BOOL "Build MIDI Studio core tests" FORCE)',
             (
-                'set(MS_PLUGIN_BITWIG_BUILD_TESTS ON CACHE BOOL '
+                "set(MS_PLUGIN_BITWIG_BUILD_TESTS ON CACHE BOOL "
                 '"Build MIDI Studio Bitwig plugin tests" FORCE)'
             ),
             "",
         ]
         for target in targets:
-            lines.append(
-                f'add_subdirectory("{_cmake_path(target.source_dir)}" "{target.name}")'
-            )
+            lines.append(f'add_subdirectory("{_cmake_path(target.source_dir)}" "{target.name}")')
         lines.append("")
-        (source_dir / "CMakeLists.txt").write_text("\n".join(lines), encoding="utf-8")
+        atomic_write_text(source_dir / "CMakeLists.txt", "\n".join(lines), encoding="utf-8")
 
 
 def _with_cmake_timings(
@@ -1133,8 +1132,7 @@ def _topological_targets(targets: dict[str, UnitTestTarget]) -> tuple[UnitTestTa
     return tuple(ordered)
 
 
-def _target_groups(targets: dict[str, UnitTestTarget]) -> dict[str, tuple[str, ...]]:
-    del targets
+def _target_groups() -> dict[str, tuple[str, ...]]:
     firmware = (
         "open-control-framework",
         "open-control-hal-midi",
@@ -1174,7 +1172,8 @@ def remove_env_path_entry(value: str, blocked: Path) -> str:
         return value
     blocked_norm = str(blocked.resolve()).casefold()
     kept = [
-        entry for entry in value.split(os.pathsep)
+        entry
+        for entry in value.split(os.pathsep)
         if str(Path(entry).resolve()).casefold() != blocked_norm
     ]
     return os.pathsep.join(kept)
@@ -1218,7 +1217,7 @@ def load_test_dependency_pin(name: str) -> Result[_TestDependencyPin, UnitTestEr
         or not isinstance(url, str)
         or not isinstance(digest, str)
         or not isinstance(strip_components, int)
-        or len(digest) != 64
+        or not is_sha256(digest.lower())
     ):
         return Err(
             UnitTestDependencyError(

@@ -18,10 +18,6 @@ class ParallelJobSelection:
     source: str
 
 
-def logical_cpu_count() -> int:
-    return max(1, os.cpu_count() or 1)
-
-
 def physical_cpu_count() -> int | None:
     if os.name != "nt":
         return None

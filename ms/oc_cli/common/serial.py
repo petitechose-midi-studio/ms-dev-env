@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
@@ -9,12 +10,10 @@ from collections.abc import Sequence
 
 from ms.core.structured import as_obj_list, as_str_dict, get_str
 
-from .models import OCPlatform
 
-
-def kill_monitors(platform: OCPlatform) -> None:
+def kill_monitors() -> None:
     """Best-effort: kill existing `pio device monitor` processes."""
-    if platform.is_windows:
+    if os.name == "nt":
         cmd = [
             "powershell",
             "-NoProfile",

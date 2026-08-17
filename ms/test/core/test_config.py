@@ -15,7 +15,6 @@ from ms.core.config import (
     PathsConfig,
     PortsConfig,
     load_config,
-    load_config_or_default,
 )
 from ms.core.result import Err, Ok
 
@@ -218,26 +217,6 @@ hardware = 7777  # inline comment
         result = load_config(config_file)
         assert isinstance(result, Ok)
         assert result.value.ports.hardware == 7777
-
-
-class TestLoadConfigOrDefault:
-    """Test load_config_or_default convenience function."""
-
-    def test_returns_config_when_file_exists(self, tmp_path: Path) -> None:
-        config_file = tmp_path / "config.toml"
-        config_file.write_text("[ports]\nhardware = 4444\n")
-        config = load_config_or_default(config_file)
-        assert config.ports.hardware == 4444
-
-    def test_returns_default_when_missing(self, tmp_path: Path) -> None:
-        config = load_config_or_default(tmp_path / "missing.toml")
-        assert config.ports.hardware == 9000  # default
-
-    def test_returns_default_on_invalid(self, tmp_path: Path) -> None:
-        config_file = tmp_path / "config.toml"
-        config_file.write_text("invalid[[[")
-        config = load_config_or_default(config_file)
-        assert config.ports.hardware == 9000  # default
 
 
 class TestConfigError:

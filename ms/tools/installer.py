@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import remove_tree
 
 __all__ = ["Installer", "InstallResult", "InstallError"]
 
@@ -62,7 +63,7 @@ class Installer:
     Usage:
         installer = Installer()
         result = installer.install(archive_path, install_dir, strip_components=1)
-        if is_ok(result):
+        if isinstance(result, Ok):
             print(f"Installed {result.value.files_count} files")
     """
 
@@ -153,7 +154,7 @@ class Installer:
         try:
             # Clean up existing installation
             if install_dir.exists():
-                shutil.rmtree(install_dir)
+                remove_tree(install_dir)
             install_dir.mkdir(parents=True, exist_ok=True)
             install_root = install_dir.resolve()
 
@@ -215,7 +216,7 @@ class Installer:
         try:
             # Clean up existing installation
             if install_dir.exists():
-                shutil.rmtree(install_dir)
+                remove_tree(install_dir)
             install_dir.mkdir(parents=True, exist_ok=True)
             install_root = install_dir.resolve()
 
@@ -260,17 +261,3 @@ class Installer:
             return Err(InstallError(archive=archive, message=f"Invalid zip file: {e}"))
         except OSError as e:
             return Err(InstallError(archive=archive, message=f"IO error: {e}"))
-
-    def cleanup(self, install_dir: Path) -> bool:
-        """Remove installation directory.
-
-        Args:
-            install_dir: Directory to remove
-
-        Returns:
-            True if removed, False if didn't exist
-        """
-        if install_dir.exists():
-            shutil.rmtree(install_dir)
-            return True
-        return False

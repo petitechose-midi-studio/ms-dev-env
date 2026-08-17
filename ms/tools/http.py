@@ -11,10 +11,12 @@ from __future__ import annotations
 import json
 import os
 import ssl
+import tempfile
 import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol, TypeVar, runtime_checkable
@@ -239,7 +241,9 @@ class RealHttpClient:
         dest: Path,
         progress: Callable[[int, int], None] | None = None,
     ) -> Result[Path, HttpError]:
+        temp_path: Path | None = None
         try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
             req = urllib.request.Request(
                 url,
                 headers=self._build_headers(url),
@@ -253,10 +257,14 @@ class RealHttpClient:
                 downloaded = 0
                 chunk_size = 8192
 
-                # Ensure parent directory exists
-                dest.parent.mkdir(parents=True, exist_ok=True)
-
-                with open(dest, "wb") as f:
+                with tempfile.NamedTemporaryFile(
+                    mode="wb",
+                    prefix=f".{dest.name}.",
+                    suffix=".part",
+                    dir=dest.parent,
+                    delete=False,
+                ) as f:
+                    temp_path = Path(f.name)
                     while True:
                         chunk = response.read(chunk_size)
                         if not chunk:
@@ -266,6 +274,17 @@ class RealHttpClient:
                         if progress:
                             progress(downloaded, total)
 
+                if total and downloaded != total:
+                    return Err(
+                        HttpError(
+                            url=url,
+                            status=0,
+                            message=(
+                                f"Incomplete download: expected {total} bytes, got {downloaded}"
+                            ),
+                        )
+                    )
+                os.replace(temp_path, dest)
                 return Ok(dest)
 
         except urllib.error.HTTPError as e:
@@ -278,6 +297,10 @@ class RealHttpClient:
             return Err(HttpError(url=url, status=0, message=str(e)))
         except OSError as e:
             return Err(HttpError(url=url, status=0, message=str(e)))
+        finally:
+            if temp_path is not None:
+                with suppress(OSError):
+                    temp_path.unlink(missing_ok=True)
 
     def download(
         self,

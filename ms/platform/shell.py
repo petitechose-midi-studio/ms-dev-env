@@ -19,6 +19,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ms.platform.files import atomic_write_text
+
 if TYPE_CHECKING:
     from ms.platform.detection import Platform
 
@@ -260,7 +262,7 @@ def generate_activation_scripts(
     # Always generate bash script (useful on Windows via Git Bash)
     bash_path = tools_dir / "activate.sh"
     bash_content = generate_bash_activate(tools_dir, env_vars, path_additions)
-    bash_path.write_text(bash_content, encoding="utf-8", newline="\n")
+    atomic_write_text(bash_path, bash_content, encoding="utf-8")
     result["bash"] = bash_path
 
     # Make bash script executable on Unix
@@ -272,13 +274,13 @@ def generate_activation_scripts(
         # PowerShell
         ps_path = tools_dir / "activate.ps1"
         ps_content = generate_powershell_activate(tools_dir, env_vars, path_additions)
-        ps_path.write_bytes(ps_content.encode("utf-8"))
+        atomic_write_text(ps_path, ps_content, encoding="utf-8")
         result["powershell"] = ps_path
 
         # Cmd
         cmd_path = tools_dir / "activate.bat"
         cmd_content = generate_cmd_activate(tools_dir, env_vars, path_additions)
-        cmd_path.write_bytes(cmd_content.encode("utf-8"))
+        atomic_write_text(cmd_path, cmd_content, encoding="utf-8")
         result["cmd"] = cmd_path
 
     return result

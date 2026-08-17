@@ -5,10 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from ms.core.result import Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
-from ms.services.toolchains import ToolchainService, sha256_file
+from ms.services.toolchains import ToolchainService
 from ms.tools.pins import ToolPins
 
 
@@ -19,14 +20,6 @@ def _service(tmp_path: Path, console: MockConsole) -> ToolchainService:
         config=None,
         console=console,
     )
-
-
-def test_sha256_file_matches_hashlib(tmp_path: Path) -> None:
-    file_path = tmp_path / "archive.tar.gz"
-    file_path.write_bytes(b"checksum-test-bytes")
-
-    expected = hashlib.sha256(b"checksum-test-bytes").hexdigest()
-    assert sha256_file(file_path) == expected
 
 
 def test_verify_download_checksum_accepts_exact_match(tmp_path: Path) -> None:
@@ -102,3 +95,11 @@ version = "6.1.18"
 
     with pytest.raises(ValueError, match="Invalid checksum"):
         ToolPins.load(pins_file)
+
+
+def test_sync_dev_dry_run_does_not_create_workspace_directories(tmp_path: Path) -> None:
+    result = _service(tmp_path, MockConsole()).sync_dev(dry_run=True)
+
+    assert isinstance(result, Ok)
+    assert not (tmp_path / "tools").exists()
+    assert not (tmp_path / "bin").exists()

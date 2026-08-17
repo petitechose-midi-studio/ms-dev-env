@@ -7,16 +7,14 @@ from pathlib import Path
 
 import typer
 
-from ms.cli.commands._helpers import exit_on_error
+from ms.cli.commands._helpers import exit_on_error, hardware_service_for_app
 from ms.cli.context import build_context
-from ms.core.app import resolve
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
 from ms.output.console import Style
 from ms.output.errors import build_error_exit_code, print_build_error
 from ms.services.bitwig import BitwigService
 from ms.services.build import BuildService
-from ms.services.hardware import HardwareService
 
 
 class Target(StrEnum):
@@ -103,19 +101,5 @@ def build(
         raise typer.Exit(code=int(ErrorCode.BUILD_ERROR))
 
     # teensy
-    match resolve(app, ctx.workspace.root):
-        case Err(e):
-            ctx.console.error(e.message)
-            if e.available:
-                ctx.console.print(f"Available: {', '.join(e.available)}", Style.DIM)
-            raise typer.Exit(code=int(ErrorCode.USER_ERROR))
-        case Ok(app_obj):
-            pass
-
-    hw = HardwareService(
-        workspace=ctx.workspace,
-        platform=ctx.platform,
-        config=ctx.config,
-        console=ctx.console,
-    )
+    app_obj, hw = hardware_service_for_app(ctx, app)
     exit_on_error(hw.build(app_obj, env=env, stream=stream, dry_run=dry_run), ctx)

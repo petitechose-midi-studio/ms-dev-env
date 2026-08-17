@@ -3,7 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from ms.core.result import Err, Ok
+from ms.core.hashing import sha256_file
+from ms.core.result import Err
 from ms.output.console import Style
 from ms.platform.process import run as run_process
 from ms.platform.process import run_silent
@@ -22,7 +23,6 @@ from ms.tools.wrapper import (
 )
 
 from ._context import ToolchainContextBase
-from .checksum import sha256_file
 from .models import git_install_commands
 
 _LOCAL_TOOL_TIMEOUT_SECONDS = 2 * 60.0
@@ -75,15 +75,12 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             if not cmd:
                 continue
             result = self._run_tool_cmd(cmd, cwd=self._paths.tools_dir, network=True)
-            match result:
-                case Err(error):
-                    self._console.print(f"install failed: {' '.join(cmd)}", Style.ERROR)
-                    stderr = error.stderr.strip()
-                    if stderr:
-                        self._console.print(stderr, Style.DIM)
-                    return False
-                case Ok(_):
-                    pass
+            if isinstance(result, Err):
+                self._console.print(f"install failed: {' '.join(cmd)}", Style.ERROR)
+                stderr = result.error.stderr.strip()
+                if stderr:
+                    self._console.print(stderr, Style.DIM)
+                return False
 
         return True
 
@@ -140,15 +137,12 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             cwd=venv_dir,
             network=True,
         )
-        match result:
-            case Err(error):
-                self._console.print("platformio: pip install failed", Style.ERROR)
-                stderr = error.stderr.strip()
-                if stderr:
-                    self._console.print(stderr, Style.DIM)
-                return False
-            case Ok(_):
-                pass
+        if isinstance(result, Err):
+            self._console.print("platformio: pip install failed", Style.ERROR)
+            stderr = result.error.stderr.strip()
+            if stderr:
+                self._console.print(stderr, Style.DIM)
+            return False
 
         set_installed_version(self._paths.tools_dir, "platformio", version)
         return True
@@ -198,6 +192,7 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             archive_path=dres.value.path,
             pins=pins,
         ):
+            downloader.clear_cache(url)
             return False
 
         install_dir = self._paths.tools_dir / tool.install_dir_name()

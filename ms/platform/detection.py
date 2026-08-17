@@ -66,11 +66,6 @@ class Platform(Enum):
         """Get executable file suffix for this platform."""
         return ".exe" if self == Platform.WINDOWS else ""
 
-    @property
-    def script_suffix(self) -> str:
-        """Get shell script suffix for this platform."""
-        return ".cmd" if self == Platform.WINDOWS else ".sh"
-
     def exe_name(self, name: str) -> str:
         """Get executable name with platform-appropriate suffix.
 
@@ -102,17 +97,6 @@ class LinuxDistro(Enum):
     def __str__(self) -> str:
         return self.name.lower()
 
-    @property
-    def package_manager(self) -> str:
-        """Get the package manager command for this distro."""
-        return {
-            LinuxDistro.DEBIAN: "apt",
-            LinuxDistro.FEDORA: "dnf",
-            LinuxDistro.ARCH: "pacman",
-            LinuxDistro.SUSE: "zypper",
-            LinuxDistro.UNKNOWN: "unknown",
-        }[self]
-
 
 @dataclass(frozen=True, slots=True)
 class PlatformInfo:
@@ -141,14 +125,6 @@ class PlatformInfo:
     @property
     def is_unix(self) -> bool:
         return self.platform.is_unix
-
-    @property
-    def is_x64(self) -> bool:
-        return self.arch == Arch.X64
-
-    @property
-    def is_arm64(self) -> bool:
-        return self.arch == Arch.ARM64
 
     def __str__(self) -> str:
         if self.platform == Platform.LINUX and self.distro != LinuxDistro.UNKNOWN:

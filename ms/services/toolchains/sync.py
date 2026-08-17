@@ -46,8 +46,9 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
         pins_path = Path(__file__).resolve().parents[2] / "data" / "toolchains.toml"
         pins = ToolPins.load(pins_path)
 
-        self._paths.tools_dir.mkdir(parents=True, exist_ok=True)
-        self._paths.bin_dir.mkdir(parents=True, exist_ok=True)
+        if not dry_run:
+            self._paths.tools_dir.mkdir(parents=True, exist_ok=True)
+            self._paths.bin_dir.mkdir(parents=True, exist_ok=True)
 
         has_errors = False
 
@@ -142,6 +143,7 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
                 archive_path=dres.value.path,
                 pins=pins,
             ):
+                downloader.clear_cache(url)
                 has_errors = True
                 continue
 

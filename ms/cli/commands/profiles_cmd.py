@@ -8,7 +8,7 @@ from ms.cli.context import build_context
 from ms.core.app import resolve
 from ms.core.errors import ErrorCode
 from ms.core.result import Err
-from ms.git import Repository
+from ms.git.repository import Repository
 from ms.services.hardware import HardwareService
 
 

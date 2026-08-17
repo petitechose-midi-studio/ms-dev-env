@@ -40,26 +40,6 @@ class TestErrorCodeUsage:
         assert ErrorCode.OK == 0
         assert ErrorCode.USER_ERROR != 0
 
-    def test_is_success_on_ok(self) -> None:
-        assert ErrorCode.OK.is_success is True
-
-    def test_is_success_on_errors(self) -> None:
-        assert ErrorCode.USER_ERROR.is_success is False
-        assert ErrorCode.ENV_ERROR.is_success is False
-        assert ErrorCode.BUILD_ERROR.is_success is False
-        assert ErrorCode.NETWORK_ERROR.is_success is False
-        assert ErrorCode.IO_ERROR.is_success is False
-
-    def test_is_error_on_ok(self) -> None:
-        assert ErrorCode.OK.is_error is False
-
-    def test_is_error_on_errors(self) -> None:
-        assert ErrorCode.USER_ERROR.is_error is True
-        assert ErrorCode.ENV_ERROR.is_error is True
-        assert ErrorCode.BUILD_ERROR.is_error is True
-        assert ErrorCode.NETWORK_ERROR.is_error is True
-        assert ErrorCode.IO_ERROR.is_error is True
-
 
 class TestErrorCodeStr:
     """Test string representation of error codes."""

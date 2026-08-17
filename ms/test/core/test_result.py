@@ -2,34 +2,7 @@
 
 import pytest
 
-from ms.core.result import Err, Ok, Result, is_err, is_ok
-
-
-# Helper functions for tests (avoids lambda type inference issues)
-def double(x: int) -> int:
-    return x * 2
-
-
-def double_ok(x: int) -> Result[int, str]:
-    return Ok(x * 2)
-
-
-def safe_div(a: int, b: int) -> Result[int, str]:
-    if b == 0:
-        return Err("division by zero")
-    return Ok(a // b)
-
-
-def div_by_2(x: int) -> Result[int, str]:
-    return safe_div(x, 2)
-
-
-def div_by_5(x: int) -> Result[int, str]:
-    return safe_div(x, 5)
-
-
-def div_by_0(x: int) -> Result[int, str]:
-    return safe_div(x, 0)
+from ms.core.result import Err, Ok, Result
 
 
 class TestOk:
@@ -40,55 +13,16 @@ class TestOk:
         result = Ok(42)
         assert result.value == 42
 
-    def test_ok_is_ok(self) -> None:
-        """Ok.is_ok() returns True."""
-        result = Ok(42)
-        assert result.is_ok() is True
-
-    def test_ok_is_not_err(self) -> None:
-        """Ok.is_err() returns False."""
-        result = Ok(42)
-        assert result.is_err() is False
-
     def test_ok_unwrap(self) -> None:
         """Ok.unwrap() returns the value."""
         result = Ok(42)
         assert result.unwrap() == 42
-
-    def test_ok_unwrap_or(self) -> None:
-        """Ok.unwrap_or() returns the value, ignoring default."""
-        result = Ok(42)
-        assert result.unwrap_or(0) == 42
 
     def test_ok_unwrap_err_raises(self) -> None:
         """Ok.unwrap_err() raises ValueError."""
         result = Ok(42)
         with pytest.raises(ValueError, match="called unwrap_err on Ok"):
             result.unwrap_err()
-
-    def test_ok_map(self) -> None:
-        """Ok.map() transforms the value."""
-        result = Ok(21)
-        mapped = result.map(lambda x: x * 2)
-        assert mapped == Ok(42)
-
-    def test_ok_map_err(self) -> None:
-        """Ok.map_err() returns self unchanged."""
-        result = Ok(42)
-        mapped = result.map_err(lambda e: f"error: {e}")
-        assert mapped == Ok(42)
-
-    def test_ok_flat_map_to_ok(self) -> None:
-        """Ok.flat_map() with function returning Ok."""
-        result = Ok(21)
-        flat = result.flat_map(double_ok)
-        assert flat == Ok(42)
-
-    def test_ok_flat_map_to_err(self) -> None:
-        """Ok.flat_map() with function returning Err."""
-        result: Result[int, str] = Ok(0)
-        flat = result.flat_map(lambda x: Err("zero") if x == 0 else Ok(100 // x))
-        assert flat == Err("zero")
 
     def test_ok_repr(self) -> None:
         """Ok has readable repr."""
@@ -116,49 +50,16 @@ class TestErr:
         result = Err("something went wrong")
         assert result.error == "something went wrong"
 
-    def test_err_is_not_ok(self) -> None:
-        """Err.is_ok() returns False."""
-        result = Err("error")
-        assert result.is_ok() is False
-
-    def test_err_is_err(self) -> None:
-        """Err.is_err() returns True."""
-        result = Err("error")
-        assert result.is_err() is True
-
     def test_err_unwrap_raises(self) -> None:
         """Err.unwrap() raises ValueError."""
         result = Err("something went wrong")
         with pytest.raises(ValueError, match="called unwrap on Err"):
             result.unwrap()
 
-    def test_err_unwrap_or(self) -> None:
-        """Err.unwrap_or() returns the default."""
-        result: Result[int, str] = Err("error")
-        assert result.unwrap_or(42) == 42
-
     def test_err_unwrap_err(self) -> None:
         """Err.unwrap_err() returns the error."""
         result = Err("something went wrong")
         assert result.unwrap_err() == "something went wrong"
-
-    def test_err_map(self) -> None:
-        """Err.map() returns self unchanged."""
-        result: Err[str] = Err("error")
-        mapped = result.map(double)
-        assert mapped == Err("error")
-
-    def test_err_map_err(self) -> None:
-        """Err.map_err() transforms the error."""
-        result = Err("oops")
-        mapped = result.map_err(lambda e: f"error: {e}")
-        assert mapped == Err("error: oops")
-
-    def test_err_flat_map(self) -> None:
-        """Err.flat_map() returns self unchanged."""
-        result: Err[str] = Err("error")
-        flat = result.flat_map(double_ok)
-        assert flat == Err("error")
 
     def test_err_repr(self) -> None:
         """Err has readable repr."""
@@ -176,30 +77,6 @@ class TestErr:
         assert Err("a") == Err("a")
         assert Err("a") != Err("b")
         assert Err(42) != Ok(42)
-
-
-class TestTypeGuards:
-    """Tests for is_ok() and is_err() type guards."""
-
-    def test_is_ok_on_ok(self) -> None:
-        """is_ok() returns True for Ok."""
-        result: Result[int, str] = Ok(42)
-        assert is_ok(result) is True
-
-    def test_is_ok_on_err(self) -> None:
-        """is_ok() returns False for Err."""
-        result: Result[int, str] = Err("error")
-        assert is_ok(result) is False
-
-    def test_is_err_on_err(self) -> None:
-        """is_err() returns True for Err."""
-        result: Result[int, str] = Err("error")
-        assert is_err(result) is True
-
-    def test_is_err_on_ok(self) -> None:
-        """is_err() returns False for Ok."""
-        result: Result[int, str] = Ok(42)
-        assert is_err(result) is False
 
 
 def _make_ok_result() -> Result[int, str]:
@@ -234,28 +111,6 @@ class TestPatternMatching:
                 assert error == "oops"
 
 
-class TestResultChaining:
-    """Tests for chaining multiple operations."""
-
-    def test_chain_maps(self) -> None:
-        """Multiple map operations can be chained."""
-        result = Ok(10)
-        final = result.map(lambda x: x * 2).map(lambda x: x + 1).map(str)
-        assert final == Ok("21")
-
-    def test_chain_flat_maps(self) -> None:
-        """Multiple flat_map operations can be chained."""
-        result = Ok(100)
-        final = result.flat_map(div_by_2).flat_map(div_by_5)
-        assert final == Ok(10)
-
-    def test_chain_stops_on_err(self) -> None:
-        """Chain stops propagating on first Err."""
-        result = Ok(100)
-        final = result.flat_map(div_by_0).flat_map(div_by_5)
-        assert final == Err("division by zero")
-
-
 class TestRealWorldUsage:
     """Tests demonstrating real-world usage patterns."""
 
@@ -285,7 +140,7 @@ class TestRealWorldUsage:
 
         # Test with non-existent file
         result = read_file(Path("/nonexistent/file.txt"))
-        assert is_err(result)
+        assert isinstance(result, Err)
         assert "file not found" in result.error
 
     def test_with_dataclass_error(self) -> None:
@@ -307,6 +162,6 @@ class TestRealWorldUsage:
         assert validate_age(25) == Ok(25)
 
         result = validate_age(-5)
-        assert is_err(result)
+        assert isinstance(result, Err)
         assert result.error.field == "age"
         assert result.error.message == "must be non-negative"

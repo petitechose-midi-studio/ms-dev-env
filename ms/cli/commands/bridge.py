@@ -40,14 +40,11 @@ def bridge(
 
     result = service.build() if build else service.install_prebuilt()
 
-    match result:
-        case Err(e):
-            c.console.error(e.message)
-            if e.hint:
-                c.console.print(f"hint: {e.hint}", Style.DIM)
-            raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
-        case Ok(_):
-            pass
+    if isinstance(result, Err):
+        c.console.error(result.error.message)
+        if result.error.hint:
+            c.console.print(f"hint: {result.error.hint}", Style.DIM)
+        raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
 
     code = service.run(args=[])
     raise typer.Exit(code=code)

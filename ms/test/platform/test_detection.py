@@ -57,15 +57,6 @@ class TestPlatformEnum:
     def test_exe_suffix_macos(self) -> None:
         assert Platform.MACOS.exe_suffix == ""
 
-    def test_script_suffix_windows(self) -> None:
-        assert Platform.WINDOWS.script_suffix == ".cmd"
-
-    def test_script_suffix_linux(self) -> None:
-        assert Platform.LINUX.script_suffix == ".sh"
-
-    def test_script_suffix_macos(self) -> None:
-        assert Platform.MACOS.script_suffix == ".sh"
-
 
 class TestArchEnum:
     """Test Arch enum properties."""
@@ -94,21 +85,6 @@ class TestLinuxDistroEnum:
 
     def test_str_suse(self) -> None:
         assert str(LinuxDistro.SUSE) == "suse"
-
-    def test_package_manager_debian(self) -> None:
-        assert LinuxDistro.DEBIAN.package_manager == "apt"
-
-    def test_package_manager_fedora(self) -> None:
-        assert LinuxDistro.FEDORA.package_manager == "dnf"
-
-    def test_package_manager_arch(self) -> None:
-        assert LinuxDistro.ARCH.package_manager == "pacman"
-
-    def test_package_manager_suse(self) -> None:
-        assert LinuxDistro.SUSE.package_manager == "zypper"
-
-    def test_package_manager_unknown(self) -> None:
-        assert LinuxDistro.UNKNOWN.package_manager == "unknown"
 
 
 class TestPlatformInfo:
@@ -146,16 +122,6 @@ class TestPlatformInfo:
         assert linux.is_unix is True
         assert macos.is_unix is True
         assert windows.is_unix is False
-
-    def test_is_x64(self) -> None:
-        info = PlatformInfo(Platform.LINUX, Arch.X64, LinuxDistro.DEBIAN)
-        assert info.is_x64 is True
-        assert info.is_arm64 is False
-
-    def test_is_arm64(self) -> None:
-        info = PlatformInfo(Platform.MACOS, Arch.ARM64, LinuxDistro.UNKNOWN)
-        assert info.is_arm64 is True
-        assert info.is_x64 is False
 
     def test_str_linux_with_distro(self) -> None:
         info = PlatformInfo(Platform.LINUX, Arch.X64, LinuxDistro.DEBIAN)

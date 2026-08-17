@@ -88,11 +88,6 @@ class Workspace:
         return self.root / "tools"
 
     @property
-    def tools_bin_dir(self) -> Path:
-        """Path to tools/bin directory (wrappers)."""
-        return self.root / "tools" / "bin"
-
-    @property
     def cache_dir(self) -> Path:
         """Path to local cache directory (downloads, temp files).
 
@@ -248,22 +243,3 @@ def detect_workspace_info(
             searched_from=root if root.is_dir() else None,
         )
     )
-
-
-def detect_workspace_or_raise(
-    *,
-    start_dir: Path | None = None,
-    env_var: str = "WORKSPACE_ROOT",
-) -> Workspace:
-    """Detect workspace, raising ValueError if not found.
-
-    This is a convenience function for scripts that want to fail fast
-    rather than handle Result types.
-
-    Raises:
-        ValueError: If workspace cannot be detected
-    """
-    result = detect_workspace(start_dir=start_dir, env_var=env_var)
-    if isinstance(result, Err):
-        raise ValueError(result.error.message)
-    return result.value
