@@ -132,7 +132,8 @@ depends_on = [
   "ms-ui",
   "oc-protocol-codegen",
 ]
-# Candidate and CI workflows pin these checkout SHAs directly. The PlatformIO
-# release environment intentionally consumes those checked-out repositories.
-pin_dependencies = []
+# Candidate and CI workflows pin Core, UI, and generated protocol inputs
+# directly. Device support remains a Git dependency in the PlatformIO release
+# environment, so promotion must keep that immutable SHA aligned as well.
+pin_dependencies = ["device-support"]
 validations = ["plugin-bitwig-dev", "plugin-bitwig-release", "plugin-bitwig-unit-tests"]

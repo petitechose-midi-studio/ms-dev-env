@@ -32,6 +32,11 @@ def build(
     env: str | None = typer.Option(
         None, "--env", help="PlatformIO env (teensy)", show_default=False
     ),
+    stream: bool = typer.Option(
+        False,
+        "--stream",
+        help="Stream PlatformIO output (target=teensy)",
+    ),
     extensions_dir: Path | None = typer.Option(
         None,
         "--extensions-dir",
@@ -113,4 +118,4 @@ def build(
         config=ctx.config,
         console=ctx.console,
     )
-    exit_on_error(hw.build(app_obj, env=env, dry_run=dry_run), ctx)
+    exit_on_error(hw.build(app_obj, env=env, stream=stream, dry_run=dry_run), ctx)

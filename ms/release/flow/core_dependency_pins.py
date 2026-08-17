@@ -18,6 +18,10 @@ _SHA_RE = r"[0-9a-fA-F]{40}"
 _MS_UI_RELEASE_RE = re.compile(
     rf"(?m)^(\s*ms-ui=https://github\.com/petitechose-midi-studio/ui\.git#)({_SHA_RE})(\s*)$"
 )
+_DEVICE_SUPPORT_RELEASE_RE = re.compile(
+    rf"(?m)^(\s*https://github\.com/petitechose-midi-studio/device-support\.git#)"
+    rf"({_SHA_RE})(\s*)$"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +82,20 @@ def plan_core_dependency_pin_sync(
             )
         )
 
+    device_support_sha = shas.value["midi-studio/device-support"]
+    device_support_current = _extract_device_support_release_pin(platformio_text.value)
+    if device_support_current is None:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="missing pinned device-support dependency in core/platformio.ini",
+                hint=(
+                    "Expected: https://github.com/petitechose-midi-studio/"
+                    "device-support.git#<sha>"
+                ),
+            )
+        )
+
     items = [
         CoreDependencyPinItem(
             key="platformio.ms-ui",
@@ -85,7 +103,14 @@ def plan_core_dependency_pin_sync(
             from_sha=ms_ui_current,
             to_sha=ms_ui_sha,
             changed=ms_ui_current != ms_ui_sha,
-        )
+        ),
+        CoreDependencyPinItem(
+            key="platformio.device-support",
+            path=platformio,
+            from_sha=device_support_current,
+            to_sha=device_support_sha,
+            changed=device_support_current != device_support_sha,
+        ),
     ]
 
     for repo in CI_ENV_REPOS:
@@ -183,6 +208,11 @@ def _extract_ms_ui_release_pin(text: str) -> str | None:
     return match.group(2).lower() if match else None
 
 
+def _extract_device_support_release_pin(text: str) -> str | None:
+    match = _DEVICE_SUPPORT_RELEASE_RE.search(text)
+    return match.group(2).lower() if match else None
+
+
 def _extract_ci_env_pin(text: str, key: str) -> str | None:
     match = re.search(rf"(?m)^(\s*{re.escape(key)}:\s*)({_SHA_RE})(\s*)$", text)
     return match.group(2).lower() if match else None
@@ -193,6 +223,11 @@ def _apply_items(*, text: str, items: tuple[CoreDependencyPinItem, ...]) -> str:
     for item in items:
         if item.key == "platformio.ms-ui":
             rendered = _MS_UI_RELEASE_RE.sub(rf"\g<1>{item.to_sha}\g<3>", rendered)
+            continue
+        if item.key == "platformio.device-support":
+            rendered = _DEVICE_SUPPORT_RELEASE_RE.sub(
+                rf"\g<1>{item.to_sha}\g<3>", rendered
+            )
             continue
         if item.key.startswith("ci."):
             env_key = item.key.removeprefix("ci.")
@@ -228,6 +263,8 @@ def _verify_written_plan(*, plan: CoreDependencyPinPlan) -> Result[None, Release
 def _extract_item_pin(*, text: str, key: str) -> str | None:
     if key == "platformio.ms-ui":
         return _extract_ms_ui_release_pin(text)
+    if key == "platformio.device-support":
+        return _extract_device_support_release_pin(text)
     if key.startswith("ci."):
         return _extract_ci_env_pin(text, key.removeprefix("ci."))
     return None

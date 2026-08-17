@@ -32,6 +32,7 @@ _CI_ENV_KEYS = (
     "OPEN_CONTROL_HAL_SDL_SHA",
     "OPEN_CONTROL_UI_LVGL_SHA",
     "OPEN_CONTROL_UI_LVGL_COMPONENTS_SHA",
+    "MIDI_STUDIO_DEVICE_SUPPORT_SHA",
     "MIDI_STUDIO_UI_SHA",
 )
 
@@ -45,6 +46,10 @@ def _write_core_files(core_root: Path, *, ci_keys: tuple[str, ...] = _CI_ENV_KEY
                 "[env:release]",
                 "lib_deps =",
                 f"    ms-ui=https://github.com/petitechose-midi-studio/ui.git#{old}",
+                (
+                    "    https://github.com/petitechose-midi-studio/"
+                    f"device-support.git#{old}"
+                ),
                 "    ${oc_sdk_deps.lib_deps}",
                 "",
             )
@@ -72,6 +77,9 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
         "open-control/ui-lvgl-components": _git_repo(
             workspace / "open-control" / "ui-lvgl-components"
         ),
+        "midi-studio/device-support": _git_repo(
+            workspace / "midi-studio" / "device-support"
+        ),
         "midi-studio/ui": _git_repo(workspace / "midi-studio" / "ui"),
     }
     core_root = workspace / "midi-studio" / "core"
@@ -87,6 +95,9 @@ def test_sync_core_dependency_pins_updates_platformio_and_ci_env(tmp_path: Path)
     assert isinstance(synced, Ok)
     assert {path.name for path in synced.value.written} == {"platformio.ini", "ci.yml"}
     assert shas["midi-studio/ui"] in (core_root / "platformio.ini").read_text(encoding="utf-8")
+    assert shas["midi-studio/device-support"] in (
+        core_root / "platformio.ini"
+    ).read_text(encoding="utf-8")
     ci = (core_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert f"MS_DEV_ENV_SHA: {shas['.']}" in ci
     assert f"OPEN_CONTROL_HAL_COMMON_SHA: {shas['open-control/hal-common']}" in ci
@@ -112,6 +123,9 @@ def test_sync_core_dependency_pins_inserts_missing_ci_env_pins(tmp_path: Path) -
         "open-control/ui-lvgl": _git_repo(workspace / "open-control" / "ui-lvgl"),
         "open-control/ui-lvgl-components": _git_repo(
             workspace / "open-control" / "ui-lvgl-components"
+        ),
+        "midi-studio/device-support": _git_repo(
+            workspace / "midi-studio" / "device-support"
         ),
         "midi-studio/ui": _git_repo(workspace / "midi-studio" / "ui"),
     }
@@ -161,6 +175,7 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
         "open-control/hal-sdl": "6" * 40,
         "open-control/ui-lvgl": "7" * 40,
         "open-control/ui-lvgl-components": "8" * 40,
+        "petitechose-midi-studio/device-support": "b" * 40,
         "petitechose-midi-studio/ui": "9" * 40,
     }
 
@@ -189,6 +204,7 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
     platformio = (core_root / "platformio.ini").read_text(encoding="utf-8")
     ci = (core_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     assert remote_shas["petitechose-midi-studio/ui"] in platformio
+    assert remote_shas["petitechose-midi-studio/device-support"] in platformio
     assert f"MS_DEV_ENV_SHA: {remote_shas['petitechose-midi-studio/ms-dev-env']}" in ci
     assert (f"OPEN_CONTROL_HAL_COMMON_SHA: {remote_shas['open-control/hal-common']}") in ci
     assert (
@@ -196,4 +212,8 @@ def test_core_dependency_pins_can_use_github_refs_without_local_dependency_repos
     ) in ci
     assert (
         f"OPEN_CONTROL_UI_LVGL_COMPONENTS_SHA: {remote_shas['open-control/ui-lvgl-components']}"
+    ) in ci
+    assert (
+        "MIDI_STUDIO_DEVICE_SUPPORT_SHA: "
+        f"{remote_shas['petitechose-midi-studio/device-support']}"
     ) in ci

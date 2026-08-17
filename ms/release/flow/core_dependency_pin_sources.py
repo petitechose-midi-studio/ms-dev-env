@@ -49,6 +49,11 @@ CI_ENV_REPOS: tuple[CoreDependencyRepo, ...] = (
         "open-control/ui-lvgl-components",
         "open-control/ui-lvgl-components",
     ),
+    CoreDependencyRepo(
+        "MIDI_STUDIO_DEVICE_SUPPORT_SHA",
+        "midi-studio/device-support",
+        "petitechose-midi-studio/device-support",
+    ),
     CoreDependencyRepo("MIDI_STUDIO_UI_SHA", "midi-studio/ui", "petitechose-midi-studio/ui"),
 )
 

@@ -11,6 +11,7 @@ from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
 from ms.services.hardware import HardwareService
+from ms.services.hardware.service import parse_profiles
 
 
 def _platform() -> PlatformInfo:
@@ -43,13 +44,13 @@ def test_hardware_build_invokes_oc_build_module(
     monkeypatch.setattr("ms.services.hardware.subprocess.run", fake_run)
 
     svc = HardwareService(workspace=ws, platform=_platform(), config=None, console=console)
-    result = svc.build(app, env="dev")
+    result = svc.build(app, env="dev", stream=True)
     assert result.is_ok()
 
     cmd = seen["cmd"]
     assert isinstance(cmd, list)
     assert cmd[:3] == [sys.executable, "-m", "ms.oc_cli.oc_build"]
-    assert cmd[-1] == "dev"
+    assert cmd[-2:] == ["dev", "--stream"]
     assert seen["cwd"] == app_dir
 
     env = seen["env"]
@@ -81,3 +82,19 @@ def test_hardware_build_dry_run_skips_subprocess(
     result = svc.build(app, env="dev", dry_run=True)
     assert result.is_ok()
     assert called["n"] == 0
+
+
+def test_profile_discovery_only_exposes_explicit_environment_owner() -> None:
+    raw = """[
+      ["env:dev", [
+        ["custom_ms_manager_profile", "dev"]
+      ]],
+      ["env:hidden_child", [
+        ["custom_ms_manager_profile", "dev"]
+      ]],
+      ["env:dev_diagnostics", [
+        ["custom_ms_manager_profile", "dev_diagnostics"]
+      ]]
+    ]"""
+
+    assert [profile.id for profile in parse_profiles(raw)] == ["dev", "dev_diagnostics"]

@@ -14,6 +14,7 @@ from ms.cli.commands.dist import dist_app
 from ms.cli.commands.list_cmd import list_apps
 from ms.cli.commands.monitor_cmd import monitor
 from ms.cli.commands.prereqs import prereqs
+from ms.cli.commands.profiles_cmd import profiles
 from ms.cli.commands.release_cmd import release_app
 from ms.cli.commands.run_cmd import run
 from ms.cli.commands.self_cmd import self_app
@@ -53,6 +54,7 @@ app.command(rich_help_panel=WORKSPACE_PANEL)(where)
 app.command(rich_help_panel=WORKSPACE_PANEL)(use)
 app.command(rich_help_panel=WORKSPACE_PANEL)(forget)
 app.command(rich_help_panel=BUILD_PANEL)(build)
+app.command(rich_help_panel=BUILD_PANEL)(profiles)
 app.command(rich_help_panel=BUILD_PANEL)(test)
 app.command(rich_help_panel=BUILD_PANEL)(run)
 app.command(rich_help_panel=BUILD_PANEL)(web)

@@ -23,7 +23,10 @@ from ms.oc_cli.common import (
 )
 
 
-def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) -> None:
+def _cli(
+    env: str | None = typer.Argument(None, help="PlatformIO environment"),
+    stream: bool = typer.Option(False, "--stream", help="Stream PlatformIO output"),
+) -> None:
     console = get_console()
     platform = OCPlatform()
 
@@ -49,12 +52,17 @@ def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) 
     console.print()
 
     start = time.time()
-    code, out, _ = run_with_spinner(
-        "Building",
-        [*pio, "run", "-e", env_name, "-d", str(project_root)],
-        cwd=project_root,
-        env=pio_env,
-    )
+    command = [*pio, "run", "-e", env_name, "-d", str(project_root)]
+    if stream:
+        code = subprocess.run(command, cwd=project_root, env=pio_env, check=False).returncode
+        out = ""
+    else:
+        code, out, _ = run_with_spinner(
+            "Building",
+            command,
+            cwd=project_root,
+            env=pio_env,
+        )
 
     # Generate compile_commands.json for clangd (best-effort)
     if code == 0:
@@ -67,14 +75,21 @@ def _cli(env: str | None = typer.Argument(None, help="PlatformIO environment")) 
         )
 
     seconds = int(time.time() - start)
-    rc = show_results(
-        console,
-        output=out,
-        project_root=project_root,
-        env_name=env_name,
-        status=code,
-        seconds=seconds,
-    )
+    if stream:
+        rc = 0 if code == 0 else 1
+        console.print(
+            f"BUILD {'OK' if rc == 0 else 'FAILED'} {seconds}s",
+            style="green bold" if rc == 0 else "red bold",
+        )
+    else:
+        rc = show_results(
+            console,
+            output=out,
+            project_root=project_root,
+            env_name=env_name,
+            status=code,
+            seconds=seconds,
+        )
     raise typer.Exit(code=rc)
 
 

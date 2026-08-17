@@ -206,5 +206,5 @@ def test_default_release_graph_covers_dev_workspace_repos() -> None:
         "ms-ui",
         "oc-protocol-codegen",
     )
-    assert by_id["plugin-bitwig"].pin_dependencies == ()
+    assert by_id["plugin-bitwig"].pin_dependencies == ("device-support",)
 

@@ -16,10 +16,12 @@ class OCHardwareAdapterMixin(HardwareContextBase):
     def _build_env(self) -> dict[str, str]:
         return self._workspace.platformio_env_vars()
 
-    def _oc_cmd(self, module: str, *, env: str | None) -> list[str]:
+    def _oc_cmd(self, module: str, *, env: str | None, stream: bool = False) -> list[str]:
         cmd = [sys.executable, "-m", f"ms.oc_cli.{module}"]
         if env:
             cmd.append(env)
+        if stream:
+            cmd.append("--stream")
         return cmd
 
     def _run_oc(
@@ -29,9 +31,10 @@ class OCHardwareAdapterMixin(HardwareContextBase):
         action: HardwareAction,
         *,
         env: str | None,
+        stream: bool = False,
         dry_run: bool,
     ) -> Result[None, HardwareError]:
-        cmd = self._oc_cmd(module, env=env)
+        cmd = self._oc_cmd(module, env=env, stream=stream)
         self._console.print(" ".join(cmd[:4]) + " ...", Style.DIM)
 
         if dry_run:
