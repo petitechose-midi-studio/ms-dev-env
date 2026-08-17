@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from typing import TYPE_CHECKING, cast
 
 from ms.core.platformio_runtime import resolve_platformio_runtime
 from ms.core.result import Err, Ok, Result
 from ms.oc_cli.common import detect_env
+from ms.platform.process import run as run_process
 from ms.services.base import BaseService
 
 from .adapter import OCHardwareAdapterMixin
@@ -59,30 +59,22 @@ class HardwareService(BaseService, OCHardwareAdapterMixin, HardwareExporterMixin
                 )
             )
 
-        try:
-            completed = subprocess.run(
-                runtime.value.command("project", "config", "--json-output"),
-                cwd=app.path,
-                env=runtime.value.env,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-        except OSError as error:
-            return Err(HardwareError("profile_discovery_failed", str(error)))
-
-        if completed.returncode != 0:
-            detail = completed.stderr.strip() or completed.stdout.strip()
+        completed = run_process(
+            runtime.value.command("project", "config", "--json-output"),
+            cwd=app.path,
+            env=runtime.value.env,
+        )
+        if isinstance(completed, Err):
+            detail = completed.error.stderr.strip() or completed.error.stdout.strip()
             return Err(
                 HardwareError(
                     "profile_discovery_failed",
-                    detail or f"PlatformIO config failed with code {completed.returncode}",
+                    detail or str(completed.error),
                 )
             )
 
         try:
-            return Ok(_parse_profiles(completed.stdout))
+            return Ok(_parse_profiles(completed.value))
         except (json.JSONDecodeError, ValueError) as error:
             return Err(HardwareError("profile_discovery_failed", str(error)))
 
