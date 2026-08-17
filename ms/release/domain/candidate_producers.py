@@ -93,4 +93,3 @@ def resolve_trusted_candidate_producer(
             )
         )
     return Ok(producer)
-

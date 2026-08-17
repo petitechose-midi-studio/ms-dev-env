@@ -63,7 +63,7 @@ def prepare_bom_promotion(
 ) -> Result[BomPromotionPrepared, ReleaseError]:
     console.header("Dependency promotion")
     console.print("Checking core workspace", Style.DIM)
-    core_repo = ensure_core_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
+    core_repo = ensure_core_repo(workspace_root=workspace_root)
     if isinstance(core_repo, Err):
         return core_repo
     core_root = core_repo.value.root

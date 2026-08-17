@@ -10,7 +10,7 @@ from typing import cast
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.gh_base import run_gh_process
+from ms.release.infra.github.gh_base import gh_api_json, run_gh_process
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS, GH_WATCH_TIMEOUT_SECONDS
 
 _POLL_INTERVAL_SECONDS = 15.0
@@ -20,7 +20,15 @@ _ACTIVE_STATUSES = frozenset({"queued", "in_progress", "requested", "waiting", "
 
 _SleepFn = Callable[[float], None]
 _ClockFn = Callable[[], float]
-_ProgressKey = tuple[str, int, int, tuple[str, ...], tuple[str, ...], str | None]
+_ProgressKey = tuple[
+    str,
+    int,
+    int,
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    str | None,
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +43,7 @@ class _RunSnapshot:
     status: str
     conclusion: str | None
     jobs: tuple[_RunJob, ...]
+    pending_environments: tuple[str, ...]
 
 
 def watch_run(
@@ -153,13 +162,54 @@ def _fetch_run_snapshot(
         )
     data = cast("dict[str, object]", obj)
 
+    status = _as_str(data.get("status")) or "unknown"
+    pending_environments: tuple[str, ...] = ()
+    if status == "waiting":
+        pending = _fetch_pending_environments(
+            workspace_root=workspace_root,
+            repo_slug=repo_slug,
+            run_id=run_id,
+        )
+        if isinstance(pending, Err):
+            return pending
+        pending_environments = pending.value
+
     return Ok(
         _RunSnapshot(
-            status=_as_str(data.get("status")) or "unknown",
+            status=status,
             conclusion=_as_optional_str(data.get("conclusion")),
             jobs=_parse_jobs(data.get("jobs")),
+            pending_environments=pending_environments,
         )
     )
+
+
+def _fetch_pending_environments(
+    *, workspace_root: Path, repo_slug: str, run_id: int
+) -> Result[tuple[str, ...], ReleaseError]:
+    payload = gh_api_json(
+        workspace_root=workspace_root,
+        endpoint=f"repos/{repo_slug}/actions/runs/{run_id}/pending_deployments",
+    )
+    if isinstance(payload, Err):
+        return payload
+    raw_payload: object = payload.value
+    if not isinstance(raw_payload, list):
+        return Ok(())
+
+    names: list[str] = []
+    for item in cast("list[object]", raw_payload):
+        if not isinstance(item, dict):
+            continue
+        item_data = cast("dict[str, object]", item)
+        environment = item_data.get("environment")
+        if not isinstance(environment, dict):
+            continue
+        environment_data = cast("dict[str, object]", environment)
+        name = _as_str(environment_data.get("name"))
+        if name is not None:
+            names.append(name)
+    return Ok(tuple(names))
 
 
 def _parse_jobs(raw: object) -> tuple[_RunJob, ...]:
@@ -190,6 +240,8 @@ def _progress_line(snapshot: _RunSnapshot) -> str:
     parts = [f"progress: {snapshot.status}", f"jobs {done}/{len(jobs)}"]
     if failed:
         parts.append(f"failed: {_join_names(failed)}")
+    elif snapshot.pending_environments:
+        parts.append(f"approval required: {_join_names(snapshot.pending_environments)}")
     elif active:
         parts.append(f"active: {_join_names(active)}")
     elif snapshot.conclusion:
@@ -209,15 +261,22 @@ def _progress_key(snapshot: _RunSnapshot) -> _ProgressKey:
     done = sum(1 for job in jobs if job.status == "completed")
     active = tuple(job.name for job in jobs if job.status in _ACTIVE_STATUSES)
     failed = _failed_job_names(snapshot)
-    return (snapshot.status, done, len(jobs), active, failed, snapshot.conclusion)
+    return (
+        snapshot.status,
+        done,
+        len(jobs),
+        active,
+        failed,
+        snapshot.pending_environments,
+        snapshot.conclusion,
+    )
 
 
 def _failed_job_names(snapshot: _RunSnapshot) -> tuple[str, ...]:
     return tuple(
         job.name
         for job in snapshot.jobs
-        if job.status == "completed"
-        and (job.conclusion or "").lower() not in _SUCCESS_CONCLUSIONS
+        if job.status == "completed" and (job.conclusion or "").lower() not in _SUCCESS_CONCLUSIONS
     )
 
 

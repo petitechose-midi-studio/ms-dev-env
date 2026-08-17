@@ -1,94 +1,35 @@
 from __future__ import annotations
 
-import json
+from dataclasses import asdict
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_str_dict, get_str
-from ms.platform.files import atomic_write_text
+from ms.core.structured import get_str
 from ms.release.errors import ReleaseError
 
 from .session_models import AppReleaseSession
 from .session_parse import get_int, parse_app_step, parse_bump, parse_channel
 from .session_paths import app_session_path
+from .session_store import clear_session, read_session, write_session
 
 
 def save_app_session(
     *, workspace_root: Path, session: AppReleaseSession
 ) -> Result[None, ReleaseError]:
-    path = app_session_path(workspace_root=workspace_root)
-    payload: dict[str, object] = {
-        "schema": 3,
-        "release_id": session.release_id,
-        "created_at": session.created_at,
-        "created_by": session.created_by,
-        "step": session.step,
-        "product": session.product,
-        "channel": session.channel,
-        "bump": session.bump,
-        "tag": session.tag,
-        "version": session.version,
-        "tooling_sha": session.tooling_sha,
-        "repo_ref": session.repo_ref,
-        "repo_sha": session.repo_sha,
-        "notes_path": session.notes_path,
-        "notes_markdown": session.notes_markdown,
-        "notes_sha256": session.notes_sha256,
-        "idx_channel": session.idx_channel,
-        "idx_bump": session.idx_bump,
-        "idx_sha": session.idx_sha,
-        "idx_summary": session.idx_summary,
-        "return_to_summary": session.return_to_summary,
-    }
-
-    try:
-        atomic_write_text(path, json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    except OSError as exc:
-        return Err(
-            ReleaseError(
-                kind="repo_failed",
-                message=f"failed to write release session: {exc}",
-                hint=str(path),
-            )
-        )
-    return Ok(None)
+    return write_session(
+        path=app_session_path(workspace_root=workspace_root),
+        payload=asdict(session),
+    )
 
 
 def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None, ReleaseError]:
     path = app_session_path(workspace_root=workspace_root)
-    if not path.exists():
+    loaded = read_session(path=path)
+    if isinstance(loaded, Err):
+        return loaded
+    if loaded.value is None:
         return Ok(None)
-
-    try:
-        text = path.read_text(encoding="utf-8")
-        raw: object = json.loads(text)
-    except (OSError, json.JSONDecodeError) as exc:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"failed to load release session: {exc}",
-                hint=str(path),
-            )
-        )
-
-    data = as_str_dict(raw)
-    if data is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="invalid release session format",
-                hint=str(path),
-            )
-        )
-
-    if data.get("schema") not in {2, 3}:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"unsupported release session schema: {data.get('schema')}",
-                hint=str(path),
-            )
-        )
+    data = loaded.value
 
     release_id = get_str(data, "release_id")
     created_at = get_str(data, "created_at")
@@ -141,17 +82,4 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
 
 
 def clear_app_session(*, workspace_root: Path) -> Result[None, ReleaseError]:
-    path = app_session_path(workspace_root=workspace_root)
-    if not path.exists():
-        return Ok(None)
-    try:
-        path.unlink()
-    except OSError as exc:
-        return Err(
-            ReleaseError(
-                kind="repo_failed",
-                message=f"failed to delete release session: {exc}",
-                hint=str(path),
-            )
-        )
-    return Ok(None)
+    return clear_session(path=app_session_path(workspace_root=workspace_root))

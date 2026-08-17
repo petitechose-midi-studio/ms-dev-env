@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ms.platform.files import atomic_write_text
+
 if TYPE_CHECKING:
     from ms.platform.detection import Platform
 
@@ -134,7 +136,7 @@ class WrapperGenerator:
 
         # Write with LF line endings
         content = "\n".join(lines) + "\n"
-        script_path.write_text(content, encoding="utf-8", newline="\n")
+        atomic_write_text(script_path, content, encoding="utf-8")
 
         # Make executable
         script_path.chmod(0o755)
@@ -165,7 +167,7 @@ class WrapperGenerator:
 
         # Write with CRLF line endings
         content = "\r\n".join(lines) + "\r\n"
-        script_path.write_bytes(content.encode("utf-8"))
+        atomic_write_text(script_path, content, encoding="utf-8")
 
         return script_path
 

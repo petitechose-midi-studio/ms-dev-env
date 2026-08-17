@@ -25,7 +25,6 @@ from .candidate_types import CandidateArtifactSpec, CandidateWriteRequest
 
 def write_candidate_bundle(
     *,
-    workspace_root: Path,
     request: CandidateWriteRequest,
 ) -> Result[CandidateManifest, ReleaseError]:
     recipe_fingerprint = compute_recipe_fingerprint(
@@ -68,7 +67,6 @@ def write_candidate_bundle(
     )
 
     return _persist_and_verify_candidate(
-        workspace_root=workspace_root,
         request=request,
         manifest=manifest,
     )
@@ -76,7 +74,6 @@ def write_candidate_bundle(
 
 def _persist_and_verify_candidate(
     *,
-    workspace_root: Path,
     request: CandidateWriteRequest,
     manifest: CandidateManifest,
 ) -> Result[CandidateManifest, ReleaseError]:
@@ -87,7 +84,6 @@ def _persist_and_verify_candidate(
     if isinstance(checksums, Err):
         return checksums
     signed = sign_candidate_manifest(
-        workspace_root=workspace_root,
         manifest_path=request.manifest_path,
         sig_path=request.sig_path,
         key_env=request.signing_key_env,
@@ -96,13 +92,11 @@ def _persist_and_verify_candidate(
         return signed
 
     derived_key = derive_candidate_public_key(
-        workspace_root=workspace_root,
         key_env=request.signing_key_env,
     )
     if isinstance(derived_key, Err):
         return derived_key
     post_sign_verify = verify_candidate_manifest_with_public_key(
-        workspace_root=workspace_root,
         manifest_path=request.manifest_path,
         sig_path=request.sig_path,
         public_key_b64=derived_key.value,

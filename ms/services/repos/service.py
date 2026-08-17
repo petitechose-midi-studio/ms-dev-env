@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 from ms.core.workspace import Workspace
@@ -16,10 +17,12 @@ class RepoService(RepoSyncMixin):
         *,
         workspace: Workspace,
         console: ConsoleProtocol,
-        manifest_path: Path | None = None,
+        manifest_paths: Sequence[Path] | None = None,
     ) -> None:
         self._workspace = workspace
         self._console = console
-        self._manifest_path = manifest_path or (
-            Path(__file__).resolve().parents[2] / "data" / "repos.toml"
+        self._manifest_paths = (
+            tuple(manifest_paths)
+            if manifest_paths is not None
+            else (Path(__file__).resolve().parents[2] / "data" / "repos.toml",)
         )

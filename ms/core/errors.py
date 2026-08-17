@@ -35,13 +35,3 @@ class ErrorCode(IntEnum):
     def __str__(self) -> str:
         """Return human-readable name."""
         return self.name.lower().replace("_", " ")
-
-    @property
-    def is_success(self) -> bool:
-        """Check if this code indicates success."""
-        return self == ErrorCode.OK
-
-    @property
-    def is_error(self) -> bool:
-        """Check if this code indicates an error."""
-        return self != ErrorCode.OK

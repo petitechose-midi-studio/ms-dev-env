@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import typer
 
-from ms.cli.commands._helpers import exit_with_code
 from ms.cli.context import build_context
 from ms.core.config import CONTROLLER_CORE_NATIVE_PORT
 from ms.services.build import BuildService
@@ -27,4 +26,4 @@ def web(
         config=ctx.config,
         console=ctx.console,
     )
-    exit_with_code(build_svc.serve_wasm(app_name=app, port=port))
+    raise typer.Exit(code=build_svc.serve_wasm(app_name=app, port=port))

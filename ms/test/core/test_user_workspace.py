@@ -15,7 +15,7 @@ from ms.core.user_workspace import (
 from ms.platform.paths import clear_caches
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def isolated_user_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Redirect user_config_dir() to a temp location for tests."""
     if os.name == "nt":
@@ -29,7 +29,7 @@ def isolated_user_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     return tmp_path
 
 
-def test_default_workspace_roundtrip(isolated_user_config: Path, tmp_path: Path) -> None:
+def test_default_workspace_roundtrip(tmp_path: Path) -> None:
     ws = tmp_path / "ws"
     ws.mkdir()
     (ws / ".ms-workspace").write_text("", encoding="utf-8")
@@ -51,7 +51,7 @@ def test_default_workspace_roundtrip(isolated_user_config: Path, tmp_path: Path)
     assert not user_workspace_config_path().exists()
 
 
-def test_invalid_toml_returns_err(isolated_user_config: Path) -> None:
+def test_invalid_toml_returns_err() -> None:
     cfg = user_workspace_config_path()
     cfg.parent.mkdir(parents=True, exist_ok=True)
     cfg.write_text("workspace_root = [\n", encoding="utf-8")

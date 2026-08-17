@@ -5,13 +5,13 @@ from ms.output.console import Style
 
 from .git_ops import RepoGitOpsMixin
 from .lockfile import write_lock_file
-from .manifest import load_manifest
+from .manifest import load_manifests
 from .models import RepoError, RepoLockEntry, RepoSpec
 
 
 class RepoSyncMixin(RepoGitOpsMixin):
     def sync_all(self, *, dry_run: bool = False) -> Result[None, RepoError]:
-        specs_result = load_manifest(self._manifest_path)
+        specs_result = load_manifests(self._manifest_paths)
         if isinstance(specs_result, Err):
             return specs_result
         specs = specs_result.value

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ms.core.app import App
+from ms.core.result import Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
@@ -41,11 +42,11 @@ def test_hardware_build_invokes_oc_build_module(
         seen["env"] = env
         return subprocess.CompletedProcess(args=cmd, returncode=0)
 
-    monkeypatch.setattr("ms.services.hardware.subprocess.run", fake_run)
+    monkeypatch.setattr("ms.services.hardware.adapter.subprocess.run", fake_run)
 
     svc = HardwareService(workspace=ws, platform=_platform(), config=None, console=console)
     result = svc.build(app, env="dev", stream=True)
-    assert result.is_ok()
+    assert isinstance(result, Ok)
 
     cmd = seen["cmd"]
     assert isinstance(cmd, list)
@@ -76,11 +77,11 @@ def test_hardware_build_dry_run_skips_subprocess(
         called["n"] += 1
         return subprocess.CompletedProcess(args=[], returncode=0)
 
-    monkeypatch.setattr("ms.services.hardware.subprocess.run", fake_run)
+    monkeypatch.setattr("ms.services.hardware.adapter.subprocess.run", fake_run)
 
     svc = HardwareService(workspace=ws, platform=_platform(), config=None, console=console)
     result = svc.build(app, env="dev", dry_run=True)
-    assert result.is_ok()
+    assert isinstance(result, Ok)
     assert called["n"] == 0
 
 

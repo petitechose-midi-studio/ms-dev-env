@@ -11,12 +11,14 @@ from unittest.mock import MagicMock, patch
 
 from ms.core.app import App, list_all, resolve
 from ms.core.result import Ok
-from ms.git import (
+from ms.git.multi import (
+    find_workspace_repos,
+    status_all,
+)
+from ms.git.repository import (
     GitStatus,
     Repository,
     StatusEntry,
-    find_workspace_repos,
-    status_all,
 )
 
 # =============================================================================
@@ -268,33 +270,6 @@ class TestHintsLoading:
 
 class TestPhase3Summary:
     """Summary tests for Phase 3 completion."""
-
-    def test_all_modules_importable(self) -> None:
-        """Test that all Phase 3 modules can be imported."""
-        # Git module - verify imports work
-        import ms.git as git_module
-
-        assert hasattr(git_module, "GitError")
-        assert hasattr(git_module, "GitStatus")
-        assert hasattr(git_module, "PullResult")
-        assert hasattr(git_module, "RepoStatus")
-        assert hasattr(git_module, "Repository")
-        assert hasattr(git_module, "StatusEntry")
-        assert hasattr(git_module, "filter_dirty")
-        assert hasattr(git_module, "filter_diverged")
-        assert hasattr(git_module, "find_repos")
-        assert hasattr(git_module, "find_workspace_repos")
-        assert hasattr(git_module, "get_summary")
-        assert hasattr(git_module, "pull_all")
-        assert hasattr(git_module, "status_all")
-
-        # App module (app resolution) - verify imports work
-        import ms.core.app as app_module
-
-        assert hasattr(app_module, "App")
-        assert hasattr(app_module, "AppError")
-        assert hasattr(app_module, "list_all")
-        assert hasattr(app_module, "resolve")
 
     def test_git_status_dataclasses(self) -> None:
         """Test that git dataclasses work correctly."""

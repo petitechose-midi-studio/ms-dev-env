@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_str, get_table
+from ms.git.sha import is_git_sha
 from ms.release.domain.models import RepoCommit
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.gh_base import (
@@ -271,7 +272,7 @@ def get_ref_head_sha(*, workspace_root: Path, repo: str, ref: str) -> Result[str
         )
 
     sha = get_str(data, "sha")
-    if sha is None or len(sha) != 40:
+    if not is_git_sha(sha):
         return Err(
             ReleaseError(
                 kind="invalid_input",

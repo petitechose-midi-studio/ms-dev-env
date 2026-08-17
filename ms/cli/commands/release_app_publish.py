@@ -5,7 +5,6 @@ from pathlib import Path
 import typer
 
 from ms.cli.commands.release_common import (
-    ensure_release_permissions_or_exit,
     exit_release,
     release_error_code,
 )
@@ -15,7 +14,6 @@ from ms.core.result import Err
 from ms.output.console import Style
 from ms.release.domain import ReleaseBump, ReleaseChannel
 from ms.release.flow.app_publish import publish_app_release, resolve_app_publish_notes
-from ms.release.flow.permissions import ensure_app_release_permissions
 from ms.release.view.app_console import print_app_notes_attachment
 
 from .release_app_prepare import prepare_app_release
@@ -44,14 +42,6 @@ def app_publish_cmd(
 ) -> None:
     """Prepare app version PR + reuse or dispatch the exact ms-manager candidate, then Release."""
     ctx = build_context()
-
-    ensure_release_permissions_or_exit(
-        workspace_root=ctx.workspace.root,
-        console=ctx.console,
-        permission_check=ensure_app_release_permissions,
-        require_write=True,
-        failure_code=ErrorCode.USER_ERROR,
-    )
 
     prepared = prepare_app_release(
         ctx=ctx,
@@ -99,7 +89,10 @@ def app_publish_cmd(
     else:
         ctx.console.success(f"Candidate run: {run.value.candidate.run.url}")
     ctx.console.success(f"Release run: {run.value.release.url}")
-    ctx.console.print(
-        "Next: approve the 'app-release' environment in GitHub Actions to publish.",
-        Style.DIM,
-    )
+    if watch:
+        ctx.console.success("App release completed")
+    else:
+        ctx.console.print(
+            "Next: approve the 'app-release' environment in GitHub Actions to publish.",
+            Style.DIM,
+        )

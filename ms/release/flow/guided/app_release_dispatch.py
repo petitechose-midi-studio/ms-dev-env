@@ -99,10 +99,14 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
     else:
         console.success(f"Candidate run: {run.value.candidate.run.url}")
     console.success(f"Release run: {run.value.release.url}")
-    console.print(
-        "Next: approve the 'app-release' environment in GitHub Actions to publish.",
-        Style.DIM,
-    )
+    if watch:
+        console.success("App release completed")
+    else:
+        console.print(
+            "Release session retained; rerun with --watch after approving 'app-release'.",
+            Style.DIM,
+        )
+        return Ok(None)
 
     cleared = deps.clear_session()
     if isinstance(cleared, Err):

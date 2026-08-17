@@ -1,95 +1,39 @@
 from __future__ import annotations
 
-import json
+from dataclasses import asdict
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_str
-from ms.platform.files import atomic_write_text
 from ms.release.errors import ReleaseError
 
 from .session_models import ContentReleaseSession
 from .session_parse import get_int, parse_bump, parse_channel, parse_content_step
 from .session_paths import content_session_path
+from .session_store import clear_session, read_session, write_session
 
 
 def save_content_session(
     *, workspace_root: Path, session: ContentReleaseSession
 ) -> Result[None, ReleaseError]:
-    path = content_session_path(workspace_root=workspace_root)
-    payload: dict[str, object] = {
-        "schema": 3,
-        "release_id": session.release_id,
-        "created_at": session.created_at,
-        "created_by": session.created_by,
-        "step": session.step,
-        "product": session.product,
-        "channel": session.channel,
-        "bump": session.bump,
-        "tag": session.tag,
-        "repo_cursor": session.repo_cursor,
-        "repo_shas": [{"id": rid, "sha": sha} for rid, sha in session.repo_shas],
-        "notes_path": session.notes_path,
-        "notes_markdown": session.notes_markdown,
-        "notes_sha256": session.notes_sha256,
-        "idx_channel": session.idx_channel,
-        "idx_bump": session.idx_bump,
-        "idx_repo": session.idx_repo,
-        "idx_summary": session.idx_summary,
-        "idx_candidates": session.idx_candidates,
-        "return_to_summary": session.return_to_summary,
-    }
-
-    try:
-        atomic_write_text(path, json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    except OSError as exc:
-        return Err(
-            ReleaseError(
-                kind="repo_failed",
-                message=f"failed to write release session: {exc}",
-                hint=str(path),
-            )
-        )
-    return Ok(None)
+    payload = asdict(session)
+    payload["repo_shas"] = [{"id": repo_id, "sha": sha} for repo_id, sha in session.repo_shas]
+    return write_session(
+        path=content_session_path(workspace_root=workspace_root),
+        payload=payload,
+    )
 
 
 def load_content_session(
     *, workspace_root: Path
 ) -> Result[ContentReleaseSession | None, ReleaseError]:
     path = content_session_path(workspace_root=workspace_root)
-    if not path.exists():
+    loaded = read_session(path=path)
+    if isinstance(loaded, Err):
+        return loaded
+    if loaded.value is None:
         return Ok(None)
-
-    try:
-        text = path.read_text(encoding="utf-8")
-        raw: object = json.loads(text)
-    except (OSError, json.JSONDecodeError) as exc:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"failed to load release session: {exc}",
-                hint=str(path),
-            )
-        )
-
-    data = as_str_dict(raw)
-    if data is None:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message="invalid release session format",
-                hint=str(path),
-            )
-        )
-
-    if data.get("schema") not in {2, 3}:
-        return Err(
-            ReleaseError(
-                kind="invalid_input",
-                message=f"unsupported release session schema: {data.get('schema')}",
-                hint=str(path),
-            )
-        )
+    data = loaded.value
 
     release_id = get_str(data, "release_id")
     created_at = get_str(data, "created_at")
@@ -154,17 +98,4 @@ def load_content_session(
 
 
 def clear_content_session(*, workspace_root: Path) -> Result[None, ReleaseError]:
-    path = content_session_path(workspace_root=workspace_root)
-    if not path.exists():
-        return Ok(None)
-    try:
-        path.unlink()
-    except OSError as exc:
-        return Err(
-            ReleaseError(
-                kind="repo_failed",
-                message=f"failed to delete release session: {exc}",
-                hint=str(path),
-            )
-        )
-    return Ok(None)
+    return clear_session(path=content_session_path(workspace_root=workspace_root))

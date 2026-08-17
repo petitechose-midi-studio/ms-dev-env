@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import typer
 
-from ms.cli.commands._helpers import exit_with_code
 from ms.cli.context import build_context
 from ms.services.build import BuildService
 
@@ -20,4 +19,4 @@ def run(
         config=ctx.config,
         console=ctx.console,
     )
-    exit_with_code(build_svc.run_native(app_name=app))
+    raise typer.Exit(code=build_svc.run_native(app_name=app))

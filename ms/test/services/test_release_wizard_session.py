@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ms.core.result import Ok
+from ms.core.result import Err, Ok
+from ms.release.flow.guided.session_paths import app_session_path
 from ms.release.flow.guided.sessions import (
     clear_app_session,
     clear_content_session,
@@ -65,3 +66,14 @@ def test_clear_content_release_session(tmp_path: Path) -> None:
     loaded = load_content_session(workspace_root=tmp_path)
     assert isinstance(loaded, Ok)
     assert loaded.value is None
+
+
+def test_release_session_rejects_unsupported_schema(tmp_path: Path) -> None:
+    path = app_session_path(workspace_root=tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_text('{"schema": 2}\n', encoding="utf-8")
+
+    loaded = load_app_session(workspace_root=tmp_path)
+
+    assert isinstance(loaded, Err)
+    assert loaded.error.message == "unsupported release session schema: 2"

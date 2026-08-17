@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import re
-import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
+from ms.core.hashing import sha256_file
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text, remove_tree
 from ms.platform.process import ProcessError, run_silent
 from ms.services.base import BaseService
 from ms.services.build.service import BuildService
@@ -20,7 +20,7 @@ type UxProcessRunner = Callable[[list[str], Path, float | None], Result[None, Pr
 _EXPECT_RE = re.compile(r"^\s*#\s*Expect:\s*(.+)$", re.IGNORECASE)
 _CAPTURE_RE = re.compile(r"^\s*\d+\s+capture\s+(screen|controller)\s+([A-Za-z0-9_-]+)\s*$")
 _SEMANTIC_EXPECT_RE = re.compile(r"^semantic:([A-Za-z0-9_-]+):([A-Za-z][A-Za-z0-9_]*)=(.+)$")
-_SEMANTIC_LABEL_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+_LABEL_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _OVERLAY_EXCLUSIVE_MAX_CHANGED_BYTE_RATIO = 0.02
 _CAPTURE_CHANGED_MIN_BYTES = 16
 _RUN_MANIFEST_NAME = "run-manifest.json"
@@ -347,7 +347,7 @@ class UxWorkflowService(BaseService):
         if isinstance(exe_result, Err):
             return exe_result
         exe = exe_result.value
-        executable_sha256 = _sha256(exe)
+        executable_sha256 = sha256_file(exe)
 
         root = (output_root or catalog.app.output_root).resolve()
         root.mkdir(parents=True, exist_ok=True)
@@ -405,7 +405,7 @@ class UxWorkflowService(BaseService):
             output_root=root,
             report_dir=destination.parent,
         )
-        destination.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        atomic_write_text(destination, "\n".join(lines) + "\n", encoding="utf-8")
         return Ok(destination)
 
     def _resolve_executable(
@@ -444,10 +444,10 @@ class UxWorkflowService(BaseService):
         output_root: Path,
     ) -> Result[UxWorkflowRun, UxWorkflowError]:
         output_dir = (output_root / workflow.id).resolve()
-        if not _is_relative_to(output_dir, output_root.resolve()):
+        if not output_dir.is_relative_to(output_root.resolve()):
             return Err(UxOutputPathUnsafe(output_root=output_root, output_dir=output_dir))
         if output_dir.exists():
-            shutil.rmtree(output_dir)
+            remove_tree(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         run_utc = datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
@@ -483,10 +483,6 @@ class UxWorkflowService(BaseService):
         if process_error is not None:
             return Err(UxRunFailed(workflow=workflow, process_error=process_error, run=run))
         return Ok(run)
-
-
-def print_ux_error(error: UxWorkflowError, console_message: Callable[[str], None]) -> None:
-    console_message(ux_error_message(error))
 
 
 def ux_error_message(error: UxWorkflowError) -> str:
@@ -754,12 +750,15 @@ def _read_ndjson(path: Path) -> tuple[dict[str, object], ...]:
     if not path.is_file():
         return ()
     rows: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        value = json.loads(line)
-        if isinstance(value, dict):
-            rows.append(cast(dict[str, object], value))
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            value = json.loads(line)
+            if isinstance(value, dict):
+                rows.append(cast(dict[str, object], value))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return ()
     return tuple(rows)
 
 
@@ -801,7 +800,7 @@ def _read_semantic_trace(path: Path) -> tuple[tuple[dict[str, object], ...], boo
 
 def _valid_semantic_capture_row(row: dict[str, object]) -> bool:
     label = row.get("label")
-    if not isinstance(label, str) or _SEMANTIC_LABEL_RE.fullmatch(label) is None:
+    if not isinstance(label, str) or _LABEL_RE.fullmatch(label) is None:
         return False
 
     for field in ("seq", "ms", "source_seq", "playhead", "page", "shared_track", "shared_mask"):
@@ -827,10 +826,7 @@ def _valid_semantic_capture_row(row: dict[str, object]) -> bool:
     if (activation_origin is None) != (activation_generation is None):
         return False
     if activation_origin is not None:
-        if (
-            not isinstance(activation_origin, str)
-            or _SEMANTIC_LABEL_RE.fullmatch(activation_origin) is None
-        ):
+        if not isinstance(activation_origin, str) or _LABEL_RE.fullmatch(activation_origin) is None:
             return False
         if (
             not isinstance(activation_generation, int)
@@ -908,7 +904,7 @@ def _capture_match(output_dir: Path, left_label: str, right_label: str) -> bool:
     right = _capture_for_label(output_dir, right_label)
     if left is None or right is None:
         return False
-    return _sha256(left) == _sha256(right)
+    return sha256_file(left) == sha256_file(right)
 
 
 def _capture_changed(output_dir: Path, left_label: str, right_label: str) -> bool:
@@ -919,15 +915,13 @@ def _capture_changed(output_dir: Path, left_label: str, right_label: str) -> boo
 
     left_data = left.read_bytes()
     right_data = right.read_bytes()
-    changed = abs(len(left_data) - len(right_data))
-    changed += sum(a != b for a, b in zip(left_data, right_data, strict=False))
-    return changed >= _CAPTURE_CHANGED_MIN_BYTES
+    return _changed_byte_count(left_data, right_data) >= _CAPTURE_CHANGED_MIN_BYTES
 
 
 def _clear_generated_workflow_outputs(root: Path) -> None:
     for child in root.iterdir():
         if child.is_dir():
-            shutil.rmtree(child)
+            remove_tree(child)
         elif child.name == "report.md":
             child.unlink()
 
@@ -950,22 +944,18 @@ def _capture_mostly_match(
     if total == 0:
         return len(left_data) == len(right_data)
 
-    changed = abs(len(left_data) - len(right_data))
-    changed += sum(a != b for a, b in zip(left_data, right_data, strict=False))
-    return changed / total <= max_changed_byte_ratio
+    return _changed_byte_count(left_data, right_data) / total <= max_changed_byte_ratio
+
+
+def _changed_byte_count(left: bytes, right: bytes) -> int:
+    return abs(len(left) - len(right)) + sum(a != b for a, b in zip(left, right, strict=False))
 
 
 def _capture_for_label(output_dir: Path, label: str) -> Path | None:
+    if _LABEL_RE.fullmatch(label) is None:
+        return None
     matches = tuple(output_dir.glob(f"*_{label}_screen.bmp"))
     return matches[0] if len(matches) == 1 else None
-
-
-def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def _write_run_manifest(
@@ -983,16 +973,17 @@ def _write_run_manifest(
         "schema": 1,
         "app": app.name,
         "workflow": workflow.relative_path,
-        "workflow_sha256": _sha256(workflow.path),
+        "workflow_sha256": sha256_file(workflow.path),
         "executable": executable.name,
         "executable_sha256": executable_sha256,
         "run_utc": run_utc,
         "exit_code": run.exit_code,
         "verified": run.ok,
         "captures": [path.name for path in captures],
-        "capture_sha256": {path.name: _sha256(path) for path in captures},
+        "capture_sha256": {path.name: sha256_file(path) for path in captures},
     }
-    (output_dir / _RUN_MANIFEST_NAME).write_text(
+    atomic_write_text(
+        output_dir / _RUN_MANIFEST_NAME,
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
@@ -1038,9 +1029,9 @@ def _run_manifest_provenance(
     capture_hashes = cast(dict[str, object], expected_capture_hashes)
     if (
         manifest["workflow"] != workflow.relative_path
-        or manifest["workflow_sha256"] != _sha256(workflow.path)
+        or manifest["workflow_sha256"] != sha256_file(workflow.path)
         or manifest["captures"] != capture_names
-        or any(capture_hashes.get(path.name) != _sha256(path) for path in captures)
+        or any(capture_hashes.get(path.name) != sha256_file(path) for path in captures)
     ):
         return "stale"
     return "verified"
@@ -1150,14 +1141,6 @@ def _normalize_selection(selection: str) -> str:
 def _folder_prefix(path: str) -> str:
     normalized = _normalize_selection(path)
     return "" if normalized in {"", "."} else f"{normalized}/"
-
-
-def _is_relative_to(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return False
-    return True
 
 
 def _run_ux_process(

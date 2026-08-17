@@ -100,6 +100,8 @@ def publish_app_release(
             return watched
 
     return Ok(AppPublishResult(candidate=candidate.value, release=release.value))
+
+
 def resolve_app_publish_notes(
     *,
     notes_file: Path | None,

@@ -10,11 +10,10 @@ This test verifies the complete tools system works together:
 """
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
-from ms.platform.detection import Arch, Platform
+from ms.platform.detection import Platform
 from ms.platform.shell import generate_activation_scripts
 from ms.tools.definitions import ALL_TOOLS, get_tool, get_tools_by_mode
 from ms.tools.http import MockHttpClient
@@ -75,13 +74,7 @@ class TestToolRegistryIntegration:
         return ToolRegistry(
             tools_dir=tmp_path,
             platform=Platform.LINUX,
-            arch=Arch.X64,
         )
-
-    def test_registry_lists_all_tools(self, registry: ToolRegistry) -> None:
-        """Registry returns all tools."""
-        tools = registry.all_tools()
-        assert len(tools) == 11  # Including Zig
 
     def test_registry_tracks_installation_status(
         self, registry: ToolRegistry, tmp_path: Path
@@ -254,46 +247,29 @@ class TestEndToEndWorkflow:
 
     def test_complete_tool_setup_workflow(self, tmp_path: Path) -> None:
         """Complete workflow: registry -> status -> activation."""
-        # Mock cargo to not be found (for predictable test)
-        with patch("shutil.which", return_value=None):
-            # 1. Create registry
-            registry = ToolRegistry(
-                tools_dir=tmp_path,
-                platform=Platform.LINUX,
-                arch=Arch.X64,
-            )
+        registry = ToolRegistry(tools_dir=tmp_path, platform=Platform.LINUX)
+        assert not registry.is_installed("ninja")
 
-            # 2. Check initial status - nothing installed
-            installed = registry.get_installed_tools()
-            assert len(installed) == 0
+        ninja_dir = tmp_path / "ninja"
+        ninja_dir.mkdir()
+        (ninja_dir / "ninja").touch()
 
-            # 3. "Install" some tools (simulate by creating binaries)
-            ninja_dir = tmp_path / "ninja"
-            ninja_dir.mkdir()
-            (ninja_dir / "ninja").touch()
+        cmake_dir = tmp_path / "cmake" / "bin"
+        cmake_dir.mkdir(parents=True)
+        (cmake_dir / "cmake").touch()
 
-            cmake_dir = tmp_path / "cmake" / "bin"
-            cmake_dir.mkdir(parents=True)
-            (cmake_dir / "cmake").touch()
+        set_installed_version(tmp_path, "ninja", "1.12.1")
+        set_installed_version(tmp_path, "cmake", "3.28.0")
+        assert registry.is_installed("ninja")
+        assert get_installed_version(tmp_path, "ninja") == "1.12.1"
 
-            # 4. Track versions
-            set_installed_version(tmp_path, "ninja", "1.12.1")
-            set_installed_version(tmp_path, "cmake", "3.28.0")
+        scripts = generate_activation_scripts(
+            tmp_path,
+            registry.get_env_vars(),
+            registry.get_path_additions(),
+            Platform.LINUX,
+        )
 
-            # 5. Check status again
-            status = registry.get_status("ninja")
-            assert status.installed
-            assert status.version == "1.12.1"
-
-            # 6. Get env vars and paths
-            env_vars = registry.get_env_vars()
-            path_additions = registry.get_path_additions()
-
-            # 7. Generate activation scripts
-            scripts = generate_activation_scripts(
-                tmp_path, env_vars, path_additions, Platform.LINUX
-            )
-
-            assert scripts["bash"].exists()
-            content = scripts["bash"].read_text()
-            assert "ninja" in content or "cmake" in content
+        assert scripts["bash"].exists()
+        content = scripts["bash"].read_text()
+        assert "ninja" in content or "cmake" in content

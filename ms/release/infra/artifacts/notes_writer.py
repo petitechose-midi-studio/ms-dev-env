@@ -66,7 +66,7 @@ def _repo_commit_url(slug: str, sha: str) -> str:
     return f"https://github.com/{slug}/commit/{sha}"
 
 
-def _render_notes(
+def render_release_notes(
     *,
     channel: ReleaseChannel,
     tag: str,
@@ -123,7 +123,7 @@ def write_release_notes(
     path = dist_repo_root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    rendered = _render_notes(
+    rendered = render_release_notes(
         channel=channel,
         tag=tag,
         pinned=pinned,

@@ -12,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text
 from ms.release.errors import ReleaseError
 
 _CANDIDATE_SECRET_ENV = "MS_CANDIDATE_ED25519_SK"
@@ -20,12 +21,10 @@ _CANDIDATE_PUBLIC_ENV = "MS_CANDIDATE_ED25519_PK"
 
 def sign_candidate_manifest(
     *,
-    workspace_root: Path,
     manifest_path: Path,
     sig_path: Path,
     key_env: str = _CANDIDATE_SECRET_ENV,
 ) -> Result[None, ReleaseError]:
-    del workspace_root
     signing_key = _load_signing_key(key_env=key_env)
     if isinstance(signing_key, Err):
         return signing_key
@@ -37,7 +36,7 @@ def sign_candidate_manifest(
     signature = signing_key.value.sign(manifest_bytes.value)
     sig_b64 = base64.b64encode(signature).decode("ascii")
     try:
-        sig_path.write_text(f"{sig_b64}\n", encoding="utf-8")
+        atomic_write_text(sig_path, f"{sig_b64}\n", encoding="utf-8")
     except OSError as exc:
         return Err(
             ReleaseError(
@@ -51,12 +50,10 @@ def sign_candidate_manifest(
 
 def verify_candidate_manifest(
     *,
-    workspace_root: Path,
     manifest_path: Path,
     sig_path: Path,
     pk_env: str = _CANDIDATE_PUBLIC_ENV,
 ) -> Result[None, ReleaseError]:
-    del workspace_root
     public_key = _load_public_key(pk_env=pk_env)
     if isinstance(public_key, Err):
         return public_key
@@ -69,10 +66,8 @@ def verify_candidate_manifest(
 
 def derive_candidate_public_key(
     *,
-    workspace_root: Path,
     key_env: str = _CANDIDATE_SECRET_ENV,
 ) -> Result[str, ReleaseError]:
-    del workspace_root
     signing_key = _load_signing_key(key_env=key_env)
     if isinstance(signing_key, Err):
         return signing_key
@@ -84,12 +79,10 @@ def derive_candidate_public_key(
 
 def verify_candidate_manifest_with_public_key(
     *,
-    workspace_root: Path,
     manifest_path: Path,
     sig_path: Path,
     public_key_b64: str,
 ) -> Result[None, ReleaseError]:
-    del workspace_root
     public_key = _decode_public_key(public_key_b64)
     if isinstance(public_key, Err):
         return public_key

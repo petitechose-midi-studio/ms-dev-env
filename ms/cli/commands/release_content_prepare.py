@@ -10,6 +10,7 @@ from ms.cli.commands.release_common import (
 from ms.cli.commands.release_common import (
     ensure_release_permissions_or_exit,
     exit_release,
+    release_error_code,
     resolve_release_inputs,
 )
 from ms.cli.context import CLIContext, build_context
@@ -50,6 +51,14 @@ def prepare_content_release(
     no_interactive: bool,
     dry_run: bool,
 ) -> PreparedContentRelease:
+    ensure_release_permissions_or_exit(
+        workspace_root=ctx.workspace.root,
+        console=ctx.console,
+        permission_check=ensure_release_permissions,
+        require_write=True,
+        failure_code=ErrorCode.USER_ERROR,
+    )
+
     resolved = resolve_release_inputs(
         product="content",
         plan=plan_file,
@@ -109,12 +118,7 @@ def prepare_content_release(
         dry_run=dry_run,
     )
     if isinstance(prepared, Err):
-        code = (
-            ErrorCode.IO_ERROR
-            if prepared.error.kind in {"repo_failed", "repo_dirty"}
-            else ErrorCode.USER_ERROR
-        )
-        exit_release(prepared.error.message, code=code)
+        exit_release(prepared.error.message, code=release_error_code(prepared.error.kind))
 
     return prepared.value
 
@@ -145,14 +149,6 @@ def prepare_cmd(
 ) -> None:
     """Create + merge the distribution PR for a release spec."""
     ctx = build_context()
-
-    ensure_release_permissions_or_exit(
-        workspace_root=ctx.workspace.root,
-        console=ctx.console,
-        permission_check=ensure_release_permissions,
-        require_write=True,
-        failure_code=ErrorCode.USER_ERROR,
-    )
 
     prepared = prepare_content_release(
         ctx=ctx,

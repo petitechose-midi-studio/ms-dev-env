@@ -76,7 +76,7 @@ def test_sync_clones_and_updates_repo(tmp_path: Path) -> None:
 
     console = MockConsole()
     service = RepoService(
-        workspace=Workspace(root=ws_root), console=console, manifest_path=manifest
+        workspace=Workspace(root=ws_root), console=console, manifest_paths=(manifest,)
     )
 
     result = service.sync_all(dry_run=False)
@@ -108,7 +108,7 @@ def test_sync_skips_dirty_repo(tmp_path: Path) -> None:
 
     console = MockConsole()
     service = RepoService(
-        workspace=Workspace(root=ws_root), console=console, manifest_path=manifest
+        workspace=Workspace(root=ws_root), console=console, manifest_paths=(manifest,)
     )
 
     assert isinstance(service.sync_all(dry_run=False), Ok)
@@ -140,7 +140,7 @@ def test_sync_skips_repo_on_wrong_branch(tmp_path: Path) -> None:
 
     console = MockConsole()
     service = RepoService(
-        workspace=Workspace(root=ws_root), console=console, manifest_path=manifest
+        workspace=Workspace(root=ws_root), console=console, manifest_paths=(manifest,)
     )
 
     assert isinstance(service.sync_all(dry_run=False), Ok)

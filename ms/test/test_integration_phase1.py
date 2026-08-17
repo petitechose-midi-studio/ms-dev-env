@@ -9,17 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ms.core import (
-    Config,
-    Err,
-    ErrorCode,
-    Ok,
-    Workspace,
-    detect_workspace,
-    load_config,
-)
-from ms.output import MockConsole
-from ms.platform import Platform, detect
+from ms.core.config import Config, load_config
+from ms.core.errors import ErrorCode
+from ms.core.result import Err, Ok
+from ms.core.workspace import Workspace, detect_workspace
+from ms.output.console import MockConsole
+from ms.platform.detection import Platform, detect
 
 
 class TestPhase1Integration:
@@ -100,7 +95,7 @@ linux = "IntegrationTest"
             error_code = ErrorCode.ENV_ERROR
             console.error(f"{result.error.message} (code: {error_code})")
             assert console.has_error()
-            assert error_code.is_error
+            assert error_code != ErrorCode.OK
 
     def test_workspace_paths_with_platform(self, tmp_path: Path) -> None:
         """Test that workspace paths work with platform detection."""
@@ -176,58 +171,3 @@ class TestRealWorkspaceIntegration:
             console.info("Running on macOS")
 
         assert len(console.outputs) >= 2
-
-
-class TestModuleExports:
-    """Test that all Phase 1 modules export correctly."""
-
-    def test_core_exports(self) -> None:
-        """Test ms.core exports all expected symbols."""
-        import ms.core as core
-
-        expected = {
-            "Config",
-            "ConfigError",
-            "Err",
-            "ErrorCode",
-            "Ok",
-            "Result",
-            "Workspace",
-            "WorkspaceError",
-            "detect_workspace",
-            "is_err",
-            "is_ok",
-            "load_config",
-        }
-        assert expected <= set(dir(core))
-
-    def test_platform_exports(self) -> None:
-        """Test ms.platform exports all expected symbols."""
-        import ms.platform as platform
-
-        expected = {
-            "Arch",
-            "LinuxDistro",
-            "Platform",
-            "PlatformInfo",
-            "detect",
-            "detect_linux_distro",
-            "home",
-            "is_linux",
-            "is_macos",
-            "is_windows",
-            "user_config_dir",
-        }
-        assert expected <= set(dir(platform))
-
-    def test_output_exports(self) -> None:
-        """Test ms.output exports all expected symbols."""
-        import ms.output as output
-
-        expected = {
-            "ConsoleProtocol",
-            "MockConsole",
-            "RichConsole",
-            "Style",
-        }
-        assert expected <= set(dir(output))

@@ -16,7 +16,6 @@ from ms.core.workspace import (
     WorkspaceInfo,
     detect_workspace,
     detect_workspace_info,
-    detect_workspace_or_raise,
     find_workspace_upward,
     is_workspace_root,
 )
@@ -66,10 +65,6 @@ class TestWorkspace:
     def test_tools_dir(self, temp_workspace: Path) -> None:
         ws = Workspace(root=temp_workspace)
         assert ws.tools_dir == temp_workspace / "tools"
-
-    def test_tools_bin_dir(self, temp_workspace: Path) -> None:
-        ws = Workspace(root=temp_workspace)
-        assert ws.tools_bin_dir == temp_workspace / "tools" / "bin"
 
     def test_cache_dir(self, temp_workspace: Path) -> None:
         ws = Workspace(root=temp_workspace)
@@ -286,26 +281,6 @@ class TestDetectWorkspace:
             assert isinstance(info.value, WorkspaceInfo)
             assert info.value.workspace.root == ws
             assert info.value.source == "remembered"
-
-
-class TestDetectWorkspaceOrRaise:
-    """Test detect_workspace_or_raise convenience function."""
-
-    def test_returns_workspace(self, temp_workspace: Path) -> None:
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("WORKSPACE_ROOT", None)
-            ws = detect_workspace_or_raise(start_dir=temp_workspace)
-            assert isinstance(ws, Workspace)
-            assert ws.root == temp_workspace
-
-    def test_raises_on_invalid_env(self, tmp_path: Path) -> None:
-        """Raises when WORKSPACE_ROOT points to invalid location."""
-        invalid = tmp_path / "invalid"
-        invalid.mkdir()
-        with patch.dict(os.environ, {"WORKSPACE_ROOT": str(invalid)}):
-            with pytest.raises(ValueError) as exc_info:
-                detect_workspace_or_raise(start_dir=tmp_path)
-            assert "not a valid workspace" in str(exc_info.value)
 
 
 class TestRealWorkspace:

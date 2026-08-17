@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from ms.core.hashing import sha256_file as hash_file
 from ms.core.result import Err, Ok, Result
 from ms.release.domain.candidate_models import CandidateInputRepo
 from ms.release.errors import ReleaseError
@@ -15,10 +16,7 @@ def sha256_bytes(payload: bytes) -> str:
 
 def sha256_file(path: Path) -> Result[str, ReleaseError]:
     try:
-        with path.open("rb") as handle:
-            digest = hashlib.sha256()
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
+        return Ok(hash_file(path))
     except OSError as e:
         return Err(
             ReleaseError(
@@ -27,7 +25,6 @@ def sha256_file(path: Path) -> Result[str, ReleaseError]:
                 hint=str(e),
             )
         )
-    return Ok(digest.hexdigest())
 
 
 def compute_recipe_fingerprint(

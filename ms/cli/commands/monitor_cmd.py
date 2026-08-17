@@ -4,13 +4,8 @@ from __future__ import annotations
 
 import typer
 
-from ms.cli.commands._helpers import exit_with_code
+from ms.cli.commands._helpers import hardware_service_for_app
 from ms.cli.context import build_context
-from ms.core.app import resolve
-from ms.core.errors import ErrorCode
-from ms.core.result import Err, Ok
-from ms.output.console import Style
-from ms.services.hardware import HardwareService
 
 
 def monitor(
@@ -22,19 +17,5 @@ def monitor(
     """Build, upload, and monitor firmware."""
     ctx = build_context()
 
-    match resolve(app, ctx.workspace.root):
-        case Err(e):
-            ctx.console.error(e.message)
-            if e.available:
-                ctx.console.print(f"Available: {', '.join(e.available)}", Style.DIM)
-            raise typer.Exit(code=int(ErrorCode.USER_ERROR))
-        case Ok(app_obj):
-            pass
-
-    hw = HardwareService(
-        workspace=ctx.workspace,
-        platform=ctx.platform,
-        config=ctx.config,
-        console=ctx.console,
-    )
-    exit_with_code(hw.monitor(app_obj, env=env))
+    app_obj, hw = hardware_service_for_app(ctx, app)
+    raise typer.Exit(code=hw.monitor(app_obj, env=env))

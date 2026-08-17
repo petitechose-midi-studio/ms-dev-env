@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 from ms.core.result import Err, Ok, Result
+from ms.git.sha import is_git_sha
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleaseTooling
 from ms.release.errors import ReleaseError
@@ -290,4 +291,4 @@ def _local_head_sha(*, workspace_root: Path) -> str | None:
     if isinstance(head, Err):
         return None
     sha = head.value.strip()
-    return sha if len(sha) == 40 else None
+    return sha if is_git_sha(sha) else None

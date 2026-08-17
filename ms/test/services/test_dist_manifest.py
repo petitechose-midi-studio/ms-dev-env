@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import cast
 
-from ms.services.dist import generate_manifest, read_manifest
+from ms.services.dist import generate_manifest
 
 
 def test_generate_manifest_includes_assets_and_repos_lock(tmp_path: Path) -> None:
@@ -39,7 +39,7 @@ def test_generate_manifest_includes_assets_and_repos_lock(tmp_path: Path) -> Non
         out_path=tmp_path / "dist" / "manifest.json",
     )
 
-    m = read_manifest(out_path)
+    m = cast(dict[str, object], json.loads(out_path.read_text(encoding="utf-8")))
     assert m["schema"] == 1
     assert m["channel"] == "beta"
     assert m["tag"] == "v0.1.0-beta.1"

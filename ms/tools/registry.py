@@ -7,26 +7,11 @@ for tool management operations:
 - Checking installation status
 - Getting tool paths and environment variables
 
-Usage:
-    from ms.tools.registry import ToolRegistry
-    from ms.platform.detection import detect_platform
-
-    platform, arch = detect_platform()
-    registry = ToolRegistry(tools_dir=Path("tools"), platform=platform, arch=arch)
-
-    # List all tools
-    for tool in registry.all_tools():
-        print(f"{tool.spec.id}: {tool.spec.name}")
-
-    # Check what's installed
-    status = registry.get_status()
-    for tool_id, installed in status.items():
-        print(f"{tool_id}: {'installed' if installed else 'missing'}")
+The registry only exposes operations needed by build and toolchain services.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,26 +19,9 @@ from ms.tools.base import Mode, Tool
 from ms.tools.definitions import ALL_TOOLS, get_tool, get_tools_by_mode
 
 if TYPE_CHECKING:
-    from ms.platform.detection import Arch, Platform
+    from ms.platform.detection import Platform
 
-__all__ = ["ToolRegistry", "ToolStatus"]
-
-
-@dataclass(frozen=True, slots=True)
-class ToolStatus:
-    """Status of a single tool.
-
-    Attributes:
-        tool: The tool instance
-        installed: Whether the tool is installed
-        version: Installed version (if tracked), None otherwise
-        path: Path to the binary, None if not installed or system tool
-    """
-
-    tool: Tool
-    installed: bool
-    version: str | None = None
-    path: Path | None = None
+__all__ = ["ToolRegistry"]
 
 
 class ToolRegistry:
@@ -73,41 +41,20 @@ class ToolRegistry:
         self,
         tools_dir: Path,
         platform: Platform,
-        arch: Arch,
     ) -> None:
         """Initialize the registry.
 
         Args:
             tools_dir: Directory where bundled tools are installed
             platform: Current platform
-            arch: Current architecture
         """
         self._tools_dir = tools_dir
         self._platform = platform
-        self._arch = arch
 
     @property
     def tools_dir(self) -> Path:
         """Get the tools directory."""
         return self._tools_dir
-
-    @property
-    def platform(self) -> Platform:
-        """Get the current platform."""
-        return self._platform
-
-    @property
-    def arch(self) -> Arch:
-        """Get the current architecture."""
-        return self._arch
-
-    def all_tools(self) -> tuple[Tool, ...]:
-        """Get all registered tools.
-
-        Returns:
-            Tuple of all tool instances
-        """
-        return ALL_TOOLS
 
     def get_tool(self, tool_id: str) -> Tool | None:
         """Get a tool by ID.
@@ -147,69 +94,6 @@ class ToolRegistry:
                 return False
             tool = resolved
         return tool.is_installed(self._tools_dir, self._platform)
-
-    def get_status(self, tool: Tool | str) -> ToolStatus:
-        """Get detailed status for a tool.
-
-        Args:
-            tool: Tool instance or tool ID
-
-        Returns:
-            ToolStatus with installation details
-
-        Raises:
-            ValueError: If tool ID is not found
-        """
-        if isinstance(tool, str):
-            resolved = get_tool(tool)
-            if resolved is None:
-                raise ValueError(f"Unknown tool: {tool}")
-            tool = resolved
-
-        installed = tool.is_installed(self._tools_dir, self._platform)
-        path = tool.bin_path(self._tools_dir, self._platform) if installed else None
-
-        # Try to get version from state
-        version: str | None = None
-        if installed:
-            from ms.tools.state import get_installed_version
-
-            version = get_installed_version(self._tools_dir, tool.spec.id)
-
-        return ToolStatus(
-            tool=tool,
-            installed=installed,
-            version=version,
-            path=path,
-        )
-
-    def get_all_status(self) -> dict[str, ToolStatus]:
-        """Get status for all tools.
-
-        Returns:
-            Dict mapping tool ID to ToolStatus
-        """
-        return {tool.spec.id: self.get_status(tool) for tool in ALL_TOOLS}
-
-    def get_missing_tools(self, mode: Mode | str = Mode.DEV) -> list[Tool]:
-        """Get tools that are required but not installed.
-
-        Args:
-            mode: Mode to check requirements for
-
-        Returns:
-            List of missing tools
-        """
-        required = self.tools_for_mode(mode)
-        return [tool for tool in required if not self.is_installed(tool)]
-
-    def get_installed_tools(self) -> list[Tool]:
-        """Get all installed tools.
-
-        Returns:
-            List of installed tools
-        """
-        return [tool for tool in ALL_TOOLS if self.is_installed(tool)]
 
     def get_bin_path(self, tool: Tool | str) -> Path | None:
         """Get path to a tool's binary.
@@ -322,7 +206,7 @@ class ToolRegistry:
         from ms.tools.definitions.emscripten import EmscriptenTool
 
         if isinstance(emscripten, EmscriptenTool):
-            return emscripten.emcmake_path(self._tools_dir, self._platform)
+            return emscripten.emcmake_path(self._tools_dir)
         return None
 
     def get_em_config(self) -> Path | None:

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import shutil
 import tomllib
 from dataclasses import dataclass
@@ -9,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 
 from ms.core.config import Config
 from ms.core.errors import ErrorCode
+from ms.core.hashing import is_sha256, sha256_file
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_str_dict, get_str
 from ms.core.versions import RUST_MIN_VERSION, RUST_MIN_VERSION_TEXT
@@ -254,6 +254,8 @@ class BridgeService:
             strict=strict,
         )
         if isinstance(verified, Err):
+            if verified.error.kind == "checksum_mismatch":
+                downloader.clear_cache(url)
             return verified
         if strict:
             self._console.print(f"checksum ok {asset}@{release_tag}", Style.DIM)
@@ -439,7 +441,7 @@ def _load_bridge_checksums(*, path: Path) -> Result[dict[str, str], BridgeError]
                 )
             )
         digest = value.strip().lower()
-        if not _is_sha256(digest):
+        if not is_sha256(digest):
             return Err(
                 BridgeError(
                     kind="checksum_manifest_invalid",
@@ -473,7 +475,7 @@ def _verify_prebuilt_checksum(
             )
         )
 
-    actual = _sha256_file(downloaded_path)
+    actual = sha256_file(downloaded_path)
     if actual != expected:
         return Err(
             BridgeError(
@@ -483,23 +485,6 @@ def _verify_prebuilt_checksum(
             )
         )
     return Ok(None)
-
-
-def _is_sha256(value: str) -> bool:
-    if len(value) != 64:
-        return False
-    return all(ch in "0123456789abcdef" for ch in value)
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as f:
-        while True:
-            chunk = f.read(1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _release_asset_url(asset: str, *, version: str | None) -> str:

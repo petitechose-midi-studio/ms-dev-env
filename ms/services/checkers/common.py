@@ -14,9 +14,12 @@ import subprocess
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from ms.core.structured import as_str_dict
+
+if TYPE_CHECKING:
+    from ms.platform.detection import LinuxDistro, Platform
 
 
 class CommandRunner(Protocol):
@@ -243,19 +246,13 @@ def format_version_triplet(version: tuple[int, int, int]) -> str:
     return f"{major}.{minor}.{patch}"
 
 
-# Import types for type hints only
-if True:  # TYPE_CHECKING workaround for runtime imports
-    from ms.platform.detection import LinuxDistro, Platform
-
-    __all__ = [
-        "CommandRunner",
-        "DefaultCommandRunner",
-        "Hints",
-        "load_hints",
-        "get_platform_key",
-        "first_line",
-        "parse_version_triplet",
-        "format_version_triplet",
-        "Platform",
-        "LinuxDistro",
-    ]
+__all__ = [
+    "CommandRunner",
+    "DefaultCommandRunner",
+    "Hints",
+    "load_hints",
+    "get_platform_key",
+    "first_line",
+    "parse_version_triplet",
+    "format_version_triplet",
+]

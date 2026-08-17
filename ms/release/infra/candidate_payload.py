@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ms.core.hashing import is_sha256
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text
 from ms.release.domain.candidate_models import CandidateArtifact, CandidateManifest
 from ms.release.errors import ReleaseError
 
@@ -43,7 +45,11 @@ def write_candidate_checksums(
     lines = [f"{artifact.sha256}  {artifact.filename}" for artifact in manifest.artifacts]
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        atomic_write_text(
+            path,
+            "\n".join(lines) + ("\n" if lines else ""),
+            encoding="utf-8",
+        )
     except OSError as e:
         return Err(
             ReleaseError(
@@ -82,11 +88,18 @@ def load_candidate_checksums(path: Path) -> Result[dict[str, str], ReleaseError]
             )
         digest = parts[0].strip()
         filename = parts[1].strip()
-        if not digest or not filename:
+        if not is_sha256(digest) or not filename:
             return Err(
                 ReleaseError(
                     kind="invalid_input",
                     message=f"invalid checksums entry at line {idx + 1}: {path}",
+                )
+            )
+        if filename in out:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message=f"duplicate checksums entry at line {idx + 1}: {path}",
                 )
             )
         out[filename] = digest

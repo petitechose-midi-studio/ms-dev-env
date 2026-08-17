@@ -40,6 +40,7 @@ class _FakeResponse:
 def _no_sleep(_: float) -> None:
     return None
 
+
 # =============================================================================
 # HttpError tests
 # =============================================================================
@@ -274,7 +275,9 @@ class TestRealHttpClient:
         client = RealHttpClient()
         monkeypatch.setenv("GITHUB_TOKEN", "secret-token")
 
-        headers = client._build_headers("https://api.github.com/repos/open-control/bridge/releases/latest")
+        headers = client._build_headers(
+            "https://api.github.com/repos/open-control/bridge/releases/latest"
+        )
 
         assert headers["User-Agent"] == client.user_agent
         assert headers["Authorization"] == "Bearer secret-token"
@@ -288,7 +291,9 @@ class TestRealHttpClient:
         client = RealHttpClient()
         monkeypatch.setenv("GH_TOKEN", "secret-token")
 
-        headers = client._build_headers("https://github.com/open-control/bridge/releases/latest/download/oc-bridge-linux")
+        headers = client._build_headers(
+            "https://github.com/open-control/bridge/releases/latest/download/oc-bridge-linux"
+        )
 
         assert headers == {"User-Agent": client.user_agent}
 
@@ -402,6 +407,28 @@ class TestRealHttpClient:
         assert isinstance(result, Ok)
         assert dest.read_bytes() == b"hello"
         assert attempts["count"] == 2
+
+    def test_incomplete_download_does_not_replace_existing_file(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        def fake_urlopen(*args: object, **kwargs: object) -> _FakeResponse:
+            del args, kwargs
+            return _FakeResponse(b"short", headers={"Content-Length": "10"})
+
+        monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+        monkeypatch.setattr("time.sleep", _no_sleep)
+        client = RealHttpClient(retry_attempts=1, retry_backoff=0.0)
+        dest = tmp_path / "file.bin"
+        dest.write_bytes(b"known-good")
+
+        result = client.download("https://example.com/file.bin", dest)
+
+        assert isinstance(result, Err)
+        assert "Incomplete download" in result.error.message
+        assert dest.read_bytes() == b"known-good"
+        assert not tuple(tmp_path.glob("*.part"))
 
 
 # =============================================================================

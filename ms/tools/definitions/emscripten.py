@@ -82,24 +82,17 @@ class EmscriptenTool(Tool):
         emcc = "emcc.bat" if platform.is_windows else "emcc"
         return tools_dir / "emsdk" / "upstream" / "emscripten" / emcc
 
-    def emcmake_path(self, tools_dir: Path, platform: Platform) -> Path:
+    def emcmake_path(self, tools_dir: Path) -> Path:
         """Get path to emcmake wrapper.
 
         Always returns the Python script since we invoke it via sys.executable.
         """
-        del platform  # unused - always use .py
         return tools_dir / "emsdk" / "upstream" / "emscripten" / "emcmake.py"
 
     def emsdk_path(self, tools_dir: Path, platform: Platform) -> Path:
         """Get path to emsdk script."""
         name = "emsdk.bat" if platform.is_windows else "emsdk"
         return tools_dir / "emsdk" / name
-
-    def emsdk_env_path(self, tools_dir: Path, platform: Platform) -> Path:
-        """Get path to emsdk_env script for environment setup."""
-        if platform.is_windows:
-            return tools_dir / "emsdk" / "emsdk_env.bat"
-        return tools_dir / "emsdk" / "emsdk_env.sh"
 
     def is_installed(self, tools_dir: Path, platform: Platform) -> bool:
         """Check if Emscripten is installed and activated.
@@ -153,7 +146,3 @@ class EmscriptenTool(Tool):
         commands.append([emsdk, "activate", "latest"])
 
         return commands
-
-    def post_install(self, install_dir: Path, platform: Platform) -> None:
-        """No post-install needed - emsdk handles everything."""
-        pass

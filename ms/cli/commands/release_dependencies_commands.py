@@ -37,7 +37,6 @@ def dependencies_cmd(
     run = run_dependencies_release(
         workspace_root=ctx.workspace.root,
         console=ctx.console,
-        notes_file=None,
         watch=watch,
         dry_run=dry_run,
         promote=promote,

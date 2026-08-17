@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from ms.core.hashing import is_sha256
 from ms.core.structured import as_str_dict, get_str
 
 
@@ -81,16 +82,10 @@ class ToolPins:
                 if not isinstance(value, str):
                     continue
                 digest = value.strip().lower()
-                if not _is_sha256(digest):
+                if not is_sha256(digest):
                     raise ValueError(
                         f"Invalid checksum for key {key!r}: expected 64-char SHA256 hex"
                     )
                 checksums[key.strip()] = digest
 
         return cls(versions=versions, platformio_version=platformio_version, checksums=checksums)
-
-
-def _is_sha256(value: str) -> bool:
-    if len(value) != 64:
-        return False
-    return all(ch in "0123456789abcdef" for ch in value)

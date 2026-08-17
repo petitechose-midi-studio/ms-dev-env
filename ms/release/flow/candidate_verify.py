@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.release.domain import CandidateInputRepo, CandidateManifest
@@ -17,10 +16,9 @@ from .candidate_types import CandidateVerifyRequest
 
 def verify_candidate_bundle(
     *,
-    workspace_root: Path,
     request: CandidateVerifyRequest,
 ) -> Result[CandidateManifest, ReleaseError]:
-    inspected = inspect_candidate_metadata(workspace_root=workspace_root, request=request)
+    inspected = inspect_candidate_metadata(request=request)
     if isinstance(inspected, Err):
         return inspected
     payload = validate_candidate_payload(
@@ -35,13 +33,12 @@ def verify_candidate_bundle(
 
 def inspect_candidate_metadata(
     *,
-    workspace_root: Path,
     request: CandidateVerifyRequest,
 ) -> Result[CandidateManifest, ReleaseError]:
     manifest = load_candidate_manifest(request.manifest_path)
     if isinstance(manifest, Err):
         return manifest
-    verified = _verify_candidate_signature(workspace_root=workspace_root, request=request)
+    verified = _verify_candidate_signature(request=request)
     if isinstance(verified, Err):
         return verified
     expectations = _validate_candidate_expectations(request=request, manifest=manifest.value)
@@ -171,18 +168,15 @@ def _validate_expected_input_repos(
 
 def _verify_candidate_signature(
     *,
-    workspace_root: Path,
     request: CandidateVerifyRequest,
 ) -> Result[None, ReleaseError]:
     if request.public_key_b64 is not None:
         return verify_candidate_manifest_with_public_key(
-            workspace_root=workspace_root,
             manifest_path=request.manifest_path,
             sig_path=request.sig_path,
             public_key_b64=request.public_key_b64,
         )
     return verify_candidate_manifest(
-        workspace_root=workspace_root,
         manifest_path=request.manifest_path,
         sig_path=request.sig_path,
         pk_env=request.public_key_env,

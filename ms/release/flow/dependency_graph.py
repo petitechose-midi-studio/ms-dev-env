@@ -175,9 +175,7 @@ def _parse_node(
             return parsed_pin_dependencies
         pin_dependencies = parsed_pin_dependencies.value
         unknown_pin_dependencies = tuple(
-            dependency
-            for dependency in pin_dependencies
-            if dependency not in depends_on.value
+            dependency for dependency in pin_dependencies if dependency not in depends_on.value
         )
         if unknown_pin_dependencies:
             return Err(
@@ -207,9 +205,7 @@ def _parse_node(
     )
 
 
-def _string_tuple(
-    item: Mapping[str, object], key: str
-) -> Result[tuple[str, ...], ReleaseError]:
+def _string_tuple(item: Mapping[str, object], key: str) -> Result[tuple[str, ...], ReleaseError]:
     raw = item.get(key)
     if raw is None:
         return Ok(())
@@ -240,4 +236,3 @@ def _repo_specs_by_slug(specs: list[RepoSpec]) -> dict[str, RepoSpec]:
 
 def _graph_error(message: str, graph_path: Path) -> ReleaseError:
     return ReleaseError(kind="invalid_input", message=message, hint=str(graph_path))
-

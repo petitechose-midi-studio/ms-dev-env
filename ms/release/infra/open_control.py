@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.git.sha import is_git_sha
 from ms.platform.process import run as run_process
 from ms.release.domain.open_control_models import (
     OPEN_CONTROL_BOM_REPOS,
@@ -164,7 +165,7 @@ def _git_head_sha(*, repo_root: Path) -> str | None:
     if isinstance(r, Err):
         return None
     sha = r.value.strip()
-    if len(sha) != 40:
+    if not is_git_sha(sha):
         return None
     return sha
 

@@ -7,13 +7,15 @@ from pathlib import Path
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain import config
 from ms.release.domain.models import PinnedRepo, ReleasePlan
 from ms.release.errors import ReleaseError
 from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.content_candidates import ensure_content_candidates
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
-from ms.release.infra.artifacts.notes_writer import write_release_notes
+from ms.release.infra.artifacts.notes_writer import render_release_notes, write_release_notes
 from ms.release.infra.artifacts.spec_writer import write_release_spec
+from ms.release.infra.github.pr_merge import find_matching_pull_request
 from ms.release.infra.repos.distribution import (
     checkout_main_and_pull,
     commit_and_push,
@@ -85,7 +87,13 @@ def _merge_distribution_pr(
     return Ok(None)
 
 
-def _distribution_artifacts_match_plan(*, dist_root: Path, plan: ReleasePlan) -> bool:
+def _distribution_artifacts_match_plan(
+    *,
+    dist_root: Path,
+    plan: ReleasePlan,
+    user_notes: str | None,
+    user_notes_file: Path | None,
+) -> bool:
     spec_path = dist_root / plan.spec_path
     if not spec_path.exists():
         return False
@@ -93,6 +101,20 @@ def _distribution_artifacts_match_plan(*, dist_root: Path, plan: ReleasePlan) ->
     if plan.notes_path is not None:
         notes_path = dist_root / plan.notes_path
         if not notes_path.exists():
+            return False
+        expected_notes = render_release_notes(
+            channel=plan.channel,
+            tag=plan.tag,
+            pinned=plan.pinned,
+            user_notes=user_notes,
+            user_notes_file=user_notes_file,
+        )
+        if isinstance(expected_notes, Err):
+            return False
+        try:
+            if notes_path.read_text(encoding="utf-8") != expected_notes.value:
+                return False
+        except OSError:
             return False
 
     try:
@@ -146,6 +168,54 @@ def prepare_distribution_pr(
     user_notes_file: Path | None,
     dry_run: bool,
 ) -> Result[PrMergeOutcome, ReleaseError]:
+    branch = f"release/{plan.tag}"
+    body = build_pinned_body(intro=(f"channel={plan.channel}",), pinned=plan.pinned)
+
+    if not dry_run:
+        existing_pr = find_matching_pull_request(
+            workspace_root=workspace_root,
+            repo_slug=config.DIST_REPO_SLUG,
+            base_branch=config.DIST_DEFAULT_BRANCH,
+            branch=branch,
+            title=plan.title,
+            body=body,
+        )
+        if isinstance(existing_pr, Err):
+            return existing_pr
+        if existing_pr.value is not None:
+            console.print(f"resuming distribution release PR: {existing_pr.value}", Style.DIM)
+            merged = _merge_distribution_pr(
+                workspace_root=workspace_root,
+                pr_url=existing_pr.value,
+                console=console,
+                dry_run=False,
+            )
+            if isinstance(merged, Err):
+                return merged
+            dist_root_r = _prepare_distribution_repo(
+                workspace_root=workspace_root,
+                console=console,
+                dry_run=False,
+            )
+            if isinstance(dist_root_r, Err):
+                return dist_root_r
+            if not _distribution_artifacts_match_plan(
+                dist_root=dist_root_r.value,
+                plan=plan,
+                user_notes=user_notes,
+                user_notes_file=user_notes_file,
+            ):
+                return Err(
+                    ReleaseError(
+                        kind="verification_failed",
+                        message="merged distribution PR does not match the release plan",
+                        hint=existing_pr.value,
+                    )
+                )
+            return Ok(
+                PrMergeOutcome(kind="merged_pr", url=existing_pr.value, label=existing_pr.value)
+            )
+
     dist_root_r = _prepare_distribution_repo(
         workspace_root=workspace_root,
         console=console,
@@ -157,7 +227,12 @@ def prepare_distribution_pr(
 
     # Idempotency: if the spec/notes already exist on the default branch and match the plan,
     # skip PR creation and proceed.
-    if not dry_run and _distribution_artifacts_match_plan(dist_root=dist_root, plan=plan):
+    if not dry_run and _distribution_artifacts_match_plan(
+        dist_root=dist_root,
+        plan=plan,
+        user_notes=user_notes,
+        user_notes_file=user_notes_file,
+    ):
         console.print("distribution spec already present on main; skipping PR", Style.DIM)
         return Ok(
             PrMergeOutcome(
@@ -167,7 +242,6 @@ def prepare_distribution_pr(
             )
         )
 
-    branch = f"release/{plan.tag}"
     br = create_branch(repo_root=dist_root, branch=branch, console=console, dry_run=dry_run)
     if isinstance(br, Err):
         return br
@@ -210,8 +284,6 @@ def prepare_distribution_pr(
     )
     if isinstance(commit, Err):
         return commit
-
-    body = build_pinned_body(intro=(f"channel={plan.channel}",), pinned=plan.pinned)
 
     pr = open_pr(
         workspace_root=workspace_root,

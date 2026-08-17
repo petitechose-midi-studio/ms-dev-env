@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+from dataclasses import replace
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -11,6 +12,7 @@ from ms.release.infra.candidate_contract import (
     compute_build_input_fingerprint,
     compute_recipe_fingerprint,
     describe_candidate_artifact,
+    load_candidate_checksums,
     load_candidate_manifest,
     validate_candidate_payload,
     write_candidate_checksums,
@@ -38,14 +40,14 @@ def test_compute_build_input_fingerprint_is_order_independent() -> None:
     left = compute_build_input_fingerprint(
         producer_kind="bitwig-firmware",
         input_repos=repos_a,
-        recipe_fingerprint="r" * 64,
+        recipe_fingerprint="e" * 64,
         toolchain=(("platformio", "6.1.18"),),
         config=(("ui_sha", "c" * 40),),
     )
     right = compute_build_input_fingerprint(
         producer_kind="bitwig-firmware",
         input_repos=repos_b,
-        recipe_fingerprint="r" * 64,
+        recipe_fingerprint="e" * 64,
         toolchain=(("platformio", "6.1.18"),),
         config=(("ui_sha", "c" * 40),),
     )
@@ -90,7 +92,7 @@ def test_candidate_manifest_roundtrip_and_payload_validation(tmp_path: Path) -> 
         run_attempt=1,
         generated_at="2026-04-17T21:00:00Z",
         build_input_fingerprint="f" * 64,
-        recipe_fingerprint="r" * 64,
+        recipe_fingerprint="e" * 64,
         input_repos=(
             CandidateInputRepo(
                 id="core",
@@ -122,6 +124,23 @@ def test_candidate_manifest_roundtrip_and_payload_validation(tmp_path: Path) -> 
     )
     assert isinstance(validated, Ok)
 
+    invalid_path = tmp_path / "invalid-candidate.json"
+    written = write_candidate_manifest(
+        path=invalid_path,
+        manifest=replace(manifest, recipe_fingerprint="not-a-sha256"),
+    )
+    assert isinstance(written, Ok)
+    assert isinstance(load_candidate_manifest(invalid_path), Err)
+
+
+def test_candidate_checksums_reject_invalid_and_duplicate_entries(tmp_path: Path) -> None:
+    checksums = tmp_path / "checksums.txt"
+    checksums.write_text("not-a-digest  firmware.hex\n", encoding="utf-8")
+    assert isinstance(load_candidate_checksums(checksums), Err)
+
+    checksums.write_text(f"{'a' * 64}  firmware.hex\n{'b' * 64}  firmware.hex\n", encoding="utf-8")
+    assert isinstance(load_candidate_checksums(checksums), Err)
+
 
 def test_candidate_signatures_roundtrip_without_distribution_repo(
     tmp_path: Path, monkeypatch: MonkeyPatch
@@ -135,25 +154,22 @@ def test_candidate_signatures_roundtrip_without_distribution_repo(
     monkeypatch.setenv("MS_CANDIDATE_ED25519_SK", seed_b64)
 
     signed = sign_candidate_manifest(
-        workspace_root=tmp_path,
         manifest_path=manifest_path,
         sig_path=sig_path,
     )
     assert isinstance(signed, Ok)
 
-    derived = derive_candidate_public_key(workspace_root=tmp_path)
+    derived = derive_candidate_public_key()
     assert isinstance(derived, Ok)
     monkeypatch.setenv("MS_CANDIDATE_ED25519_PK", derived.value)
 
     verified = verify_candidate_manifest(
-        workspace_root=tmp_path,
         manifest_path=manifest_path,
         sig_path=sig_path,
     )
     assert isinstance(verified, Ok)
 
     verified_with_explicit_key = verify_candidate_manifest_with_public_key(
-        workspace_root=tmp_path,
         manifest_path=manifest_path,
         sig_path=sig_path,
         public_key_b64=derived.value,
@@ -171,12 +187,11 @@ def test_candidate_signatures_report_invalid_signature(
 
     seed = bytes(range(32))
     monkeypatch.setenv("MS_CANDIDATE_ED25519_SK", base64.b64encode(seed).decode("ascii"))
-    derived = derive_candidate_public_key(workspace_root=tmp_path)
+    derived = derive_candidate_public_key()
     assert isinstance(derived, Ok)
     monkeypatch.setenv("MS_CANDIDATE_ED25519_PK", derived.value)
 
     verified = verify_candidate_manifest(
-        workspace_root=tmp_path,
         manifest_path=manifest_path,
         sig_path=sig_path,
     )

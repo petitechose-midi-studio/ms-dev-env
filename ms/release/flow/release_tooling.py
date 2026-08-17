@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.git.sha import is_git_sha
 from ms.release.domain import CandidateInputRepo
 from ms.release.domain.config import MS_DEFAULT_BRANCH, MS_REPO_SLUG
 from ms.release.domain.models import ReleaseTooling
@@ -23,7 +24,7 @@ def resolve_release_tooling(*, workspace_root: Path) -> Result[ReleaseTooling, R
         )
 
     sha = head.value.strip()
-    if len(sha) != 40:
+    if not is_git_sha(sha):
         return Err(
             ReleaseError(
                 kind="repo_failed",

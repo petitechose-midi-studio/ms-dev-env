@@ -30,9 +30,7 @@ def export_plugin_bitwig_firmware_cmd(
         exit_release(ui_sha.error.pretty(), code=release_error_code(ui_sha.error.kind))
 
     tooling = ReleaseTooling(repo=MS_REPO_SLUG, ref=MS_DEFAULT_BRANCH, sha=tooling_sha)
-    candidate_tag = (
-        f"rc-plugin-bitwig-firmware-{core_sha}-{source_sha}-tooling-{tooling.sha}"
-    )
+    candidate_tag = f"rc-plugin-bitwig-firmware-{core_sha}-{source_sha}-tooling-{tooling.sha}"
 
     github_output.parent.mkdir(parents=True, exist_ok=True)
     with github_output.open("a", encoding="utf-8") as fh:

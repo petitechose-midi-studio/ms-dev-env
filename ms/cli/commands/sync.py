@@ -6,9 +6,9 @@ import typer
 
 from ms.cli.context import build_context
 from ms.core.errors import ErrorCode
-from ms.core.result import Err, Ok
+from ms.core.result import Err
 from ms.output.console import Style
-from ms.services.repo_profiles import RepoProfile, repo_manifest_path
+from ms.services.repo_profiles import RepoProfile, repo_manifest_paths
 from ms.services.repos import RepoService
 from ms.services.toolchains import ToolchainService
 
@@ -30,20 +30,16 @@ def sync(
 
     if sync_all or repos:
         ctx.console.header("Repos")
-        manifest_path = repo_manifest_path(profile)
         result = RepoService(
             workspace=ctx.workspace,
             console=ctx.console,
-            manifest_path=manifest_path,
+            manifest_paths=repo_manifest_paths(profile),
         ).sync_all(dry_run=dry_run)
-        match result:
-            case Err(e):
-                ctx.console.error(e.message)
-                if e.hint:
-                    ctx.console.print(f"hint: {e.hint}", Style.DIM)
-                raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
-            case Ok(_):
-                pass
+        if isinstance(result, Err):
+            ctx.console.error(result.error.message)
+            if result.error.hint:
+                ctx.console.print(f"hint: {result.error.hint}", Style.DIM)
+            raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
 
     if test_tools:
         ctx.console.header("Test Tools")
@@ -53,12 +49,9 @@ def sync(
             config=ctx.config,
             console=ctx.console,
         ).sync_unit_tests(dry_run=dry_run)
-        match result:
-            case Err(e):
-                ctx.console.error(e.message)
-                raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
-            case Ok(_):
-                pass
+        if isinstance(result, Err):
+            ctx.console.error(result.error.message)
+            raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
 
     if sync_all or tools:
         ctx.console.header("Tools")
@@ -68,9 +61,6 @@ def sync(
             config=ctx.config,
             console=ctx.console,
         ).sync_dev(dry_run=dry_run)
-        match result:
-            case Err(e):
-                ctx.console.error(e.message)
-                raise typer.Exit(code=int(ErrorCode.ENV_ERROR))
-            case Ok(_):
-                pass
+        if isinstance(result, Err):
+            ctx.console.error(result.error.message)
+            raise typer.Exit(code=int(ErrorCode.ENV_ERROR))

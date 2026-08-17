@@ -43,8 +43,6 @@ def _workspace_state(*, root: Path, status: BomComparisonStatus) -> BomWorkspace
             bom_sha=pin.sha,
             workspace_sha=pin.sha,
             derived_sha=(pin.sha if pin.repo in {"framework", "note"} else None),
-            workspace_exists=True,
-            workspace_dirty=False,
         )
         for pin in pins
     )

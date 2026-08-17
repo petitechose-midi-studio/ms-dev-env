@@ -50,7 +50,7 @@ class Downloader:
     Usage:
         downloader = Downloader(http_client, cache_dir)
         result = downloader.download(url)
-        if is_ok(result):
+        if isinstance(result, Ok):
             print(f"Downloaded to: {result.value.path}")
     """
 
@@ -87,29 +87,6 @@ class Downloader:
     def _cache_path(self, url: str) -> Path:
         """Get cache file path for URL."""
         return self._cache_dir / self.cache_key(url)
-
-    def is_cached(self, url: str) -> bool:
-        """Check if URL is already cached.
-
-        Args:
-            url: URL to check
-
-        Returns:
-            True if file exists in cache
-        """
-        return self._cache_path(url).exists()
-
-    def get_cached(self, url: str) -> Path | None:
-        """Get cached file path if exists.
-
-        Args:
-            url: URL to look up
-
-        Returns:
-            Path to cached file, or None if not cached
-        """
-        path = self._cache_path(url)
-        return path if path.exists() else None
 
     def clear_cache(self, url: str | None = None) -> int:
         """Clear cached downloads.

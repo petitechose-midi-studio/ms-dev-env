@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from ms.platform.files import atomic_write_text
+from ms.platform.files import atomic_write_text, remove_tree
 
 
 def test_atomic_write_text_creates_parent_dirs(tmp_path: Path) -> None:
@@ -41,3 +41,14 @@ def test_atomic_write_text_cleans_temp_file_on_replace_failure(
 
     leftovers = list(path.parent.glob(f".{path.name}.*.tmp"))
     assert leftovers == []
+
+
+def test_remove_tree_removes_nested_files(tmp_path: Path) -> None:
+    tree = tmp_path / "tree"
+    nested = tree / "nested"
+    nested.mkdir(parents=True)
+    (nested / "file.txt").write_text("content", encoding="utf-8")
+
+    remove_tree(tree)
+
+    assert not tree.exists()

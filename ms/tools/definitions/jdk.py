@@ -64,10 +64,6 @@ class JdkTool(Tool):
     # JDK major version (configurable via toolchains.toml)
     major_version: int = DEFAULT_JDK_MAJOR
 
-    # Cache for download URL (set by latest_version)
-    _cached_url: str | None = None
-    _cached_version: str | None = None
-
     def _get_adoptium_os(self, platform: Platform) -> str | None:
         """Get Adoptium OS string."""
         return _ADOPTIUM_OS.get(platform)
@@ -79,8 +75,6 @@ class JdkTool(Tool):
     def latest_version(self, http: HttpClient) -> Result[str, HttpError]:
         """Fetch latest JDK version from Adoptium.
 
-        This also caches the download URL for use by download_url().
-
         Note: We default to x64 linux for version resolution since
         all platforms get the same version.
         """
@@ -89,9 +83,7 @@ class JdkTool(Tool):
         if isinstance(result, Err):
             return result
 
-        url, version = result.value
-        self._cached_url = url
-        self._cached_version = version
+        _, version = result.value
         return Ok(version)
 
     def download_url(self, version: str, platform: Platform, arch: Arch) -> str:

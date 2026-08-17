@@ -82,9 +82,6 @@ def test_app_publish_command_preserves_error_hint(
     )
     notes = SimpleNamespace(markdown="notes", source_path=None)
 
-    def fake_permission(**_: object) -> None:
-        return None
-
     def fake_prepare(**_: object) -> SimpleNamespace:
         return prepared
 
@@ -98,7 +95,6 @@ def test_app_publish_command_preserves_error_hint(
         return Err(_workflow_error())
 
     monkeypatch.setattr(cmd, "build_context", lambda: _ctx(tmp_path, MockConsole()))
-    monkeypatch.setattr(cmd, "ensure_release_permissions_or_exit", fake_permission)
     monkeypatch.setattr(cmd, "prepare_app_release", fake_prepare)
     monkeypatch.setattr(cmd, "resolve_app_publish_notes", fake_resolve_notes)
     monkeypatch.setattr(cmd, "print_app_notes_attachment", fake_print_notes)
@@ -134,9 +130,6 @@ def test_content_publish_command_preserves_error_hint(
     captured: dict[str, object] = {}
     prepared = SimpleNamespace(pr="merged", plan=SimpleNamespace(tag="v0.1.2-beta.1"))
 
-    def fake_permission(**_: object) -> None:
-        return None
-
     def fake_prepare(**_: object) -> SimpleNamespace:
         return prepared
 
@@ -144,7 +137,6 @@ def test_content_publish_command_preserves_error_hint(
         return Err(_workflow_error())
 
     monkeypatch.setattr(cmd, "build_context", lambda: _ctx(tmp_path, MockConsole()))
-    monkeypatch.setattr(cmd, "ensure_release_permissions_or_exit", fake_permission)
     monkeypatch.setattr(cmd, "prepare_content_release", fake_prepare)
     monkeypatch.setattr(cmd, "publish_distribution_release", fake_publish)
     monkeypatch.setattr(cmd, "exit_release", _capture_exit(captured))

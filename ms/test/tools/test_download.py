@@ -178,42 +178,6 @@ class TestDownloaderDownload:
 class TestDownloaderCache:
     """Tests for cache management."""
 
-    def test_is_cached_true(self, tmp_path: Path) -> None:
-        """is_cached returns True for cached URLs."""
-        client = MockHttpClient()
-        client.set_download("https://example.com/file.zip", b"content")
-
-        downloader = Downloader(client, tmp_path / "cache")
-        downloader.download("https://example.com/file.zip")
-
-        assert downloader.is_cached("https://example.com/file.zip") is True
-
-    def test_is_cached_false(self, tmp_path: Path) -> None:
-        """is_cached returns False for uncached URLs."""
-        downloader = Downloader(MockHttpClient(), tmp_path / "cache")
-
-        assert downloader.is_cached("https://example.com/file.zip") is False
-
-    def test_get_cached_exists(self, tmp_path: Path) -> None:
-        """get_cached returns path for cached URLs."""
-        client = MockHttpClient()
-        client.set_download("https://example.com/file.zip", b"content")
-
-        downloader = Downloader(client, tmp_path / "cache")
-        result = downloader.download("https://example.com/file.zip")
-        assert isinstance(result, Ok)
-
-        cached = downloader.get_cached("https://example.com/file.zip")
-        assert cached is not None
-        assert cached == result.value.path
-
-    def test_get_cached_not_exists(self, tmp_path: Path) -> None:
-        """get_cached returns None for uncached URLs."""
-        downloader = Downloader(MockHttpClient(), tmp_path / "cache")
-
-        cached = downloader.get_cached("https://example.com/file.zip")
-        assert cached is None
-
     def test_clear_cache_specific_url(self, tmp_path: Path) -> None:
         """Clear cache for specific URL."""
         client = MockHttpClient()
@@ -227,8 +191,12 @@ class TestDownloaderCache:
         # Clear only file1
         count = downloader.clear_cache("https://example.com/file1.zip")
         assert count == 1
-        assert downloader.is_cached("https://example.com/file1.zip") is False
-        assert downloader.is_cached("https://example.com/file2.zip") is True
+        assert not (
+            downloader.cache_dir / downloader.cache_key("https://example.com/file1.zip")
+        ).exists()
+        assert (
+            downloader.cache_dir / downloader.cache_key("https://example.com/file2.zip")
+        ).exists()
 
     def test_clear_cache_all(self, tmp_path: Path) -> None:
         """Clear all cached files."""
@@ -242,5 +210,9 @@ class TestDownloaderCache:
 
         count = downloader.clear_cache()
         assert count == 2
-        assert downloader.is_cached("https://example.com/file1.zip") is False
-        assert downloader.is_cached("https://example.com/file2.zip") is False
+        assert not (
+            downloader.cache_dir / downloader.cache_key("https://example.com/file1.zip")
+        ).exists()
+        assert not (
+            downloader.cache_dir / downloader.cache_key("https://example.com/file2.zip")
+        ).exists()

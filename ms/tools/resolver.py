@@ -63,7 +63,7 @@ class ToolResolver:
     Usage:
         resolver = ToolResolver(tools_dir, platform)
         result = resolver.resolve(ninja_tool)
-        if is_ok(result):
+        if isinstance(result, Ok):
             print(f"Found: {result.value.path}")
     """
 

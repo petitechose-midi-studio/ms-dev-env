@@ -357,31 +357,3 @@ class TestInstallerOverwrite:
         assert isinstance(result, Ok)
         assert (install_dir / "new_file.txt").exists()
         assert not (install_dir / "old_file.txt").exists()
-
-
-# =============================================================================
-# Installer cleanup tests
-# =============================================================================
-
-
-class TestInstallerCleanup:
-    """Tests for cleanup method."""
-
-    def test_cleanup_existing(self, tmp_path: Path) -> None:
-        """Cleanup removes existing directory."""
-        install_dir = tmp_path / "install"
-        install_dir.mkdir()
-        (install_dir / "file.txt").write_bytes(b"content")
-
-        installer = Installer()
-        result = installer.cleanup(install_dir)
-
-        assert result is True
-        assert not install_dir.exists()
-
-    def test_cleanup_nonexistent(self, tmp_path: Path) -> None:
-        """Cleanup returns False for nonexistent directory."""
-        installer = Installer()
-        result = installer.cleanup(tmp_path / "nonexistent")
-
-        assert result is False

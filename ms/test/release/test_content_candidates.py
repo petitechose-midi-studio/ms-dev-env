@@ -1,3 +1,4 @@
+# pyright: reportUnknownArgumentType=false, reportUnknownLambdaType=false
 from __future__ import annotations
 
 from pathlib import Path
@@ -190,11 +191,7 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
         *, workspace_root: Path, target: ContentCandidateTarget
     ) -> Ok[ContentCandidateState]:
         del workspace_root, target
-        return Ok(
-            ContentCandidateState.READY
-            if next(probes)
-            else ContentCandidateState.MISSING
-        )
+        return Ok(ContentCandidateState.READY if next(probes) else ContentCandidateState.MISSING)
 
     monkeypatch.setattr(ensure_module, "plan_content_candidates", fake_plan_content_candidates)
     monkeypatch.setattr(ensure_module, "_probe_content_candidate", fake_probe_content_candidate)
@@ -208,6 +205,7 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
         "dispatch_candidate_workflow",
         fake_dispatch_candidate_workflow,
     )
+
     def fake_watch_run(
         *,
         workspace_root: Path,
@@ -242,6 +240,89 @@ def test_ensure_content_candidates_dispatches_only_missing_targets(
     ]
     assert ensured.value[0].ready_on_entry is False
     assert ensured.value[0].run is not None
+
+
+def test_ensure_content_candidates_dispatches_all_builds_before_watching(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    import ms.release.flow.content_candidate_ensure as ensure_module
+
+    def target(candidate_id: str) -> ContentCandidateTarget:
+        return ContentCandidateTarget(
+            id=candidate_id,
+            label=candidate_id,
+            producer_id=candidate_id,
+            repo_slug=f"example/{candidate_id}",
+            workflow_file=".github/workflows/candidate.yml",
+            ref="main",
+            candidate_tag=f"rc-{candidate_id}",
+            workflow_inputs=(("source_sha", "3" * 40),),
+            expected_input_repos=(),
+            public_key_b64="pk",
+        )
+
+    targets = (target("first"), target("second"))
+    probe_count = {candidate.id: 0 for candidate in targets}
+    events: list[str] = []
+
+    monkeypatch.setattr(
+        ensure_module,
+        "plan_content_candidates",
+        lambda **_: Ok(targets),
+    )
+
+    def fake_probe_content_candidate(
+        *, workspace_root: Path, target: ContentCandidateTarget
+    ) -> Ok[ContentCandidateState]:
+        del workspace_root
+        probe_count[target.id] += 1
+        return Ok(
+            ContentCandidateState.MISSING
+            if probe_count[target.id] == 1
+            else ContentCandidateState.READY
+        )
+
+    def fake_dispatch_candidate_workflow(**kwargs: object) -> Ok[WorkflowRun]:
+        repo_slug = str(kwargs["repo_slug"])
+        candidate_id = repo_slug.rsplit("/", 1)[-1]
+        events.append(f"dispatch:{candidate_id}")
+        return Ok(
+            WorkflowRun(
+                id=len(events),
+                url=f"https://example.test/{candidate_id}",
+                request_id=candidate_id,
+            )
+        )
+
+    def fake_watch_run(**kwargs: object) -> Ok[None]:
+        repo_slug = str(kwargs["repo_slug"])
+        events.append(f"watch:{repo_slug.rsplit('/', 1)[-1]}")
+        return Ok(None)
+
+    monkeypatch.setattr(ensure_module, "_probe_content_candidate", fake_probe_content_candidate)
+    monkeypatch.setattr(
+        ensure_module, "dispatch_candidate_workflow", fake_dispatch_candidate_workflow
+    )
+    monkeypatch.setattr(ensure_module, "watch_run", fake_watch_run)
+
+    ensured = ensure_content_candidates(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        plan=ReleasePlan(
+            channel="beta",
+            tag="v1.2.3-beta.1",
+            pinned=_pinned(),
+            tooling=_tooling(),
+            spec_path="release-specs/v1.2.3-beta.1.json",
+            notes_path=None,
+            title="release(content): v1.2.3-beta.1",
+        ),
+        dry_run=False,
+    )
+
+    assert isinstance(ensured, Ok)
+    assert events == ["dispatch:first", "dispatch:second", "watch:first", "watch:second"]
+    assert [candidate.target.id for candidate in ensured.value] == ["first", "second"]
 
 
 def test_ensure_content_candidates_waits_for_incomplete_candidate_before_dispatch(

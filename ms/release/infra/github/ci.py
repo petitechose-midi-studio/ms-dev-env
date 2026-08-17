@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 from ms.core.result import Err, Ok, Result
 from ms.core.structured import as_obj_list, as_str_dict, get_list, get_str
+from ms.git.sha import is_git_sha
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.gh_base import gh_api_json, run_gh_read
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
@@ -74,7 +75,7 @@ def fetch_green_head_shas(
         sha = get_str(run, "head_sha")
         if sha is None:
             continue
-        if len(sha) != 40:
+        if not is_git_sha(sha):
             continue
         shas.add(sha)
 

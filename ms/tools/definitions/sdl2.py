@@ -16,14 +16,12 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ms.core.result import Result
+from ms.platform.files import remove_tree
 from ms.tools.base import Mode, ToolSpec
 from ms.tools.github import GitHubTool
-from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
     from ms.platform.detection import Arch, Platform
-    from ms.tools.http import HttpClient
 
 __all__ = ["Sdl2Tool"]
 
@@ -46,15 +44,6 @@ class Sdl2Tool(GitHubTool):
 
     repo = "libsdl-org/SDL"
 
-    install_hints: dict[str, str] = {
-        "linux": "sudo apt install libsdl2-dev",
-        "macos": "brew install sdl2",
-    }
-
-    def latest_version(self, http: HttpClient) -> Result[str, HttpError]:
-        """Fetch latest version."""
-        return super().latest_version(http)
-
     def download_url(self, version: str, platform: Platform, arch: Arch) -> str:
         """Get download URL for Windows MinGW SDL2."""
         return f"https://github.com/{self.repo}/releases/download/release-{version}/SDL2-devel-{version}-mingw.zip"
@@ -73,11 +62,6 @@ class Sdl2Tool(GitHubTool):
             return tools_dir / "sdl2" / "bin" / "SDL2.dll"
         return None
 
-    def include_path(self, tools_dir: Path) -> Path:
-        """Get the include path for SDL2 headers."""
-        # MinGW package: include/SDL2/SDL.h
-        return tools_dir / "sdl2" / "include"
-
     def lib_path(self, tools_dir: Path) -> Path:
         """Get the library path for SDL2."""
         return tools_dir / "sdl2" / "lib"
@@ -89,18 +73,6 @@ class Sdl2Tool(GitHubTool):
             lib_path = tools_dir / "sdl2" / "lib" / "libSDL2.dll.a"
             return lib_path.exists()
         return shutil.which("sdl2-config") is not None
-
-    def is_windows_only(self) -> bool:
-        """SDL2 auto-install is Windows-only."""
-        return True
-
-    def get_install_hint(self, platform: Platform) -> str | None:
-        """Get installation hint for non-Windows platforms."""
-        if platform.is_linux:
-            return self.install_hints.get("linux")
-        if platform.is_macos:
-            return self.install_hints.get("macos")
-        return None
 
     def post_install(self, install_dir: Path, platform: Platform) -> None:
         """Move x86_64-w64-mingw32/ contents to root.
@@ -124,7 +96,7 @@ class Sdl2Tool(GitHubTool):
             dest = install_dir / item.name
             if dest.exists():
                 if dest.is_dir():
-                    shutil.rmtree(dest)
+                    remove_tree(dest)
                 else:
                     dest.unlink()
             shutil.move(str(item), str(dest))
@@ -133,4 +105,4 @@ class Sdl2Tool(GitHubTool):
         mingw64_dir.rmdir()
         mingw32_dir = install_dir / "i686-w64-mingw32"
         if mingw32_dir.exists():
-            shutil.rmtree(mingw32_dir)
+            remove_tree(mingw32_dir)

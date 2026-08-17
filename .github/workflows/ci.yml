@@ -48,19 +48,10 @@ jobs:
         run: uv run ruff check ms
 
       - name: Unit tests
-        run: uv run pytest ms/test -q
+        run: uv run pytest ms/test -q --ignore=ms/test/e2e
 
-      - name: CLI help
-        run: uv run ms --help
-
-      - name: Setup (dry-run)
-        run: uv run ms setup --dry-run
-
-      - name: Sync tools (dry-run)
-        run: uv run ms sync --tools --dry-run
-
-      - name: Sync repos (dry-run)
-        run: uv run ms sync --repos --dry-run
+      - name: CLI lifecycle E2E
+        run: uv run pytest ms/test/e2e -q
 
       - name: Check (advisory)
         run: uv run ms check --no-strict
@@ -121,19 +112,10 @@ jobs:
         run: uv run ruff check ms
 
       - name: Unit tests
-        run: uv run pytest ms/test -q
+        run: uv run pytest ms/test -q --ignore=ms/test/e2e
 
-      - name: CLI help
-        run: uv run ms --help
-
-      - name: Setup (dry-run)
-        run: uv run ms setup --dry-run
-
-      - name: Sync tools (dry-run)
-        run: uv run ms sync --tools --dry-run
-
-      - name: Sync repos (dry-run)
-        run: uv run ms sync --repos --dry-run
+      - name: CLI lifecycle E2E
+        run: uv run pytest ms/test/e2e -q
 
       - name: Check (advisory)
         run: uv run ms check --no-strict

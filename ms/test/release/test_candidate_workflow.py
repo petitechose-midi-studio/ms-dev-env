@@ -53,6 +53,16 @@ def test_load_candidate_json_inputs(tmp_path: Path) -> None:
     assert toolchain.value == (("node", "20"), ("rust", "stable"))
 
 
+def test_load_candidate_input_repos_rejects_invalid_sha(tmp_path: Path) -> None:
+    path = tmp_path / "repos.json"
+    path.write_text(
+        '[{"id":"core","repo":"petitechose-midi-studio/core","sha":"main"}]',
+        encoding="utf-8",
+    )
+
+    assert isinstance(load_candidate_input_repos(path), Err)
+
+
 def test_write_and_verify_candidate_bundle_roundtrip(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
@@ -61,21 +71,19 @@ def test_write_and_verify_candidate_bundle_roundtrip(
     (artifacts_dir / "foo-1.2.3.msi").write_bytes(b"msi")
     (tmp_path / "package-lock.json").write_text("{}", encoding="utf-8")
 
-    def fake_sign_candidate_manifest(
-        *, workspace_root: Path, manifest_path: Path, sig_path: Path, key_env: str
-    ):
-        del workspace_root, manifest_path, key_env
+    def fake_sign_candidate_manifest(*, manifest_path: Path, sig_path: Path, key_env: str):
+        del manifest_path, key_env
         sig_path.write_text("sig\n", encoding="utf-8")
         return Ok(None)
 
-    def fake_derive_candidate_public_key(*, workspace_root: Path, key_env: str):
-        del workspace_root, key_env
+    def fake_derive_candidate_public_key(*, key_env: str):
+        del key_env
         return Ok("pubkey")
 
     def fake_verify_candidate_manifest_with_public_key(
-        *, workspace_root: Path, manifest_path: Path, sig_path: Path, public_key_b64: str
+        *, manifest_path: Path, sig_path: Path, public_key_b64: str
     ):
-        del workspace_root, manifest_path, sig_path, public_key_b64
+        del manifest_path, sig_path, public_key_b64
         return Ok(None)
 
     monkeypatch.setattr(write_module, "sign_candidate_manifest", fake_sign_candidate_manifest)
@@ -96,7 +104,6 @@ def test_write_and_verify_candidate_bundle_roundtrip(
     )
 
     written = write_candidate_bundle(
-        workspace_root=tmp_path,
         request=CandidateWriteRequest(
             artifacts_dir=artifacts_dir,
             manifest_path=tmp_path / "candidate.json",
@@ -133,7 +140,6 @@ def test_write_and_verify_candidate_bundle_roundtrip(
     assert isinstance(written, Ok)
 
     verified = verify_candidate_bundle(
-        workspace_root=tmp_path,
         request=CandidateVerifyRequest(
             artifacts_dir=artifacts_dir,
             manifest_path=tmp_path / "candidate.json",
@@ -157,7 +163,6 @@ def test_write_and_verify_candidate_bundle_roundtrip(
     assert isinstance(verified, Ok)
 
     mismatched = verify_candidate_bundle(
-        workspace_root=tmp_path,
         request=CandidateVerifyRequest(
             artifacts_dir=artifacts_dir,
             manifest_path=tmp_path / "candidate.json",
@@ -184,7 +189,6 @@ def test_fetch_candidate_assets_downloads_verifies_and_copies(
     monkeypatch.setenv("MS_CANDIDATE_ED25519_SK", base64.b64encode(seed).decode("ascii"))
 
     written = write_candidate_bundle(
-        workspace_root=tmp_path,
         request=CandidateWriteRequest(
             artifacts_dir=source_dir,
             manifest_path=source_dir / "candidate.json",
@@ -219,7 +223,7 @@ def test_fetch_candidate_assets_downloads_verifies_and_copies(
     )
     assert isinstance(written, Ok)
 
-    derived = write_module.derive_candidate_public_key(workspace_root=tmp_path)
+    derived = write_module.derive_candidate_public_key()
     assert isinstance(derived, Ok)
 
     def fake_resolve_trusted_candidate_producer(

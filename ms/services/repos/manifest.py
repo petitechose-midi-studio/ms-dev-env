@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -10,6 +11,50 @@ from .models import RepoError, RepoSpec
 
 
 def load_manifest(path: Path) -> Result[list[RepoSpec], RepoError]:
+    return load_manifests((path,))
+
+
+def load_manifests(paths: Sequence[Path]) -> Result[list[RepoSpec], RepoError]:
+    specs: list[RepoSpec] = []
+    for path in paths:
+        loaded = _load_manifest(path)
+        if isinstance(loaded, Err):
+            return loaded
+        specs.extend(loaded.value)
+
+    if not specs:
+        return Err(
+            RepoError(
+                kind="manifest_invalid",
+                message="repo manifests contain no repos",
+            )
+        )
+
+    seen_names: set[tuple[str, str]] = set()
+    seen_paths: set[str] = set()
+    for spec in specs:
+        name = (spec.org, spec.name)
+        if name in seen_names:
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message=f"duplicate repo in manifests: {spec.org}/{spec.name}",
+                )
+            )
+        if spec.path in seen_paths:
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message=f"duplicate repo path in manifests: {spec.path}",
+                )
+            )
+        seen_names.add(name)
+        seen_paths.add(spec.path)
+
+    return Ok(specs)
+
+
+def _load_manifest(path: Path) -> Result[list[RepoSpec], RepoError]:
     if not path.exists():
         return Err(
             RepoError(
@@ -57,10 +102,15 @@ def load_manifest(path: Path) -> Result[list[RepoSpec], RepoError]:
         )
 
     specs: list[RepoSpec] = []
-    for item in raw:
+    for index, item in enumerate(raw):
         item_dict = as_str_dict(item)
         if item_dict is None:
-            continue
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message=f"repo manifest entry {index} must be a TOML table",
+                )
+            )
 
         org = get_str(item_dict, "org")
         name = get_str(item_dict, "name")
@@ -68,14 +118,16 @@ def load_manifest(path: Path) -> Result[list[RepoSpec], RepoError]:
         rel_path = get_str(item_dict, "path")
         branch = get_str(item_dict, "branch")
 
-        if org is None:
-            continue
-        if name is None:
-            continue
-        if url is None:
-            continue
-        if rel_path is None:
-            continue
+        required = {"org": org, "name": name, "url": url, "path": rel_path}
+        missing = [key for key, value in required.items() if value is None]
+        if missing:
+            return Err(
+                RepoError(
+                    kind="manifest_invalid",
+                    message=(f"repo manifest entry {index} missing required field: {missing[0]}"),
+                )
+            )
+        assert org is not None and name is not None and url is not None and rel_path is not None
 
         repo_path = Path(rel_path)
         if repo_path.is_absolute() or ".." in repo_path.parts:
@@ -93,14 +145,6 @@ def load_manifest(path: Path) -> Result[list[RepoSpec], RepoError]:
                 url=url,
                 path=rel_path,
                 branch=branch,
-            )
-        )
-
-    if not specs:
-        return Err(
-            RepoError(
-                kind="manifest_invalid",
-                message="repo manifest contains no repos",
             )
         )
 

@@ -1,3 +1,4 @@
+# pyright: reportPrivateUsage=false, reportUnknownArgumentType=false, reportUnknownLambdaType=false
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,6 +9,8 @@ from ms.core.result import Ok
 from ms.output.console import ConsoleProtocol, MockConsole
 from ms.release.domain.models import ReleasePlan, ReleaseTooling
 from ms.release.flow import content_prepare
+from ms.release.infra.artifacts.notes_writer import write_release_notes
+from ms.release.infra.artifacts.spec_writer import write_release_spec
 
 
 def test_prepare_distribution_pr_dry_run_does_not_write_artifacts(
@@ -26,9 +29,7 @@ def test_prepare_distribution_pr_dry_run_does_not_write_artifacts(
     )
     committed_paths: list[Path] = []
 
-    def prepare_repo(
-        *, workspace_root: Path, console: ConsoleProtocol, dry_run: bool
-    ) -> Ok[Path]:
+    def prepare_repo(*, workspace_root: Path, console: ConsoleProtocol, dry_run: bool) -> Ok[Path]:
         del workspace_root, console, dry_run
         return Ok(tmp_path)
 
@@ -39,6 +40,7 @@ def test_prepare_distribution_pr_dry_run_does_not_write_artifacts(
         return Ok(None)
 
     monkeypatch.setattr(content_prepare, "_prepare_distribution_repo", prepare_repo)
+    monkeypatch.setattr(content_prepare, "find_matching_pull_request", lambda **_: Ok(None))
     monkeypatch.setattr(content_prepare, "create_branch", create_branch)
 
     def capture_commit(
@@ -104,3 +106,93 @@ def test_prepare_distribution_pr_dry_run_does_not_write_artifacts(
     ]
     assert not (tmp_path / spec_path).exists()
     assert not (tmp_path / notes_path).exists()
+
+
+def test_prepare_distribution_pr_resumes_matching_open_pr(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    plan = ReleasePlan(
+        channel="beta",
+        tag="v1.2.3-beta.4",
+        pinned=(),
+        tooling=ReleaseTooling(repo="owner/tooling", ref="main", sha="a" * 40),
+        spec_path="release-specs/v1.2.3-beta.4.json",
+        notes_path="release-notes/v1.2.3-beta.4.md",
+        title="release: v1.2.3-beta.4",
+    )
+    pr_url = "https://github.com/owner/distribution/pull/1"
+
+    monkeypatch.setattr(
+        content_prepare,
+        "find_matching_pull_request",
+        lambda **_: Ok(pr_url),
+    )
+    monkeypatch.setattr(content_prepare, "_merge_distribution_pr", lambda **_: Ok(None))
+    monkeypatch.setattr(
+        content_prepare,
+        "_prepare_distribution_repo",
+        lambda **_: Ok(tmp_path),
+    )
+    monkeypatch.setattr(
+        content_prepare,
+        "_distribution_artifacts_match_plan",
+        lambda **_: True,
+    )
+
+    prepared = content_prepare.prepare_distribution_pr(
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        plan=plan,
+        user_notes=None,
+        user_notes_file=None,
+        dry_run=False,
+    )
+
+    assert isinstance(prepared, Ok)
+    assert prepared.value.url == pr_url
+
+
+def test_distribution_artifact_match_includes_release_notes(tmp_path: Path) -> None:
+    plan = ReleasePlan(
+        channel="stable",
+        tag="v1.2.3",
+        pinned=(),
+        tooling=ReleaseTooling(repo="owner/tooling", ref="main", sha="a" * 40),
+        spec_path="release-specs/v1.2.3.json",
+        notes_path="release-notes/v1.2.3.md",
+        title="release: v1.2.3",
+    )
+    assert isinstance(
+        write_release_spec(
+            dist_repo_root=tmp_path,
+            channel=plan.channel,
+            tag=plan.tag,
+            pinned=plan.pinned,
+            tooling=plan.tooling,
+        ),
+        Ok,
+    )
+    assert isinstance(
+        write_release_notes(
+            dist_repo_root=tmp_path,
+            channel=plan.channel,
+            tag=plan.tag,
+            pinned=plan.pinned,
+            user_notes="Original notes",
+            user_notes_file=None,
+        ),
+        Ok,
+    )
+
+    assert content_prepare._distribution_artifacts_match_plan(
+        dist_root=tmp_path,
+        plan=plan,
+        user_notes="Original notes",
+        user_notes_file=None,
+    )
+    assert not content_prepare._distribution_artifacts_match_plan(
+        dist_root=tmp_path,
+        plan=plan,
+        user_notes="Changed notes",
+        user_notes_file=None,
+    )

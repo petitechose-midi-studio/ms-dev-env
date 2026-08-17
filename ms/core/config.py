@@ -208,14 +208,3 @@ def load_config(path: Path) -> Result[Config, ConfigError]:
         return Ok(config)
     except (KeyError, TypeError, ValueError) as e:
         return Err(ConfigError(f"Invalid config structure: {e}", path=path))
-
-
-def load_config_or_default(path: Path) -> Config:
-    """Load config from file, or return default config if file doesn't exist.
-
-    This is useful when config is optional.
-    """
-    result = load_config(path)
-    if isinstance(result, Ok):
-        return result.value
-    return Config()

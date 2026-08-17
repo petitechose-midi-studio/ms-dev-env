@@ -74,7 +74,3 @@ class ZigTool(GitHubTool):
     def bin_path(self, tools_dir: Path, platform: Platform) -> Path | None:
         """Zig binary path."""
         return tools_dir / "zig" / platform.exe_name("zig")
-
-    def is_windows_only(self) -> bool:
-        """Zig auto-install is Windows-only (Linux/macOS use system compiler)."""
-        return True

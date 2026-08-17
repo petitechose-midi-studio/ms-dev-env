@@ -89,8 +89,6 @@ class BomRepoState:
     bom_sha: str | None
     workspace_sha: str | None
     derived_sha: str | None
-    workspace_exists: bool
-    workspace_dirty: bool
 
 
 @dataclass(frozen=True, slots=True)

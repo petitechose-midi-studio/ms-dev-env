@@ -10,7 +10,6 @@ from ms.release.errors import ReleaseError
 from ms.release.infra.github.gh_base import run_gh_process
 from ms.release.infra.github.timeouts import GH_TIMEOUT_SECONDS
 
-_MERGEABLE_WAIT_SECONDS = 15 * 60
 _MERGE_WAIT_SECONDS = 10 * 60
 _POLL_SECONDS = 5
 
@@ -41,68 +40,6 @@ def _parse_view_payload(*, payload: str, pr_url: str) -> Result[dict[str, object
 
 def _normalized_state(value: object) -> str | None:
     return value.upper() if isinstance(value, str) else None
-
-
-def wait_until_mergeable(
-    *,
-    workspace_root: Path,
-    repo_slug: str,
-    pr_url: str,
-    repo_label: str,
-) -> Result[None, ReleaseError]:
-    deadline = time.monotonic() + _MERGEABLE_WAIT_SECONDS
-    while time.monotonic() < deadline:
-        view = run_gh_process(
-            [
-                "gh",
-                "pr",
-                "view",
-                pr_url,
-                "--repo",
-                repo_slug,
-                "--json",
-                "state,mergeStateStatus",
-            ],
-            cwd=workspace_root,
-            timeout=GH_TIMEOUT_SECONDS,
-        )
-        if isinstance(view, Err):
-            e = view.error
-            return Err(
-                ReleaseError(
-                    kind="repo_failed",
-                    message=f"failed to query {repo_label} PR merge status",
-                    hint=e.stderr.strip() or pr_url,
-                )
-            )
-
-        parsed = _parse_view_payload(payload=view.value, pr_url=pr_url)
-        if isinstance(parsed, Err):
-            return parsed
-
-        state = _normalized_state(parsed.value.get("state"))
-        merge_state = parsed.value.get("mergeStateStatus")
-        if state == "MERGED":
-            return Ok(None)
-        if isinstance(state, str) and state != "OPEN":
-            return Err(
-                ReleaseError(
-                    kind="repo_failed",
-                    message=f"{repo_label} PR is {state.lower()} without merge",
-                    hint=pr_url,
-                )
-            )
-        if isinstance(merge_state, str) and merge_state == "CLEAN":
-            return Ok(None)
-        time.sleep(_POLL_SECONDS)
-
-    return Err(
-        ReleaseError(
-            kind="repo_failed",
-            message=f"timed out waiting for {repo_label} PR to become mergeable",
-            hint=pr_url,
-        )
-    )
 
 
 def wait_until_merged(
@@ -144,9 +81,7 @@ def wait_until_merged(
 
         state = _normalized_state(parsed.value.get("state"))
         merged_at = parsed.value.get("mergedAt")
-        merged = state == "MERGED" or (
-            isinstance(merged_at, str) and merged_at.strip() != ""
-        )
+        merged = state == "MERGED" or (isinstance(merged_at, str) and merged_at.strip() != "")
         if merged:
             return Ok(None)
 

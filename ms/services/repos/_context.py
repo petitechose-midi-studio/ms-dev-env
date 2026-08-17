@@ -12,4 +12,4 @@ if TYPE_CHECKING:
 class RepoContextBase:
     _workspace: Workspace
     _console: ConsoleProtocol
-    _manifest_path: Path
+    _manifest_paths: tuple[Path, ...]

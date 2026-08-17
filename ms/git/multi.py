@@ -15,13 +15,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from ms.core.result import Err, Ok
 from ms.git.repository import GitError, GitStatus, Repository
-
-if TYPE_CHECKING:
-    pass
 
 __all__ = [
     "PullResult",

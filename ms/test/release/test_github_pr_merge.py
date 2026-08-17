@@ -1,3 +1,4 @@
+# pyright: reportUnknownArgumentType=false, reportUnknownLambdaType=false
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,7 +8,11 @@ from pytest import MonkeyPatch
 from ms.core.result import Err, Ok
 from ms.output.console import MockConsole
 from ms.platform.process import ProcessError
-from ms.release.infra.github.pr_merge import create_pull_request, merge_pull_request
+from ms.release.infra.github.pr_merge import (
+    create_pull_request,
+    find_matching_pull_request,
+    merge_pull_request,
+)
 
 
 def test_create_pull_request_uses_release_app_token(
@@ -119,6 +124,35 @@ def test_create_pull_request_falls_back_to_gh_user_without_release_app(
     ]
 
 
+def test_find_matching_pull_request_reuses_exact_open_pr(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    import ms.release.infra.github.pr_merge as pr_merge
+
+    monkeypatch.setattr(
+        pr_merge,
+        "run_gh_process",
+        lambda *_args, **_kwargs: Ok(
+            '[{"url":"https://github.com/owner/repo/pull/1",'
+            '"title":"release(app): v1.2.3","body":"tag=v1.2.3",'
+            '"headRefName":"release/v1.2.3","baseRefName":"main"}]'
+        ),
+    )
+
+    result = find_matching_pull_request(
+        workspace_root=tmp_path,
+        repo_slug="owner/repo",
+        base_branch="main",
+        branch="release/v1.2.3",
+        title="release(app): v1.2.3",
+        body="tag=v1.2.3",
+    )
+
+    assert isinstance(result, Ok)
+    assert result.value == "https://github.com/owner/repo/pull/1"
+
+
 def test_merge_pull_request_reports_disabled_auto_merge(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -176,8 +210,7 @@ def test_merge_pull_request_reports_disabled_auto_merge(
     assert isinstance(result, Err)
     assert result.error.message == "auto-merge is disabled for core repo"
     assert result.error.hint == (
-        "Enable Allow auto-merge for owner/repo, then rerun. "
-        "PR: https://example.invalid/pr/1"
+        "Enable Allow auto-merge for owner/repo, then rerun. PR: https://example.invalid/pr/1"
     )
     assert calls == [
         "approve",

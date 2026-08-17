@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok
+from ms.git.sha import is_git_sha
 from ms.platform.process import run as run_process
 
 from ._context import RepoContextBase
@@ -49,6 +50,6 @@ class RepoGitOpsMixin(RepoContextBase):
         match result:
             case Ok(stdout):
                 value = stdout.strip()
-                return value or None
+                return value if is_git_sha(value) else None
             case Err(_):
                 return None

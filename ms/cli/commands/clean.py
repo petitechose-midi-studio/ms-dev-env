@@ -2,27 +2,12 @@
 
 from __future__ import annotations
 
-import os
-import shutil
-import stat
-from collections.abc import Callable
 from pathlib import Path
 
 import typer
-from rich.console import Console
 
+from ms.cli.commands.removal import remove_directories
 from ms.cli.context import build_context
-
-_console = Console()
-
-
-def _remove_readonly(_func: Callable[[str], object], path: str, exc: BaseException) -> None:
-    """Handle read-only files on Windows (e.g. .git/objects/pack/*.idx)."""
-    if isinstance(exc, PermissionError):
-        os.chmod(path, stat.S_IWRITE)
-        os.unlink(path)
-    else:
-        raise exc
 
 
 def _find_pio_dirs(parent: Path) -> list[Path]:
@@ -54,30 +39,4 @@ def clean(
     if all_:
         dirs.extend([ws.tools_dir, ws.cache_dir])
 
-    # Filter existing
-    existing = [d for d in dirs if d.exists()]
-
-    if not existing:
-        _console.print("[dim]Nothing to clean[/dim]")
-        return
-
-    # Header
-    if yes:
-        _console.print("\n[bold red]EXECUTE[/bold red]\n")
-    else:
-        _console.print("\n[yellow]DRY-RUN[/yellow]\n")
-
-    # List directories
-    for d in existing:
-        _console.print(f"  {d}", style="dim")
-
-    # Footer
-    if not yes:
-        _console.print("\n[dim]Use -y to execute[/dim]")
-        return
-
-    # Execute
-    for d in existing:
-        shutil.rmtree(d, onexc=_remove_readonly)
-
-    _console.print(f"\n[green]Removed {len(existing)} directories[/green]")
+    remove_directories(dirs, yes=yes, empty_message="Nothing to clean", console=ctx.console)

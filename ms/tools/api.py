@@ -40,7 +40,7 @@ def github_latest_release(http: HttpClient, repo: str) -> Result[str, HttpError]
     Example:
         >>> client = RealHttpClient()
         >>> result = github_latest_release(client, "ninja-build/ninja")
-        >>> if is_ok(result):
+        >>> if isinstance(result, Ok):
         ...     print(f"Latest version: {result.value}")  # e.g., "1.12.1"
     """
     url = f"https://api.github.com/repos/{repo}/releases/latest"
@@ -79,7 +79,7 @@ def adoptium_jdk_url(
     Example:
         >>> client = RealHttpClient()
         >>> result = adoptium_jdk_url(client, 21, "linux", "x64")
-        >>> if is_ok(result):
+        >>> if isinstance(result, Ok):
         ...     url, version = result.value
         ...     print(f"JDK {version}: {url}")
     """
@@ -152,7 +152,7 @@ def maven_latest_version(
     Example:
         >>> client = RealHttpClient()
         >>> result = maven_latest_version(client)
-        >>> if is_ok(result):
+        >>> if isinstance(result, Ok):
         ...     print(f"Maven {result.value}")  # e.g., "3.9.6"
     """
     url = "https://repo1.maven.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml"

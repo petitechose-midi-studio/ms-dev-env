@@ -161,9 +161,7 @@ def plan_content_candidates(
             public_key_b64=producer_keys.value["plugin-bitwig-firmware"],
         ),
     )
-    return Ok(
-        targets
-    )
+    return Ok(targets)
 
 
 def resolve_core_ui_sha(

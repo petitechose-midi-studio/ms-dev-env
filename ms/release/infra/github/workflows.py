@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import base64
+import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from uuid import uuid4
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
@@ -12,6 +13,8 @@ from ms.release.domain.config import (
     APP_DEFAULT_BRANCH,
     APP_RELEASE_WORKFLOW,
     APP_REPO_SLUG,
+    CORE_DEFAULT_BRANCH,
+    CORE_REPO_SLUG,
     DIST_DEFAULT_BRANCH,
     DIST_PUBLISH_WORKFLOW,
     DIST_REPO_SLUG,
@@ -21,10 +24,11 @@ from ms.release.domain.config import (
 )
 from ms.release.domain.models import ReleaseChannel
 from ms.release.errors import ReleaseError
+from ms.release.infra.github.client import get_ref_head_sha
 
 from .gh_base import run_gh_process
 from .timeouts import GH_TIMEOUT_SECONDS
-from .workflow_dispatch_lookup import resolve_dispatched_run
+from .workflow_dispatch_lookup import find_dispatched_run, resolve_dispatched_run
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +38,21 @@ class WorkflowRun:
     request_id: str
 
 
+def _dispatch_request_id(
+    *,
+    repo_slug: str,
+    workflow_file: str,
+    ref: str,
+    inputs: tuple[tuple[str, str], ...],
+    identity: tuple[tuple[str, str], ...] = (),
+) -> str:
+    payload = json.dumps(
+        (repo_slug, workflow_file, ref, inputs, identity),
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"ms-{hashlib.sha256(payload).hexdigest()[:20]}"
+
+
 def _dispatch_workflow(
     *,
     workspace_root: Path,
@@ -41,10 +60,24 @@ def _dispatch_workflow(
     workflow_file: str,
     ref: str,
     inputs: tuple[tuple[str, str], ...],
+    identity: tuple[tuple[str, str], ...] = (),
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
-    request_id = f"ms-{uuid4().hex[:12]}"
+    resolved_ref = ref
+    if not dry_run:
+        head = get_ref_head_sha(workspace_root=workspace_root, repo=repo_slug, ref=ref)
+        if isinstance(head, Err):
+            return head
+        resolved_ref = head.value
+
+    request_id = _dispatch_request_id(
+        repo_slug=repo_slug,
+        workflow_file=workflow_file,
+        ref=resolved_ref,
+        inputs=inputs,
+        identity=identity,
+    )
     cmd = [
         "gh",
         "workflow",
@@ -63,6 +96,23 @@ def _dispatch_workflow(
     console.print(f"dispatch request_id: {request_id}", Style.DIM)
     if dry_run:
         return Ok(WorkflowRun(id=0, url="(dry-run)", request_id=request_id))
+
+    existing = find_dispatched_run(
+        workspace_root=workspace_root,
+        repo_slug=repo_slug,
+        request_id=request_id,
+    )
+    if isinstance(existing, Err):
+        return existing
+    if existing.value is not None:
+        console.print(f"reusing workflow run: {existing.value.url}", Style.DIM)
+        return Ok(
+            WorkflowRun(
+                id=existing.value.run_id,
+                url=existing.value.url,
+                request_id=request_id,
+            )
+        )
 
     result = run_gh_process(cmd, cwd=workspace_root, timeout=GH_TIMEOUT_SECONDS)
     if isinstance(result, Err):
@@ -213,15 +263,27 @@ def dispatch_release_alignment_workflow(
     *,
     workspace_root: Path,
     build_wasm: bool,
+    core_sha: str | None = None,
     console: ConsoleProtocol,
     dry_run: bool,
 ) -> Result[WorkflowRun, ReleaseError]:
+    if core_sha is None and not dry_run:
+        head = get_ref_head_sha(
+            workspace_root=workspace_root,
+            repo=CORE_REPO_SLUG,
+            ref=CORE_DEFAULT_BRANCH,
+        )
+        if isinstance(head, Err):
+            return head
+        core_sha = head.value
+
     return _dispatch_workflow(
         workspace_root=workspace_root,
         repo_slug=MS_REPO_SLUG,
         workflow_file=MS_RELEASE_ALIGNMENT_WORKFLOW,
         ref=MS_DEFAULT_BRANCH,
         inputs=(("build_wasm", "true" if build_wasm else "false"),),
+        identity=(("core_sha", core_sha or "dry-run"),),
         console=console,
         dry_run=dry_run,
     )

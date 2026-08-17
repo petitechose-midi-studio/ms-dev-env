@@ -49,9 +49,7 @@ def plan_consumer_dependency_pin_sync(
     if consumer is None:
         return Err(_unknown_consumer(consumer_id))
     pin_dependency_ids = (
-        consumer.depends_on
-        if consumer.pin_dependencies is None
-        else consumer.pin_dependencies
+        consumer.depends_on if consumer.pin_dependencies is None else consumer.pin_dependencies
     )
     if not pin_dependency_ids:
         return Ok(

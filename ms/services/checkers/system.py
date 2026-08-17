@@ -213,13 +213,6 @@ class SystemChecker:
         msg = f"ok ({version})" if version else "ok"
         return CheckResult.success(display_name, msg)
 
-    def _check_brew_package(self, display_name: str, package: str) -> CheckResult:
-        """Check a Homebrew package."""
-        result = self.runner.run(["brew", "list", package])
-        if result.returncode == 0:
-            return CheckResult.success(display_name, "ok")
-        return CheckResult.error(display_name, "missing", hint=self._get_hint(package))
-
     def _check_xcode_clt(self) -> CheckResult:
         """Check that Xcode Command Line Tools are installed."""
         if not shutil.which("xcode-select"):

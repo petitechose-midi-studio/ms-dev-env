@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -19,12 +18,6 @@ from ms.release.infra.repos.distribution import (
     merge_pr,
     open_pr,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class RemovePlan:
-    tags: tuple[str, ...]
-    deleted_files: tuple[Path, ...]
 
 
 def validate_remove_tags(*, tags: list[str], force: bool) -> Result[tuple[str, ...], ReleaseError]:
@@ -92,7 +85,7 @@ def remove_distribution_artifacts(
     console: ConsoleProtocol,
     tags: tuple[str, ...],
     dry_run: bool,
-) -> Result[RemovePlan, ReleaseError]:
+) -> Result[None, ReleaseError]:
     dist = ensure_distribution_repo(workspace_root=workspace_root, console=console, dry_run=dry_run)
     if isinstance(dist, Err):
         return dist
@@ -119,14 +112,10 @@ def remove_distribution_artifacts(
             deleted.append(notes)
 
     if dry_run:
-        # In dry-run, still report the target paths.
-        for tag in tags:
-            deleted.append(dist_root / f"{config.DIST_SPEC_DIR}/{tag}.json")
-            deleted.append(dist_root / f"{config.DIST_NOTES_DIR}/{tag}.md")
-        return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted)))
+        return Ok(None)
 
     if not _has_git_changes(dist_root):
-        return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted)))
+        return Ok(None)
 
     # Commit via PR.
     first = tags[0] if tags else "unknown"
@@ -174,7 +163,7 @@ def remove_distribution_artifacts(
         )
 
     console.success(f"PR merged: {pr.value}")
-    return Ok(RemovePlan(tags=tags, deleted_files=tuple(deleted)))
+    return Ok(None)
 
 
 def delete_github_releases(

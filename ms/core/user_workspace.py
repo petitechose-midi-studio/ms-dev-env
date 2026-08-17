@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text
 from ms.platform.paths import user_config_dir
 
 from .structured import StrDict, as_str_dict
@@ -101,7 +102,7 @@ def remember_default_workspace_root(root: Path) -> Result[None, UserWorkspaceErr
     stored = resolved.as_posix()
     content = f'workspace_root = "{stored}"\n'
     try:
-        config_path.write_text(content, encoding="utf-8", newline="\n")
+        atomic_write_text(config_path, content, encoding="utf-8")
     except OSError as e:
         return Err(UserWorkspaceError(f"Could not write {config_path}: {e}", path=config_path))
     return Ok(None)

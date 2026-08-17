@@ -5,17 +5,14 @@ from pathlib import Path
 import typer
 
 from ms.cli.commands.release_common import (
-    ensure_release_permissions_or_exit,
     exit_release,
     release_error_code,
 )
 from ms.cli.context import build_context
-from ms.core.errors import ErrorCode
 from ms.core.result import Err
 from ms.output.console import Style
 from ms.release.domain import ReleaseBump, ReleaseChannel
 from ms.release.flow.content_publish import publish_distribution_release
-from ms.release.flow.permissions import ensure_release_permissions
 
 from .release_content_prepare import prepare_content_release
 
@@ -47,14 +44,6 @@ def publish_cmd(
 ) -> None:
     """Prepare spec PR + dispatch the Publish workflow (approval remains manual)."""
     ctx = build_context()
-
-    ensure_release_permissions_or_exit(
-        workspace_root=ctx.workspace.root,
-        console=ctx.console,
-        permission_check=ensure_release_permissions,
-        require_write=True,
-        failure_code=ErrorCode.USER_ERROR,
-    )
 
     prepared = prepare_content_release(
         ctx=ctx,
@@ -88,7 +77,10 @@ def publish_cmd(
         exit_release(run.error.pretty(), code=release_error_code(run.error.kind))
 
     ctx.console.success(f"Workflow run: {run.value}")
-    ctx.console.print(
-        "Next: approve the 'release' environment in GitHub Actions to sign + publish.",
-        Style.DIM,
-    )
+    if watch:
+        ctx.console.success("Distribution release completed")
+    else:
+        ctx.console.print(
+            "Next: approve the 'release' environment in GitHub Actions to sign + publish.",
+            Style.DIM,
+        )

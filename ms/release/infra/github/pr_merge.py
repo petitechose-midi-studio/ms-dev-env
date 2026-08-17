@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import as_str_dict
+from ms.core.structured import as_obj_list, as_str_dict, get_str
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.errors import ReleaseError
 from ms.release.infra.github.app_auth import release_app_token_for_repo
@@ -25,6 +25,85 @@ def _is_auto_merge_disabled(stderr: str | None) -> bool:
 
 def _is_already_merged(stderr: str | None) -> bool:
     return "already merged" in stderr.lower() if stderr else False
+
+
+def find_matching_pull_request(
+    *,
+    workspace_root: Path,
+    repo_slug: str,
+    base_branch: str,
+    branch: str,
+    title: str,
+    body: str,
+) -> Result[str | None, ReleaseError]:
+    result = run_gh_process(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            repo_slug,
+            "--base",
+            base_branch,
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "url,title,body,headRefName,baseRefName",
+            "--limit",
+            "2",
+        ],
+        cwd=workspace_root,
+        timeout=GH_TIMEOUT_SECONDS,
+    )
+    if isinstance(result, Err):
+        return Err(
+            ReleaseError(
+                kind="repo_failed",
+                message=f"failed to inspect existing release PR: {repo_slug}",
+                hint=result.error.stderr.strip() or branch,
+            )
+        )
+
+    try:
+        payload: object = json.loads(result.value)
+    except json.JSONDecodeError as error:
+        return Err(
+            ReleaseError(
+                kind="repo_failed",
+                message="unexpected gh pr list output",
+                hint=str(error),
+            )
+        )
+
+    pulls = as_obj_list(payload)
+    if pulls is None:
+        return Err(ReleaseError(kind="repo_failed", message="unexpected gh pr list payload"))
+
+    for item in pulls:
+        pull = as_str_dict(item)
+        if pull is None:
+            continue
+        if get_str(pull, "headRefName") != branch:
+            continue
+        if get_str(pull, "baseRefName") != base_branch:
+            continue
+
+        url = get_str(pull, "url")
+        if url is None:
+            continue
+        if get_str(pull, "title") != title or (get_str(pull, "body") or "") != body.strip():
+            return Err(
+                ReleaseError(
+                    kind="repo_failed",
+                    message="existing release PR does not match the requested release",
+                    hint=url,
+                )
+            )
+        return Ok(url)
+
+    return Ok(None)
 
 
 def create_pull_request(
@@ -222,9 +301,7 @@ def merge_pull_request(
                 ReleaseError(
                     kind="repo_failed",
                     message=f"auto-merge is disabled for {repo_label} repo",
-                    hint=(
-                        f"Enable Allow auto-merge for {repo_slug}, then rerun. PR: {pr_url}"
-                    ),
+                    hint=(f"Enable Allow auto-merge for {repo_slug}, then rerun. PR: {pr_url}"),
                 )
             )
         return Err(

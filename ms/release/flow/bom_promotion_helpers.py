@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
+from ms.platform.files import atomic_write_text
 from ms.release.domain.open_control_models import BomPromotionItem, BomPromotionPlan
 from ms.release.errors import ReleaseError
 from ms.release.flow.core_dependency_pins import CoreDependencyPinPlan
@@ -72,7 +73,7 @@ def restore_bom_files(*, snapshot: dict[Path, str | None]) -> Result[None, Relea
                 if path.exists():
                     path.unlink()
                 continue
-            path.write_text(content, encoding="utf-8")
+            atomic_write_text(path, content, encoding="utf-8")
         except OSError as error:
             return Err(
                 ReleaseError(

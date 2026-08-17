@@ -67,6 +67,19 @@ def resolve_dispatched_run(
     )
 
 
+def find_dispatched_run(
+    *,
+    workspace_root: Path,
+    repo_slug: str,
+    request_id: str,
+) -> Result[WorkflowRunResolution | None, ReleaseError]:
+    return _lookup_dispatched_run_once(
+        workspace_root=workspace_root,
+        repo_slug=repo_slug,
+        marker_name=dispatch_marker_name(request_id=request_id),
+    )
+
+
 def _artifact_lookup_endpoint(*, repo_slug: str, marker_name: str, page: int) -> str:
     encoded_name = quote(marker_name, safe="")
     return f"repos/{repo_slug}/actions/artifacts?per_page=100&page={page}&name={encoded_name}"
