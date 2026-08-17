@@ -92,9 +92,7 @@ def _build_derived_lock(
     *, source: str, pins: dict[str, str]
 ) -> Result[DerivedBomLock, ReleaseError]:
     ordered = tuple(
-        OcSdkPin(repo=repo, sha=pins[repo])
-        for repo in OPEN_CONTROL_NATIVE_CI_REPOS
-        if repo in pins
+        OcSdkPin(repo=repo, sha=pins[repo]) for repo in OPEN_CONTROL_NATIVE_CI_REPOS if repo in pins
     )
     if not ordered:
         return Err(

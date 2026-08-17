@@ -36,4 +36,3 @@ class ReleaseGraph:
 
 
 __all__ = ["ReleaseGraph", "ReleaseGraphNode", "ReleaseGraphRole"]
-

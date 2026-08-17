@@ -94,9 +94,7 @@ def approve_pull_request_if_required(
             return Err(
                 ReleaseError(
                     kind="repo_failed",
-                    message=(
-                        f"{repo_label} PR requires approval from a different GitHub identity"
-                    ),
+                    message=(f"{repo_label} PR requires approval from a different GitHub identity"),
                     hint=(
                         "Configure the release GitHub App so the PR is authored by the app, "
                         f"then approve with the maintainer account. PR: {pr_url}"

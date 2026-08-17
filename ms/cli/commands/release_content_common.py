@@ -52,15 +52,15 @@ def resolve_pinned_or_exit(
         auto=auto,
         allow_non_green=allow_non_green,
         interactive=interactive,
-        auto_resolver=lambda current_workspace,
-        current_channel,
-        current_refs: resolve_pinned_auto_smart(
-            workspace_root=current_workspace,
-            channel=current_channel,
-            dist_repo=config.DIST_REPO_SLUG,
-            repos=config.RELEASE_REPOS,
-            ref_overrides=current_refs,
-            head_repo_ids=frozenset({"core", "plugin-bitwig"}),
+        auto_resolver=lambda current_workspace, current_channel, current_refs: (
+            resolve_pinned_auto_smart(
+                workspace_root=current_workspace,
+                channel=current_channel,
+                dist_repo=config.DIST_REPO_SLUG,
+                repos=config.RELEASE_REPOS,
+                ref_overrides=current_refs,
+                head_repo_ids=frozenset({"core", "plugin-bitwig"}),
+            )
         ),
         picker=lambda repo, ref: pick_pinned_repo_interactive(
             workspace_root=workspace_root,

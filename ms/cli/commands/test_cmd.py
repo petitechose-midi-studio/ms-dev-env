@@ -18,9 +18,7 @@ from ms.services.unit_tests import (
 def test(
     target: str | None = typer.Argument(
         None,
-        help=(
-            "Test target or group. Run without a target to list available entries."
-        ),
+        help=("Test target or group. Run without a target to list available entries."),
     ),
     test_name: list[str] | None = typer.Option(
         None,
@@ -153,9 +151,7 @@ def _print_run(scope: str, run: UnitTestRun, console: ConsoleProtocol) -> None:
         else "-"
     )
     runner_time = f"{run.runner_seconds:.2f}s" if run.runner_seconds is not None else "-"
-    configure_time = (
-        f"{run.configure_seconds:.2f}s" if run.configure_seconds is not None else "-"
-    )
+    configure_time = f"{run.configure_seconds:.2f}s" if run.configure_seconds is not None else "-"
     build_time = f"{run.build_seconds:.2f}s" if run.build_seconds is not None else "-"
     console.print(
         f"  {scope:<8} {run.name:<22} {status:<3} {tests:>7} "

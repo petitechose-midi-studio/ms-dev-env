@@ -53,19 +53,14 @@ def test_sdl_dependency_cmake_args_are_explicit_workspace_roots(tmp_path: Path) 
     assert service._sdl_dependency_cmake_args() == [
         f"-DOPEN_CONTROL_FRAMEWORK_DIR={tmp_path / 'open-control' / 'framework'}",
         f"-DOPEN_CONTROL_UI_LVGL_DIR={tmp_path / 'open-control' / 'ui-lvgl'}",
-        (
-            "-DOPEN_CONTROL_UI_COMPONENTS_DIR="
-            f"{tmp_path / 'open-control' / 'ui-lvgl-components'}"
-        ),
+        (f"-DOPEN_CONTROL_UI_COMPONENTS_DIR={tmp_path / 'open-control' / 'ui-lvgl-components'}"),
         f"-DOPEN_CONTROL_HAL_SDL_DIR={tmp_path / 'open-control' / 'hal-sdl'}",
         f"-DOPEN_CONTROL_HAL_NET_DIR={tmp_path / 'open-control' / 'hal-net'}",
         f"-DOPEN_CONTROL_HAL_MIDI_DIR={tmp_path / 'open-control' / 'hal-midi'}",
         f"-DOPEN_CONTROL_NOTE_DIR={tmp_path / 'open-control' / 'note'}",
         f"-DMIDI_STUDIO_UI_DIR={tmp_path / 'midi-studio' / 'ui'}",
         f"-DMS_DEVICE_SUPPORT_DIR={tmp_path / 'midi-studio' / 'device-support'}",
-        (
-            f"-DLVGL_DIR={tmp_path / 'midi-studio' / 'core' / '.pio' / 'libdeps' / 'dev' / 'lvgl'}"
-        ),
+        (f"-DLVGL_DIR={tmp_path / 'midi-studio' / 'core' / '.pio' / 'libdeps' / 'dev' / 'lvgl'}"),
     ]
 
 

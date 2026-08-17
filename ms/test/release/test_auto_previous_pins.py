@@ -43,9 +43,7 @@ def _stub_previous_beta(
         del workspace_root, repo, limit
         return Ok([DistributionRelease(tag="v1.2.3-beta.4", prerelease=True)])
 
-    def fake_get_repo_file_text(
-        *, workspace_root: Path, repo: str, path: str, ref: str
-    ) -> Ok[str]:
+    def fake_get_repo_file_text(*, workspace_root: Path, repo: str, path: str, ref: str) -> Ok[str]:
         del workspace_root, repo, ref
         assert path == "release-specs/v1.2.3-beta.4.json"
         return Ok(_spec_text(schema=schema))

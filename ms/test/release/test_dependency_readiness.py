@@ -390,4 +390,3 @@ def test_assess_dependency_readiness_reports_behind_remote(tmp_path: Path) -> No
     item = report.by_node_id()["oc-framework"]
     assert item.status == "behind_remote"
     assert item.detail == "main is behind origin/main by 2"
-
