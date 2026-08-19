@@ -291,3 +291,40 @@ class TestCreateEmscriptenWrappers:
             content = path.read_text()
             assert "EMSDK" in content
             assert str(emsdk_dir) in content
+
+    def test_windows_prefers_current_exe_launchers(self, tmp_path: Path) -> None:
+        emsdk_dir = tmp_path / "emsdk"
+        emscripten_dir = emsdk_dir / "upstream" / "emscripten"
+        emscripten_dir.mkdir(parents=True)
+        for name in ("emcc", "emcmake"):
+            (emscripten_dir / f"{name}.exe").touch()
+            (emscripten_dir / f"{name}.bat").touch()
+
+        paths = create_emscripten_wrappers(
+            emsdk_dir,
+            tmp_path / "bin",
+            Platform.WINDOWS,
+        )
+
+        for path in paths:
+            content = path.read_text()
+            assert ".exe" in content
+            assert ".bat" not in content
+
+    def test_windows_accepts_legacy_bat_launchers(self, tmp_path: Path) -> None:
+        emsdk_dir = tmp_path / "emsdk"
+        emscripten_dir = emsdk_dir / "upstream" / "emscripten"
+        emscripten_dir.mkdir(parents=True)
+        for name in ("emcc", "emcmake"):
+            (emscripten_dir / f"{name}.bat").touch()
+
+        paths = create_emscripten_wrappers(
+            emsdk_dir,
+            tmp_path / "bin",
+            Platform.WINDOWS,
+        )
+
+        for path in paths:
+            content = path.read_text()
+            assert ".bat" in content
+            assert ".exe" not in content

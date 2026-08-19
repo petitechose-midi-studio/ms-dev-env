@@ -86,12 +86,22 @@ class TestEmscriptenToolBinPath:
         assert path == Path("/tools/emsdk/upstream/emscripten/emcc")
 
     def test_windows(self) -> None:
-        """Binary path on Windows uses .bat."""
+        """Binary path on Windows defaults to the current .exe launcher."""
         tool = EmscriptenTool()
 
         path = tool.bin_path(Path("/tools"), Platform.WINDOWS)
 
-        assert path == Path("/tools/emsdk/upstream/emscripten/emcc.bat")
+        assert path == Path("/tools/emsdk/upstream/emscripten/emcc.exe")
+
+    def test_windows_uses_legacy_bat_when_present(self, tmp_path: Path) -> None:
+        """Binary path still supports older emsdk installations."""
+        emcc_dir = tmp_path / "emsdk" / "upstream" / "emscripten"
+        emcc_dir.mkdir(parents=True)
+        (emcc_dir / "emcc.bat").touch()
+
+        path = EmscriptenTool().bin_path(tmp_path, Platform.WINDOWS)
+
+        assert path == emcc_dir / "emcc.bat"
 
 
 class TestEmscriptenToolPaths:
@@ -160,11 +170,20 @@ class TestEmscriptenToolIsInstalled:
 
         assert tool.is_installed(tmp_path, Platform.LINUX) is False
 
-    def test_windows_checks_bat(self, tmp_path: Path) -> None:
-        """is_installed checks for .bat on Windows."""
+    def test_windows_checks_exe(self, tmp_path: Path) -> None:
+        """is_installed recognizes current .exe launchers on Windows."""
         tool = EmscriptenTool()
 
-        # Create emcc.bat
+        emcc_dir = tmp_path / "emsdk" / "upstream" / "emscripten"
+        emcc_dir.mkdir(parents=True)
+        (emcc_dir / "emcc.exe").touch()
+
+        assert tool.is_installed(tmp_path, Platform.WINDOWS) is True
+
+    def test_windows_checks_legacy_bat(self, tmp_path: Path) -> None:
+        """is_installed continues to recognize legacy .bat launchers."""
+        tool = EmscriptenTool()
+
         emcc_dir = tmp_path / "emsdk" / "upstream" / "emscripten"
         emcc_dir.mkdir(parents=True)
         (emcc_dir / "emcc.bat").touch()

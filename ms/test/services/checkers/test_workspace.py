@@ -90,9 +90,9 @@ class TestWorkspaceChecker:
         assert "missing" in result.message
 
     def test_check_emsdk_present(self, temp_workspace: Workspace) -> None:
-        emsdk_dir = temp_workspace.root / "tools" / "emsdk"
-        emsdk_dir.mkdir(parents=True)
-        (emsdk_dir / "emsdk.py").write_text("")
+        emscripten_dir = temp_workspace.root / "tools" / "emsdk" / "upstream" / "emscripten"
+        emscripten_dir.mkdir(parents=True)
+        (emscripten_dir / "emcc").write_text("")
         checker = WorkspaceChecker(
             workspace=temp_workspace,
             platform=Platform.LINUX,
@@ -180,9 +180,11 @@ class TestWorkspaceChecker:
             )
         )
         # Create custom paths
-        emsdk_dir = temp_workspace.root / "custom" / "tools" / "emsdk"
-        emsdk_dir.mkdir(parents=True)
-        (emsdk_dir / "emsdk.py").write_text("")
+        emscripten_dir = (
+            temp_workspace.root / "custom" / "tools" / "emsdk" / "upstream" / "emscripten"
+        )
+        emscripten_dir.mkdir(parents=True)
+        (emscripten_dir / "emcc").write_text("")
 
         checker = WorkspaceChecker(
             workspace=temp_workspace,
