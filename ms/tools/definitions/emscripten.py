@@ -79,8 +79,16 @@ class EmscriptenTool(Tool):
 
         The emcc binary is in emsdk/upstream/emscripten/.
         """
-        emcc = "emcc.bat" if platform.is_windows else "emcc"
-        return tools_dir / "emsdk" / "upstream" / "emscripten" / emcc
+        emscripten_dir = tools_dir / "emsdk" / "upstream" / "emscripten"
+        if not platform.is_windows:
+            return emscripten_dir / "emcc"
+
+        # Recent emsdk releases ship native Windows launchers, while older
+        # installations used batch files. Prefer the current layout but keep
+        # accepting existing legacy installations.
+        exe = emscripten_dir / "emcc.exe"
+        bat = emscripten_dir / "emcc.bat"
+        return exe if exe.exists() or not bat.exists() else bat
 
     def emcmake_path(self, tools_dir: Path) -> Path:
         """Get path to emcmake wrapper.

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ms.services.checkers.base import CheckResult
+from ms.tools.definitions.emscripten import EmscriptenTool
 
 if TYPE_CHECKING:
     from ms.core.config import Config
@@ -93,14 +94,13 @@ class WorkspaceChecker:
         return CheckResult.warning("config.toml", "exists but not validated")
 
     def check_emsdk(self) -> CheckResult:
-        """Check emsdk/ directory exists."""
+        """Check that emsdk is installed and activated."""
         tools_dir = self._get_tools_dir()
-        emsdk_dir = tools_dir / "emsdk"
-        if (emsdk_dir / "emsdk.py").exists():
+        if EmscriptenTool().is_installed(tools_dir, self.platform):
             return CheckResult.success("emsdk", "ok")
         return CheckResult.error(
             "emsdk",
-            "missing",
+            "missing or not activated",
             hint="Run: uv run ms sync --tools",
         )
 

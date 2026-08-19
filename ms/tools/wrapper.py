@@ -193,8 +193,12 @@ def create_emscripten_wrappers(
     env = {"EMSDK": str(emsdk_dir)}
 
     if platform.is_windows:
-        emcc = emscripten_dir / "emcc.bat"
-        emcmake = emscripten_dir / "emcmake.bat"
+        emcc_exe = emscripten_dir / "emcc.exe"
+        emcmake_exe = emscripten_dir / "emcmake.exe"
+        emcc_bat = emscripten_dir / "emcc.bat"
+        emcmake_bat = emscripten_dir / "emcmake.bat"
+        emcc = emcc_exe if emcc_exe.exists() or not emcc_bat.exists() else emcc_bat
+        emcmake = emcmake_exe if emcmake_exe.exists() or not emcmake_bat.exists() else emcmake_bat
     else:
         emcc = emscripten_dir / "emcc"
         emcmake = emscripten_dir / "emcmake"
