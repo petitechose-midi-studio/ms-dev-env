@@ -216,7 +216,7 @@ def create_zig_wrappers(
     bin_dir: Path,
     platform: Platform,
 ) -> list[Path]:
-    """Create zig wrapper scripts (zig-cc, zig-cxx, zig-ar, zig-ranlib).
+    """Create Zig compiler, archiver, and resource compiler wrappers.
 
     These wrappers invoke zig with -target x86_64-windows-gnu to produce
     GNU-compatible binaries that link with SDL2 MinGW libraries.
@@ -252,6 +252,11 @@ def create_zig_wrappers(
             name="zig-ranlib",
             target=zig_exe,
             args=("ranlib",),
+        ),
+        WrapperSpec(
+            name="zig-rc",
+            target=zig_exe,
+            args=("rc",),
         ),
     ]
 

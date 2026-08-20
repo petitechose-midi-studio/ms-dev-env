@@ -36,11 +36,13 @@ class PrereqMissing:
 @dataclass(frozen=True, slots=True)
 class ConfigureFailed:
     returncode: int
+    details: str = ""
 
 
 @dataclass(frozen=True, slots=True)
 class CompileFailed:
     returncode: int
+    details: str = ""
 
 
 @dataclass(frozen=True, slots=True)

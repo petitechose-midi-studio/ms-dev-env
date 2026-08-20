@@ -28,6 +28,19 @@ def _service(root: Path) -> BuildService:
     )
 
 
+def _windows_service(root: Path) -> BuildService:
+    return BuildService(
+        workspace=Workspace(root=root),
+        platform=PlatformInfo(
+            platform=Platform.WINDOWS,
+            arch=Arch.X64,
+            distro=LinuxDistro.UNKNOWN,
+        ),
+        config=None,
+        console=MockConsole(),
+    )
+
+
 def _prepare_sdl_workspace(root: Path) -> Path:
     core_dir = root / "midi-studio" / "core"
     (core_dir / "sdl").mkdir(parents=True)
@@ -92,6 +105,43 @@ def test_sdl_dependency_cmake_args_are_explicit_workspace_roots(tmp_path: Path) 
         f"-DMS_DEVICE_SUPPORT_DIR={tmp_path / 'midi-studio' / 'device-support'}",
         (f"-DLVGL_DIR={tmp_path / 'midi-studio' / 'core' / '.pio' / 'libdeps' / 'dev' / 'lvgl'}"),
     ]
+
+
+def test_windows_zig_cmake_args_include_resource_compiler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = _windows_service(tmp_path)
+
+    def fake_zig_wrapper(_name: str) -> Path:
+        return tmp_path / "tools" / "bin" / f"{_name}.cmd"
+
+    monkeypatch.setattr(service._registry, "get_zig_wrapper", fake_zig_wrapper)
+
+    assert (
+        f"-DCMAKE_RC_COMPILER:FILEPATH={fake_zig_wrapper('zig-rc')}"
+        in service._windows_zig_cmake_args()
+    )
+
+
+def test_windows_native_prereqs_require_zig_resource_compiler(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    service = _windows_service(tmp_path)
+    wrapper_dir = tmp_path / "tools" / "bin"
+    wrapper_dir.mkdir(parents=True)
+    for name in ("zig-cc", "zig-cxx", "zig-ar", "zig-ranlib"):
+        (wrapper_dir / f"{name}.cmd").touch()
+
+    def fake_zig_wrapper(name: str) -> Path:
+        return wrapper_dir / f"{name}.cmd"
+
+    monkeypatch.setattr(service._registry, "get_zig_wrapper", fake_zig_wrapper)
+
+    result = service._check_windows_native_prereqs(require_sdl2=False)
+
+    assert isinstance(result, Err)
+    assert isinstance(result.error, PrereqMissing)
+    assert result.error.name == "Zig wrapper missing: zig-rc"
 
 
 def test_build_prereqs_require_device_support_checkout(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from ms.tools.wrapper import (
     WrapperGenerator,
     WrapperSpec,
     create_emscripten_wrappers,
+    create_zig_wrappers,
 )
 
 
@@ -328,3 +329,16 @@ class TestCreateEmscriptenWrappers:
             content = path.read_text()
             assert ".bat" in content
             assert ".exe" not in content
+
+
+class TestCreateZigWrappers:
+    def test_windows_includes_resource_compiler(self, tmp_path: Path) -> None:
+        zig_dir = tmp_path / "zig"
+        zig_dir.mkdir()
+
+        paths = create_zig_wrappers(zig_dir, tmp_path / "bin", Platform.WINDOWS)
+
+        wrappers = {path.name: path.read_text() for path in paths}
+        assert "zig-rc.cmd" in wrappers
+        assert '"rc"' in wrappers["zig-rc.cmd"]
+        assert len(paths) == 5

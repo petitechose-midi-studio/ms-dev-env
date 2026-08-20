@@ -34,6 +34,7 @@ def sync(
             workspace=ctx.workspace,
             console=ctx.console,
             manifest_paths=repo_manifest_paths(profile),
+            platform=ctx.platform.platform,
         ).sync_all(dry_run=dry_run)
         if isinstance(result, Err):
             ctx.console.error(result.error.message)

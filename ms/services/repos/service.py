@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ms.core.workspace import Workspace
 from ms.output.console import ConsoleProtocol
+from ms.platform.detection import Platform, detect_platform
 
 from .sync import RepoSyncMixin
 
@@ -18,9 +19,11 @@ class RepoService(RepoSyncMixin):
         workspace: Workspace,
         console: ConsoleProtocol,
         manifest_paths: Sequence[Path] | None = None,
+        platform: Platform | None = None,
     ) -> None:
         self._workspace = workspace
         self._console = console
+        self._platform = platform or detect_platform()
         self._manifest_paths = (
             tuple(manifest_paths)
             if manifest_paths is not None
