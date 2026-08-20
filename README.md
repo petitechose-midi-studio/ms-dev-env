@@ -66,6 +66,9 @@ uv run ms list
 uv run ms build core --target native
 uv run ms build bitwig --target native
 
+# Build the Core host file tool
+uv run ms build core --target file-tool
+
 # Run simulators
 uv run ms run core
 uv run ms run bitwig

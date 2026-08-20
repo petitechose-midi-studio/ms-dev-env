@@ -12,7 +12,7 @@ from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
 from ms.platform.process import ProcessError
 from ms.services.build.service import BuildService
-from ms.services.build_errors import PrereqMissing
+from ms.services.build_errors import BuildError, PrereqMissing
 
 
 def _service(root: Path) -> BuildService:
@@ -45,6 +45,36 @@ def _prepare_sdl_workspace(root: Path) -> Path:
     device_support_version.touch()
     (root / "open-control").mkdir()
     return core_dir
+
+
+def test_build_core_file_tool_configures_and_builds_only_its_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    core_dir = tmp_path / "midi-studio" / "core"
+    core_dir.mkdir(parents=True)
+    (tmp_path / "open-control").mkdir()
+    (tmp_path / "midi-studio" / "device-support").mkdir()
+    service = _service(tmp_path)
+    cmake = tmp_path / "cmake"
+    ninja = tmp_path / "ninja"
+
+    def fake_tool_path(_self: BuildService, tool_id: str) -> Result[Path, BuildError]:
+        return Ok(cmake if tool_id == "cmake" else ninja)
+
+    def fake_unix_prereqs(_self: BuildService) -> Result[None, BuildError]:
+        return Ok(None)
+
+    monkeypatch.setattr(BuildService, "_get_tool_path", fake_tool_path)
+    monkeypatch.setattr(BuildService, "_check_unix_native_prereqs", fake_unix_prereqs)
+
+    result = service.build_core_file_tool(dry_run=True)
+    output = core_dir / "build" / "core-native" / "ms-core-file-tool"
+    assert isinstance(service._console, MockConsole)
+
+    assert result == Ok(output)
+    assert f"{cmake} -G Ninja -S {core_dir} -B {output.parent}" in service._console.text
+    assert "-DMS_CORE_BUILD_TESTS=OFF" in service._console.text
+    assert f"{ninja} -C {output.parent} ms-core-file-tool" in service._console.text
 
 
 def test_sdl_dependency_cmake_args_are_explicit_workspace_roots(tmp_path: Path) -> None:

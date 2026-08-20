@@ -15,6 +15,7 @@ from ms.services.build_errors import (
     CompileFailed,
     ConfigureFailed,
     OutputMissing,
+    PrereqMissing,
     SdlAppNotFound,
 )
 
@@ -25,6 +26,92 @@ _COMPILE_TIMEOUT_SECONDS = 30 * 60.0
 
 
 class BuildTargetsMixin(BuildHelpersMixin):
+    def build_core_file_tool(self, *, dry_run: bool = False) -> Result[Path, BuildError]:
+        core_dir = self._workspace.midi_studio_dir / "core"
+        prerequisites = (
+            ("midi-studio/core", core_dir),
+            ("open-control", self._workspace.open_control_dir),
+            ("midi-studio/device-support", self._workspace.midi_studio_dir / "device-support"),
+        )
+        for name, path in prerequisites:
+            if not path.is_dir():
+                return Err(PrereqMissing(name=name, hint="Run: uv run ms sync --repos"))
+
+        cmake = self._get_tool_path("cmake")
+        if isinstance(cmake, Err):
+            return cmake
+        ninja = self._get_tool_path("ninja")
+        if isinstance(ninja, Err):
+            return ninja
+
+        if self._platform.platform.is_windows:
+            win_prereq = self._check_windows_native_prereqs(require_sdl2=False)
+            if isinstance(win_prereq, Err):
+                return win_prereq
+        if self._platform.platform.is_unix:
+            unix_prereq = self._check_unix_native_prereqs()
+            if isinstance(unix_prereq, Err):
+                return unix_prereq
+
+        build_dir = core_dir / "build" / "core-native"
+        build_dir.mkdir(parents=True, exist_ok=True)
+        env = self._base_env()
+        configure_args = [
+            str(cmake.value),
+            "-G",
+            "Ninja",
+            "-S",
+            str(core_dir),
+            "-B",
+            str(build_dir),
+            f"-DMS_CORE_OPEN_CONTROL_ROOT={self._workspace.open_control_dir}",
+            f"-DMS_DEVICE_SUPPORT_DIR={self._workspace.midi_studio_dir / 'device-support'}",
+            "-DMS_CORE_BUILD_TESTS=OFF",
+            "-DCMAKE_BUILD_TYPE=Release",
+            f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
+        ]
+        if self._platform.platform.is_windows:
+            configure_args += self._windows_zig_cmake_args()
+            configure_args = [arg for arg in configure_args if arg]
+
+        build_args = [str(ninja.value), "-C", str(build_dir), "ms-core-file-tool"]
+        if self._platform.platform.is_windows:
+            selection = resolve_parallel_jobs(jobs_env_var="MS_WINDOWS_NATIVE_JOBS")
+            warning = parallel_jobs_warning(
+                selection=selection,
+                jobs_env_var="MS_WINDOWS_NATIVE_JOBS",
+            )
+            if warning is not None:
+                self._console.warning(warning)
+            build_args += ["-j", str(selection.jobs)]
+
+        self._console.print(" ".join(configure_args), Style.DIM)
+        if not dry_run:
+            result = run_silent(
+                configure_args,
+                cwd=self._workspace.root,
+                env=env,
+                timeout=_CONFIGURE_TIMEOUT_SECONDS,
+            )
+            if isinstance(result, Err):
+                return Err(ConfigureFailed(returncode=result.error.returncode))
+
+        self._console.print(" ".join(build_args), Style.DIM)
+        if not dry_run:
+            result = run_silent(
+                build_args,
+                cwd=self._workspace.root,
+                env=env,
+                timeout=_COMPILE_TIMEOUT_SECONDS,
+            )
+            if isinstance(result, Err):
+                return Err(CompileFailed(returncode=result.error.returncode))
+
+        out_exe = build_dir / self._platform.platform.exe_name("ms-core-file-tool")
+        if not dry_run and not out_exe.exists():
+            return Err(OutputMissing(path=out_exe))
+        return Ok(out_exe)
+
     def build_native(self, *, app_name: str, dry_run: bool = False) -> Result[Path, BuildError]:
         res = resolve(app_name, self._workspace.root)
         if isinstance(res, Err):
@@ -82,15 +169,7 @@ class BuildTargetsMixin(BuildHelpersMixin):
         configure_args += self._sdl_dependency_cmake_args()
 
         if self._platform.platform.is_windows:
-            toolchain_file = self._core_sdl_dir() / "zig-toolchain.cmake"
-            zig_ranlib = self._registry.get_zig_wrapper("zig-ranlib")
-            configure_args += [
-                f"-DCMAKE_TOOLCHAIN_FILE={toolchain_file}",
-                f"-DTOOLS_DIR={self._registry.tools_dir}",
-                f"-DCMAKE_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
-                f"-DCMAKE_C_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
-                f"-DCMAKE_CXX_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
-            ]
+            configure_args += self._windows_zig_cmake_args()
             configure_args = [arg for arg in configure_args if arg]
 
         build_args = [str(ninja.value), "-C", str(build_dir)]
