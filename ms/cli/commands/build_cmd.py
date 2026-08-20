@@ -1,4 +1,4 @@
-"""Build command - build native/wasm/teensy targets."""
+"""Build command - build native/wasm/teensy/file-tool targets."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ class Target(StrEnum):
     wasm = "wasm"
     teensy = "teensy"
     extension = "extension"
+    file_tool = "file-tool"
 
 
 def build(
@@ -46,7 +47,11 @@ def build(
     """Build an app for a target."""
     ctx = build_context()
 
-    if target in (Target.native, Target.wasm):
+    if target in (Target.native, Target.wasm, Target.file_tool):
+        if target == Target.file_tool and app != "core":
+            ctx.console.error("target=file-tool is only supported for app 'core'")
+            raise typer.Exit(code=int(ErrorCode.USER_ERROR))
+
         build_svc = BuildService(
             workspace=ctx.workspace,
             platform=ctx.platform,
@@ -54,11 +59,12 @@ def build(
             console=ctx.console,
         )
 
-        result = (
-            build_svc.build_native(app_name=app, dry_run=dry_run)
-            if target == Target.native
-            else build_svc.build_wasm(app_name=app, dry_run=dry_run)
-        )
+        if target == Target.native:
+            result = build_svc.build_native(app_name=app, dry_run=dry_run)
+        elif target == Target.wasm:
+            result = build_svc.build_wasm(app_name=app, dry_run=dry_run)
+        else:
+            result = build_svc.build_core_file_tool(dry_run=dry_run)
 
         match result:
             case Ok(path):

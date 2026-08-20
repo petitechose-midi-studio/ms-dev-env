@@ -139,10 +139,13 @@ class BuildHelpersMixin(BuildContextBase):
 
         return Err(ToolMissing(tool_id=tool_id))
 
-    def _check_windows_native_prereqs(self) -> Result[None, BuildError]:
-        sdl2_lib = self._registry.get_sdl2_lib()
-        if sdl2_lib is None or not sdl2_lib.exists():
-            return Err(PrereqMissing(name="SDL2", hint="Run: uv run ms sync --tools"))
+    def _check_windows_native_prereqs(
+        self, *, require_sdl2: bool = True
+    ) -> Result[None, BuildError]:
+        if require_sdl2:
+            sdl2_lib = self._registry.get_sdl2_lib()
+            if sdl2_lib is None or not sdl2_lib.exists():
+                return Err(PrereqMissing(name="SDL2", hint="Run: uv run ms sync --tools"))
 
         required = ("zig-cc", "zig-cxx", "zig-ar", "zig-ranlib")
         for name in required:
@@ -156,6 +159,16 @@ class BuildHelpersMixin(BuildContextBase):
                 )
 
         return Ok(None)
+
+    def _windows_zig_cmake_args(self) -> list[str]:
+        zig_ranlib = self._registry.get_zig_wrapper("zig-ranlib")
+        return [
+            f"-DCMAKE_TOOLCHAIN_FILE={self._core_sdl_dir() / 'zig-toolchain.cmake'}",
+            f"-DTOOLS_DIR={self._registry.tools_dir}",
+            f"-DCMAKE_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
+            f"-DCMAKE_C_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
+            f"-DCMAKE_CXX_COMPILER_RANLIB:FILEPATH={zig_ranlib}" if zig_ranlib else "",
+        ]
 
     def _check_unix_native_prereqs(self) -> Result[None, BuildError]:
         if shutil.which("c++") or shutil.which("g++") or shutil.which("clang++"):
