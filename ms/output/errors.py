@@ -44,10 +44,14 @@ def print_build_error(error: BuildError, console: ConsoleProtocol) -> None:
         case PrereqMissing(name=name, hint=hint):
             console.error(f"{name}: missing")
             console.print(f"hint: {hint}", Style.DIM)
-        case ConfigureFailed(returncode=rc):
+        case ConfigureFailed(returncode=rc, details=details):
             console.error(f"cmake configure failed (exit {rc})")
-        case CompileFailed(returncode=rc):
+            if details := details.strip():
+                console.print(details, Style.DIM)
+        case CompileFailed(returncode=rc, details=details):
             console.error(f"build failed (exit {rc})")
+            if details := details.strip():
+                console.print(details, Style.DIM)
         case OutputMissing(path=path):
             console.error(f"output not found: {path}")
 

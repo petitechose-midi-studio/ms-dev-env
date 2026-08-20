@@ -916,6 +916,7 @@ class UnitTestService(BaseService):
             "CMAKE_CXX_COMPILER": self._registry.get_zig_wrapper("zig-cxx"),
             "CMAKE_AR": self._registry.get_zig_wrapper("zig-ar"),
             "CMAKE_RANLIB": self._registry.get_zig_wrapper("zig-ranlib"),
+            "CMAKE_RC_COMPILER": self._registry.get_zig_wrapper("zig-rc"),
         }
         if any(path is None or not path.exists() for path in wrappers.values()):
             return Err(ToolMissing(tool_id="zig"))

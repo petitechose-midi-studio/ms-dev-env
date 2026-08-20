@@ -94,7 +94,12 @@ class BuildTargetsMixin(BuildHelpersMixin):
                 timeout=_CONFIGURE_TIMEOUT_SECONDS,
             )
             if isinstance(result, Err):
-                return Err(ConfigureFailed(returncode=result.error.returncode))
+                return Err(
+                    ConfigureFailed(
+                        returncode=result.error.returncode,
+                        details=result.error.stderr,
+                    )
+                )
 
         self._console.print(" ".join(build_args), Style.DIM)
         if not dry_run:
@@ -105,7 +110,12 @@ class BuildTargetsMixin(BuildHelpersMixin):
                 timeout=_COMPILE_TIMEOUT_SECONDS,
             )
             if isinstance(result, Err):
-                return Err(CompileFailed(returncode=result.error.returncode))
+                return Err(
+                    CompileFailed(
+                        returncode=result.error.returncode,
+                        details=result.error.stderr,
+                    )
+                )
 
         out_exe = build_dir / self._platform.platform.exe_name("ms-core-file-tool")
         if not dry_run and not out_exe.exists():
@@ -195,7 +205,12 @@ class BuildTargetsMixin(BuildHelpersMixin):
                 timeout=_CONFIGURE_TIMEOUT_SECONDS,
             )
             if isinstance(result, Err):
-                return Err(ConfigureFailed(returncode=result.error.returncode))
+                return Err(
+                    ConfigureFailed(
+                        returncode=result.error.returncode,
+                        details=result.error.stderr,
+                    )
+                )
 
         self._console.print(" ".join(build_args), Style.DIM)
         if not dry_run:
@@ -206,7 +221,12 @@ class BuildTargetsMixin(BuildHelpersMixin):
                 timeout=_COMPILE_TIMEOUT_SECONDS,
             )
             if isinstance(result, Err):
-                return Err(CompileFailed(returncode=result.error.returncode))
+                return Err(
+                    CompileFailed(
+                        returncode=result.error.returncode,
+                        details=result.error.stderr,
+                    )
+                )
 
         out_dir = self._workspace.bin_dir / app_cfg.app_id / "native"
         out_exe = out_dir / self._platform.platform.exe_name(app_cfg.exe_name)
@@ -284,7 +304,12 @@ class BuildTargetsMixin(BuildHelpersMixin):
                 timeout=_CONFIGURE_TIMEOUT_SECONDS,
             )
             if isinstance(result, Err):
-                return Err(ConfigureFailed(returncode=result.error.returncode))
+                return Err(
+                    ConfigureFailed(
+                        returncode=result.error.returncode,
+                        details=result.error.stderr,
+                    )
+                )
 
             build_cmd = [str(ninja.value), "-C", str(build_dir)]
             self._console.print(" ".join(build_cmd), Style.DIM)
@@ -295,7 +320,12 @@ class BuildTargetsMixin(BuildHelpersMixin):
                 timeout=_COMPILE_TIMEOUT_SECONDS,
             )
             if isinstance(result, Err):
-                return Err(CompileFailed(returncode=result.error.returncode))
+                return Err(
+                    CompileFailed(
+                        returncode=result.error.returncode,
+                        details=result.error.stderr,
+                    )
+                )
 
         out_html = self._workspace.bin_dir / app_cfg.app_id / "wasm" / f"{app_cfg.exe_name}.html"
         if not dry_run and not out_html.exists():
