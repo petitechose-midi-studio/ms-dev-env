@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from ms.core.result import Err, Ok, Result
 from ms.output.console import Style
 
@@ -7,6 +9,11 @@ from .git_ops import RepoGitOpsMixin
 from .lockfile import write_lock_file
 from .manifest import load_manifests
 from .models import RepoError, RepoLockEntry, RepoSpec
+from .ms_manager_artifacts import (
+    MS_MANAGER_DEV_ARTIFACTS_FILE,
+    MS_MANAGER_REPO_PATH,
+    write_ms_manager_dev_artifacts,
+)
 
 
 class RepoSyncMixin(RepoGitOpsMixin):
@@ -28,6 +35,26 @@ class RepoSyncMixin(RepoGitOpsMixin):
 
         if not dry_run:
             write_lock_file(workspace=self._workspace, lock=lock)
+
+        if any(Path(spec.path).as_posix().rstrip("/") == MS_MANAGER_REPO_PATH for spec in specs):
+            config_path = (
+                self._workspace.root / MS_MANAGER_REPO_PATH / MS_MANAGER_DEV_ARTIFACTS_FILE
+            )
+            if dry_run or config_path.parent.is_dir():
+                self._console.print(f"generate {config_path}", Style.DIM)
+            if not dry_run and config_path.parent.is_dir():
+                try:
+                    write_ms_manager_dev_artifacts(
+                        workspace=self._workspace,
+                        platform=self._platform,
+                    )
+                except OSError as error:
+                    return Err(
+                        RepoError(
+                            kind="sync_failed",
+                            message=f"failed to generate {config_path}: {error}",
+                        )
+                    )
 
         if has_errors:
             return Err(

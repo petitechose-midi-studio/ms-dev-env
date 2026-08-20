@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -9,6 +10,7 @@ import pytest
 from ms.core.result import Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
+from ms.platform.detection import Platform
 from ms.services.repos import RepoService
 
 
@@ -58,6 +60,21 @@ def _write_manifest(path: Path, *, url: str) -> None:
             'name = "framework"',
             f'url = "{url}"',
             'path = "open-control/framework"',
+            'branch = "main"',
+            "",
+        ]
+    )
+    path.write_text(content, encoding="utf-8")
+
+
+def _write_ms_manager_manifest(path: Path, *, url: str) -> None:
+    content = "\n".join(
+        [
+            "[[repos]]",
+            'org = "petitechose-midi-studio"',
+            'name = "ms-manager"',
+            f'url = "{url}"',
+            'path = "ms-manager"',
             'branch = "main"',
             "",
         ]
@@ -160,3 +177,47 @@ def test_sync_skips_repo_on_wrong_branch(tmp_path: Path) -> None:
     assert "skip (on branch" in console.text
     assert _git(dest, "rev-parse", "--abbrev-ref", "HEAD") == "feature"
     assert (dest / "hello.txt").read_text(encoding="utf-8") == "v1\n"
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_sync_generates_ms_manager_dev_artifacts(tmp_path: Path) -> None:
+    url, _ = _init_remote_repo(tmp_path, "ms-manager")
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir()
+    manifest = tmp_path / "repos.toml"
+    _write_ms_manager_manifest(manifest, url=url)
+
+    result = RepoService(
+        workspace=Workspace(root=ws_root),
+        console=MockConsole(),
+        manifest_paths=(manifest,),
+        platform=Platform.WINDOWS,
+    ).sync_all(dry_run=False)
+
+    assert isinstance(result, Ok)
+    config = ws_root / "ms-manager" / "dev-artifacts.json"
+    assert config.is_file()
+    assert json.loads(config.read_text(encoding="utf-8"))["artifacts"][
+        "oc_bridge_exe"
+    ].endswith(".exe")
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_sync_dry_run_does_not_generate_ms_manager_dev_artifacts(tmp_path: Path) -> None:
+    url, _ = _init_remote_repo(tmp_path, "ms-manager")
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir()
+    manifest = tmp_path / "repos.toml"
+    _write_ms_manager_manifest(manifest, url=url)
+    console = MockConsole()
+
+    result = RepoService(
+        workspace=Workspace(root=ws_root),
+        console=console,
+        manifest_paths=(manifest,),
+        platform=Platform.LINUX,
+    ).sync_all(dry_run=True)
+
+    assert isinstance(result, Ok)
+    assert not (ws_root / "ms-manager" / "dev-artifacts.json").exists()
+    assert "generate" in console.text

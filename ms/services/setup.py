@@ -134,6 +134,7 @@ class SetupService:
                 workspace=self._workspace,
                 console=self._console,
                 manifest_paths=repo_manifest_paths(repo_profile),
+                platform=self._platform.platform,
             ).sync_all(
                 dry_run=dry_run,
             )

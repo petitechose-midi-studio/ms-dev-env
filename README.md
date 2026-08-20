@@ -117,6 +117,10 @@ uv run ms bridge
  uv run ms sync --repos --profile maintainer
 ```
 
+The maintainer sync also generates the platform-specific `ms-manager/dev-artifacts.json` map used
+by `ms-manager` in this workspace. It is safe to regenerate and ignored by Git; use
+`ms-manager/dev-artifacts.local.json` only for machine-specific overrides.
+
 `--select` accepts a workflow file, a folder, or a unique workflow basename. Folder selections
 only replay workflows inside that subtree; they do not fall back to the full suite.
 
