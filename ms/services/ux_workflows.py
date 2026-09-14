@@ -722,6 +722,8 @@ def _failed_expectations(
                 *parsed,
             ):
                 failed.append(expectation)
+            continue
+        failed.append(expectation)
     return tuple(failed)
 
 
@@ -731,9 +733,10 @@ def _workflow_expectations(path: Path) -> tuple[str, ...]:
         match = _EXPECT_RE.match(line)
         if match is None:
             continue
-        expectations.update(
-            item.strip().lower() for item in match.group(1).split(",") if item.strip()
-        )
+        for item in match.group(1).split(","):
+            if item.strip():
+                keyword, separator, arguments = item.strip().partition(":")
+                expectations.add(keyword.lower() + separator + arguments)
     return tuple(sorted(expectations))
 
 

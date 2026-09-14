@@ -40,6 +40,48 @@ def _ok[T, E](value: Ok[T] | Err[E]) -> T:
     return value.value
 
 
+def test_unknown_expectations_fail_with_valid_trace_and_captures(tmp_path: Path) -> None:
+    _write_workflow(
+        tmp_path,
+        "unknown.ux",
+        "# Expect: capture_match:first=second, capture_equal:first=second, "
+        "capture_same:first=second, unsupported\n"
+        "10 capture screen first\n20 capture screen second\n",
+    )
+    exe = tmp_path / "fake-core.exe"
+    exe.write_text("")
+
+    def runner(
+        cmd: list[str], cwd: Path, timeout: float | None,
+    ) -> Ok[None] | Err[ProcessError]:
+        del cwd, timeout
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n')
+        (output / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n')
+        for label in ("first", "second"):
+            (output / f"001_{label}_screen.bmp").write_bytes(b"identical capture")
+        return Ok(None)
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path), platform=detect(), config=None,
+        console=MockConsole(), runner=runner,
+    )
+    result = service.run(
+        app_name="core", selections=("unknown",), all_workflows=False,
+        skip_build=True, executable=exe,
+    )
+    assert isinstance(result, Err) and isinstance(result.error, UxRunFailed)
+    run = result.error.run
+    assert run is not None
+    assert run.run_ended and run.has_dispatch and run.capture_count == 2
+    assert run.failed_expectations == (
+        "capture_equal:first=second",
+        "capture_same:first=second",
+        "unsupported",
+    )
+    assert not run.ok
+
+
 def test_catalog_discovers_nested_workflows_and_prints_tree(tmp_path: Path) -> None:
     _write_workflow(tmp_path, "sequencer/undo/step-toggle.ux")
     _write_workflow(tmp_path, "sequencer/undo/quick-controls.ux")
@@ -213,6 +255,7 @@ def test_run_validates_semantic_facts_bound_to_named_captures(tmp_path: Path) ->
 # Expect: semantic:armed:surface_context=true, semantic:armed:outcome=armed
 # Expect: semantic:armed:activation_origin=track_paste, semantic:armed:activation_generation=42
 # Expect: semantic:live:projection=live, semantic:live:resolved_value=96
+# Expect: SeMaNtIc:live:property=Pitch
 10 capture screen armed
 20 capture screen live
 """.lstrip(),
@@ -241,7 +284,7 @@ def test_run_validates_semantic_facts_bound_to_named_captures(tmp_path: Path) ->
                     '"surface_context":true,"source_seq":3,"view":"sequencer",'
                     '"overlay":"seq_cc_lane","playing":true,"playhead":2,'
                     '"page":0,"shared_track":0,"shared_mask":1,'
-                    '"projection":"live","resolved_value":96}',
+                    '"projection":"live","resolved_value":96,"property":"Pitch"}',
                 ]
             )
             + "\n",
