@@ -1,3 +1,5 @@
+"""Content guided-release dependency contracts, split by boundary."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,13 +17,12 @@ from ms.release.flow.content_candidates import (
 )
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
-from .menu_option import MenuOption
-from .selection import Selection
+from .contracts import TerminalDependencies
 from .sessions import ContentReleaseSession
 
 
-class ContentGuidedDependencies(Protocol):
-    def preflight(self) -> Result[str, ReleaseError]: ...
+class ContentStorageDependencies(Protocol):
+    """Session persistence boundary."""
 
     def bootstrap_session(
         self, *, created_by: str, notes_file: Path | None
@@ -33,39 +34,11 @@ class ContentGuidedDependencies(Protocol):
 
     def clear_session(self) -> Result[None, ReleaseError]: ...
 
-    def select_channel(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["stable", "beta"]]: ...
 
-    def select_bump(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["major", "minor", "patch"]]: ...
+class ContentReleaseOperations(Protocol):
+    """Release business operations (GitHub/workspace boundary)."""
 
-    def select_green_commit(
-        self,
-        *,
-        workspace_root: Path,
-        repo_slug: str,
-        ref: str,
-        workflow_file: str | None,
-        title: str,
-        subtitle: str,
-        current_sha: str | None,
-        initial_index: int,
-        allow_back: bool,
-    ) -> Result[Selection[str], ReleaseError]: ...
-
-    def select_menu(
-        self,
-        *,
-        title: str,
-        subtitle: str,
-        options: list[MenuOption[str]],
-        initial_index: int,
-        allow_back: bool,
-    ) -> Selection[str]: ...
-
-    def confirm(self, *, prompt: str) -> bool: ...
+    def preflight(self) -> Result[str, ReleaseError]: ...
 
     def ensure_ci_green(
         self,
@@ -146,12 +119,11 @@ class ContentGuidedDependencies(Protocol):
         request_id: str | None = None,
     ) -> Result[str, ReleaseError]: ...
 
-    def print_notes_status(
-        self,
-        *,
-        console: ConsoleProtocol,
-        notes_markdown: str | None,
-        notes_path: str | None,
-        notes_sha256: str | None,
-        auto_label: str,
-    ) -> None: ...
+
+class ContentGuidedDependencies(
+    TerminalDependencies,
+    ContentStorageDependencies,
+    ContentReleaseOperations,
+    Protocol,
+):
+    """Full guided content release boundary (composed of the three above)."""

@@ -1,3 +1,5 @@
+"""App guided-release dependency contracts, split by boundary."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,8 +13,7 @@ from ms.release.flow.app_publish import AppPublishResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.github.workflows import BeforeDispatch
 
-from .menu_option import MenuOption
-from .selection import Selection
+from .contracts import TerminalDependencies
 from .sessions import AppReleaseSession
 
 
@@ -24,8 +25,8 @@ class AppPrepareResultLike(Protocol):
     def source_sha(self) -> str: ...
 
 
-class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
-    def preflight(self) -> Result[str, ReleaseError]: ...
+class AppStorageDependencies(Protocol):
+    """Session persistence boundary."""
 
     def bootstrap_session(
         self, *, created_by: str, notes_file: Path | None
@@ -37,39 +38,11 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
 
     def clear_session(self) -> Result[None, ReleaseError]: ...
 
-    def select_channel(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["stable", "beta"]]: ...
 
-    def select_bump(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["major", "minor", "patch"]]: ...
+class AppReleaseOperations[PrepareT: AppPrepareResultLike](Protocol):
+    """Release business operations (GitHub/workspace boundary)."""
 
-    def select_green_commit(
-        self,
-        *,
-        workspace_root: Path,
-        repo_slug: str,
-        ref: str,
-        workflow_file: str | None,
-        title: str,
-        subtitle: str,
-        current_sha: str | None,
-        initial_index: int,
-        allow_back: bool,
-    ) -> Result[Selection[str], ReleaseError]: ...
-
-    def select_menu(
-        self,
-        *,
-        title: str,
-        subtitle: str,
-        options: list[MenuOption[str]],
-        initial_index: int,
-        allow_back: bool,
-    ) -> Selection[str]: ...
-
-    def confirm(self, *, prompt: str) -> bool: ...
+    def preflight(self) -> Result[str, ReleaseError]: ...
 
     def ensure_ci_green(
         self,
@@ -118,12 +91,11 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         before_dispatch: BeforeDispatch | None = None,
     ) -> Result[AppPublishResult, ReleaseError]: ...
 
-    def print_notes_status(
-        self,
-        *,
-        console: ConsoleProtocol,
-        notes_markdown: str | None,
-        notes_path: str | None,
-        notes_sha256: str | None,
-        auto_label: str,
-    ) -> None: ...
+
+class AppGuidedDependencies[PrepareT: AppPrepareResultLike](
+    TerminalDependencies,
+    AppStorageDependencies,
+    AppReleaseOperations[PrepareT],
+    Protocol,
+):
+    """Full guided app release boundary (composed of the three above)."""
