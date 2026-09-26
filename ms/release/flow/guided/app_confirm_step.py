@@ -11,7 +11,6 @@ from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.release_tooling import resolve_release_tooling
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
-from ms.release.infra.github.workflows import app_release_request_id
 
 from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
 from .app_pins import pinned_app_repo
@@ -25,20 +24,6 @@ from .fsm import FINISH, StepOutcome, advance
 from .menu_option import MenuOption
 from .pending_op import reconcile_pending_op
 from .sessions import AppReleaseSession
-
-
-def _clear_pending(session: AppReleaseSession) -> AppReleaseSession:
-    return replace(
-        session,
-        pending_kind=None,
-        pending_request_id=None,
-        pending_repo=None,
-        pending_workflow=None,
-        pending_tag=None,
-        pending_source_sha=None,
-        pending_tooling_sha=None,
-        pending_at=None,
-    )
 
 
 def refresh_app_session_tooling(
@@ -160,19 +145,11 @@ def run_app_confirm_step[PrepareT: AppPrepareResultLike](
     if isinstance(prepared, Err):
         return prepared
 
-    request_id: str | None = None
-    if not dry_run:
-        request = app_release_request_id(
-            workspace_root=workspace_root,
-            tag=tag,
-            source_sha=repo_sha,
-            tooling_sha=tooling_sha,
-            notes_markdown=session.notes_markdown,
-            notes_source_path=session.notes_path,
-        )
-        if isinstance(request, Err):
-            return request
-        request_id = request.value
+    def persist_intent(
+        request_id: str, inputs: tuple[tuple[str, str], ...]
+    ) -> Result[None, ReleaseError]:
+        # Called by the release dispatcher after candidate preparation, using
+        # the exact identity and inputs that will be sent to GitHub.
         marker = replace(
             session,
             pending_kind="app_release",
@@ -180,14 +157,15 @@ def run_app_confirm_step[PrepareT: AppPrepareResultLike](
             pending_repo=config.APP_REPO_SLUG,
             pending_workflow=config.APP_RELEASE_WORKFLOW,
             pending_tag=tag,
-            pending_source_sha=repo_sha,
+            pending_source_sha=prepared.value.source_sha,
             pending_tooling_sha=tooling_sha,
+            pending_inputs=inputs,
             pending_at=datetime.now(tz=UTC).isoformat(),
         )
         saved = deps.save_state(session=marker)
         if isinstance(saved, Err):
             return saved
-        session = saved.value
+        return Ok(None)
 
     dispatched = publish_prepared_app_release(
         deps=deps,
@@ -199,7 +177,7 @@ def run_app_confirm_step[PrepareT: AppPrepareResultLike](
         prepared=prepared.value,
         tag=tag,
         tooling_sha=tooling_sha,
-        request_id=request_id,
+        before_dispatch=persist_intent,
     )
     if isinstance(dispatched, Err):
         return dispatched
@@ -221,13 +199,14 @@ def _resume_pending[PrepareT: AppPrepareResultLike](
         request_id=session.pending_request_id,
         source_sha=session.pending_source_sha,
         tooling_sha=session.pending_tooling_sha,
+        inputs=session.pending_inputs,
     )
     if isinstance(reconciled, Err):
         return reconciled
 
     outcome = reconciled.value
     if outcome.state == "completed":
-        saved = deps.save_state(session=_clear_pending(session))
+        saved = deps.clear_session()
         if isinstance(saved, Err):
             return saved
         return Ok(FINISH)

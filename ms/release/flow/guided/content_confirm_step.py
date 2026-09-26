@@ -26,20 +26,6 @@ from .pending_op import reconcile_pending_op
 from .sessions import ContentReleaseSession
 
 
-def _clear_pending(session: ContentReleaseSession) -> ContentReleaseSession:
-    return replace(
-        session,
-        pending_kind=None,
-        pending_request_id=None,
-        pending_repo=None,
-        pending_workflow=None,
-        pending_tag=None,
-        pending_source_sha=None,
-        pending_tooling_sha=None,
-        pending_at=None,
-    )
-
-
 def run_content_confirm_step(
     *,
     deps: ContentGuidedDependencies,
@@ -170,6 +156,12 @@ def run_content_confirm_step(
             pending_tag=planned.value.tag,
             pending_source_sha=None,
             pending_tooling_sha=planned.value.tooling.sha,
+            pending_inputs=(
+                ("channel", planned.value.channel),
+                ("tag", planned.value.tag),
+                ("spec_path", planned.value.spec_path),
+                ("tooling_sha", planned.value.tooling.sha),
+            ),
             pending_at=datetime.now(tz=UTC).isoformat(),
         )
         saved = deps.save_state(session=marker)
@@ -206,12 +198,13 @@ def _resume_content_pending(
         request_id=session.pending_request_id,
         source_sha=session.pending_source_sha,
         tooling_sha=session.pending_tooling_sha,
+        inputs=session.pending_inputs,
     )
     if isinstance(reconciled, Err):
         return reconciled
     outcome = reconciled.value
     if outcome.state == "completed":
-        saved = deps.save_state(session=_clear_pending(session))
+        saved = deps.clear_session()
         if isinstance(saved, Err):
             return saved
         return Ok(FINISH)

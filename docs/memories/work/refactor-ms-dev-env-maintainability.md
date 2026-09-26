@@ -114,9 +114,21 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E4.0 | fait | caractérisation : catalogue unit-tests, découverte UX (`test_unit_tests.py`, `test_ux_workflows.py`) | — | prérequis posé avant extraction
 - 2026-09-26 | E4.1 | fait | `session_models.py` (`SessionCursor`), stores app/content, `app_steps.py`, `content_steps.py`, `content_summary_step.py`, `content_candidates_step.py`, `content_confirm_step.py`, `notes_transition.py`, `test_guided_notes_transition.py` | suite 1239p/14s/44s ; e2e 1p ; arch 6p ; ruff 0 ; pyright 0 | sessions = plan + `step` + `pending_op` + `cursor` ; assertions E3 inchangées
 - 2026-09-26 | E4.2–E4.4 | restant | `_Deps`/`app_contracts.py` ; mixins build/repos/toolchains ; découpage `unit_tests.py`/`ux_workflows.py` | — | par PR séparée ; caractérisation en place pour chacune
-- 2026-09-26 | git | état | 115 entrées modifiées/nouvelles depuis `75ec6eb` | — | aucun commit ; `docs/README.md` préexistant hors périmètre
+- 2026-09-26 | git | checkpoint | commit `2dd7d94` (travail en cours clairement identifié) | seul `docs/README.md` reste non suivi (préexistant) | suites post-revue : reprise 21 tests, round-trip app+contenu, scénario disque réel
+
+- 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### Correction de revue — reprise release (2026-09-26, après `2dd7d94`)
+
+- **Identité effective** : le dispatcher app calcule l'identité avec le SHA issu de la préparation/fusion et les inputs réellement envoyés. Il appelle `before_dispatch` pour persister l'intention après le traitement du candidat (et son attente si demandée), avant le dispatch release. Un échec du candidat ou de cette écriture ne déclenche pas la release.
+- **Preuve de reprise** : les sessions app/contenu conservent `pending_inputs`. La réconciliation vérifie la cohérence tag/source/tooling, le type d'événement, le chemin du workflow et le hash de requête recalculé sur le `head_sha` du run historique. Elle exige ensuite succès du run et présence de la release. Elle ne recalcule pas l'identité à partir du `main` courant. Cette preuve s'appuie sur le contrat du workflow producteur ; elle ne remplace pas la vérification cryptographique des artefacts.
+- **Compatibilité** : une ancienne intention de schéma 4 sans `pending_inputs` reste lisible mais ne permet pas de déclarer la publication terminée ; réconciliation `undetermined`, sans rejeu automatique.
+- **Clôture durable** : les deux parcours suppriment la session après réconciliation `completed`. Une erreur de suppression est propagée ; l'intention reste disponible pour une nouvelle tentative de clôture.
+- **Preuves locales nouvelles** : SHA fusionné différent du SHA de départ ; vrai dispatch interrompu après acceptation distante ; timeout après acceptation ; échec de suppression après succès ; rechargement disque puis vraie réconciliation avec `main` déplacé ; identités source/tooling/head/workflow discordantes ; candidat en échec sans intention release ; persistance refusée sans dispatch release ; clôture contenu sur disque ; marqueur retardé avec attente simulée.
+- **Validation exécutée** : `pytest ms/test` → **1260 passés, 14 skippés, 6 désélectionnés en 47,47 s**, E2E local inclus ; architecture activée → **6 passés** ; Ruff/Pyright → **0 erreur** ; `git diff --check` sans erreur. Tests reprise → **32 passés en 0,44 s**, sans réseau réel ni délai d'attente réel de réconciliation. Aucun workflow distant n'a été lancé pour cette validation.
+- **État de livraison** : correctif intégré au commit `1e36135`. Hors commit : `docs/README.md` (préexistant, périmètre utilisateur) et la passation produit `refactor-ms-product-maintainability.md` (autre périmètre). Checkpoints : `2dd7d94` puis `1e36135`.
 
 1. Lire le **Journal** (dernière ligne = point de départ) et la table **Décisions**.
 2. Lancer la commande de la **matrice** correspondant au lot en cours.

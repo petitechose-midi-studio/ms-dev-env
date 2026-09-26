@@ -19,6 +19,7 @@ from ms.release.flow.app_publish import AppPublishResult, publish_app_release
 from ms.release.flow.guided.app_steps import run_guided_app_release_flow
 from ms.release.flow.guided.sessions import AppReleaseSession, clear_app_session
 from ms.release.flow.permissions import ensure_app_release_permissions
+from ms.release.infra.github.workflows import BeforeDispatch
 
 
 def run_guided_app_release(
@@ -106,6 +107,7 @@ def run_guided_app_release(
             dry_run: bool,
             remote_coherence_checked: bool = False,
             request_id: str | None = None,
+            before_dispatch: BeforeDispatch | None = None,
         ) -> Result[AppPublishResult, ReleaseError]:
             return publish_app_release(
                 workspace_root=workspace_root,
@@ -119,6 +121,7 @@ def run_guided_app_release(
                 dry_run=dry_run,
                 remote_coherence_checked=remote_coherence_checked,
                 request_id=request_id,
+                before_dispatch=before_dispatch,
             )
 
     return run_guided_app_release_flow(

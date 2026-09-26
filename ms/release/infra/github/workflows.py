@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +30,8 @@ from ms.release.infra.github.client import get_ref_head_sha
 from .gh_base import run_gh_process
 from .timeouts import GH_TIMEOUT_SECONDS
 from .workflow_dispatch_lookup import find_dispatched_run, resolve_dispatched_run
+
+type BeforeDispatch = Callable[[str, tuple[tuple[str, str], ...]], Result[None, ReleaseError]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +67,7 @@ def _dispatch_workflow(
     console: ConsoleProtocol,
     dry_run: bool,
     request_id: str | None = None,
+    before_dispatch: BeforeDispatch | None = None,
 ) -> Result[WorkflowRun, ReleaseError]:
     if request_id is None:
         resolved_ref = ref
@@ -98,6 +102,11 @@ def _dispatch_workflow(
     console.print(f"dispatch request_id: {request_id}", Style.DIM)
     if dry_run:
         return Ok(WorkflowRun(id=0, url="(dry-run)", request_id=request_id))
+
+    if before_dispatch is not None:
+        saved = before_dispatch(request_id, inputs)
+        if isinstance(saved, Err):
+            return saved
 
     existing = find_dispatched_run(
         workspace_root=workspace_root,
@@ -301,6 +310,7 @@ def dispatch_app_release_workflow(
     console: ConsoleProtocol,
     dry_run: bool,
     request_id: str | None = None,
+    before_dispatch: BeforeDispatch | None = None,
 ) -> Result[WorkflowRun, ReleaseError]:
     if notes_markdown is not None:
         console.print("app release input: notes_b64 attached", Style.DIM)
@@ -327,6 +337,7 @@ def dispatch_app_release_workflow(
         console=console,
         dry_run=dry_run,
         request_id=request_id,
+        before_dispatch=before_dispatch,
     )
 
 

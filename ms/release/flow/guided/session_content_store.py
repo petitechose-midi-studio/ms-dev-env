@@ -8,7 +8,13 @@ from ms.core.structured import as_obj_list, as_str_dict, get_str, get_table
 from ms.release.errors import ReleaseError
 
 from .session_models import ContentReleaseSession, SessionCursor
-from .session_parse import get_int, parse_bump, parse_channel, parse_content_step
+from .session_parse import (
+    get_int,
+    parse_bump,
+    parse_channel,
+    parse_content_step,
+    parse_pending_inputs,
+)
 from .session_paths import content_session_path
 from .session_store import clear_session, read_session, write_session
 
@@ -105,6 +111,7 @@ def load_content_session(
             pending_source_sha=get_str(data, "pending_source_sha"),
             pending_tooling_sha=get_str(data, "pending_tooling_sha"),
             pending_at=get_str(data, "pending_at"),
+            pending_inputs=parse_pending_inputs(data.get("pending_inputs")),
         )
     )
 

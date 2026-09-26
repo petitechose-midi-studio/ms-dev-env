@@ -10,7 +10,7 @@ from ms.release.domain.notes import AppPublishNotes
 from ms.release.errors import ReleaseError
 from ms.release.infra.artifacts.notes_writer import load_external_notes_file
 from ms.release.infra.github.run_watch import watch_run
-from ms.release.infra.github.workflows import dispatch_app_release_workflow
+from ms.release.infra.github.workflows import BeforeDispatch, dispatch_app_release_workflow
 
 from .app_candidate_ensure import AppPublishResult, ensure_app_candidate
 from .remote_coherence import assert_release_remote_coherence
@@ -29,6 +29,7 @@ def publish_app_release(
     dry_run: bool,
     remote_coherence_checked: bool = False,
     request_id: str | None = None,
+    before_dispatch: BeforeDispatch | None = None,
 ) -> Result[AppPublishResult, ReleaseError]:
     if notes_markdown is not None:
         source_label = notes_source_path or "(unknown source)"
@@ -86,6 +87,7 @@ def publish_app_release(
         console=console,
         dry_run=dry_run,
         request_id=request_id,
+        before_dispatch=before_dispatch,
     )
     if isinstance(release, Err):
         return release

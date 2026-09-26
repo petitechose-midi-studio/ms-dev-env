@@ -73,6 +73,7 @@ class AppReleaseSession:
     pending_source_sha: str | None = None
     pending_tooling_sha: str | None = None
     pending_at: str | None = None
+    pending_inputs: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +101,7 @@ class ContentReleaseSession:
     pending_source_sha: str | None = None
     pending_tooling_sha: str | None = None
     pending_at: str | None = None
+    pending_inputs: tuple[tuple[str, str], ...] = ()
 
 
 def new_app_session(*, created_by: str, notes_path: Path | None) -> AppReleaseSession:

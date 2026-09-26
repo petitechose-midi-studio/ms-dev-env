@@ -19,6 +19,7 @@ from ms.release.errors import ReleaseError
 from ms.release.infra.github.gh_base import gh_api_json
 from ms.release.infra.github.releases import release_exists_by_tag
 from ms.release.infra.github.workflow_dispatch_lookup import find_dispatched_run
+from ms.release.infra.github.workflows import dispatch_request_id
 
 PendingState = Literal["completed", "in_flight", "failed", "undetermined"]
 
@@ -42,6 +43,7 @@ def reconcile_pending_op(
     request_id: str | None,
     source_sha: str | None = None,
     tooling_sha: str | None = None,
+    inputs: tuple[tuple[str, str], ...] = (),
     attempts: int = _MARKER_ATTEMPTS,
     delay_seconds: float = _MARKER_DELAY_SECONDS,
 ) -> Result[PendingReconciliation, ReleaseError]:
@@ -71,6 +73,8 @@ def reconcile_pending_op(
                 tag=tag,
                 source_sha=source_sha,
                 tooling_sha=tooling_sha,
+                request_id=request_id,
+                inputs=inputs,
             )
             if isinstance(classified, Err):
                 return classified
@@ -130,6 +134,8 @@ def _classify_run(
     tag: str,
     source_sha: str | None,
     tooling_sha: str | None,
+    request_id: str,
+    inputs: tuple[tuple[str, str], ...],
 ) -> Result[PendingReconciliation, ReleaseError]:
     payload = gh_api_json(
         workspace_root=workspace_root,
@@ -140,6 +146,31 @@ def _classify_run(
     root = as_str_dict(payload.value)
     if root is None:
         return Err(ReleaseError(kind="workflow_failed", message="unexpected workflow run payload"))
+
+    head_sha = get_str(root, "head_sha")
+    values = dict(inputs)
+    # Recompute from the run's immutable revision, never today's branch head.
+    # Missing legacy inputs or inconsistent session fields cannot prove success.
+    identity_matches = (
+        bool(inputs)
+        and len(values) == len(inputs)
+        and values.get("tag") == tag
+        and tooling_sha is not None
+        and values.get("tooling_sha") == tooling_sha
+        and (source_sha is None or values.get("source_sha") == source_sha)
+        and get_str(root, "event") == "workflow_dispatch"
+        and get_str(root, "path") == f".github/workflows/{workflow_file}"
+        and head_sha is not None
+        and dispatch_request_id(
+            repo_slug=repo, workflow_file=workflow_file, ref=head_sha, inputs=inputs
+        ) == request_id
+    )
+    if not identity_matches:
+        return Ok(PendingReconciliation(
+            state="undetermined",
+            detail="dispatch identity does not match the persisted inputs and workflow run",
+            run_url=run_url,
+        ))
     status = get_str(root, "status")
     conclusion = get_str(root, "conclusion")
 

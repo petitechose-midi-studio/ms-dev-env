@@ -8,6 +8,7 @@ from ms.release.domain import config
 from ms.release.domain.models import PinnedRepo, ReleaseTooling
 from ms.release.errors import ReleaseError
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
+from ms.release.infra.github.workflows import BeforeDispatch
 
 from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
 from .sessions import AppReleaseSession
@@ -91,6 +92,7 @@ def publish_prepared_app_release[PrepareT: AppPrepareResultLike](
     tag: str,
     tooling_sha: str,
     request_id: str | None = None,
+    before_dispatch: BeforeDispatch | None = None,
 ) -> Result[None, ReleaseError]:
     run = deps.publish_app_release(
         workspace_root=workspace_root,
@@ -104,6 +106,7 @@ def publish_prepared_app_release[PrepareT: AppPrepareResultLike](
         dry_run=dry_run,
         remote_coherence_checked=True,
         request_id=request_id,
+        before_dispatch=before_dispatch,
     )
     if isinstance(run, Err):
         return run

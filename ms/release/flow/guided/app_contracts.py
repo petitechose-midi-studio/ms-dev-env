@@ -9,6 +9,7 @@ from ms.release.domain.models import AppReleasePlan, PinnedRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.app_publish import AppPublishResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
+from ms.release.infra.github.workflows import BeforeDispatch
 
 from .menu_option import MenuOption
 from .selection import Selection
@@ -114,6 +115,7 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         dry_run: bool,
         remote_coherence_checked: bool = False,
         request_id: str | None = None,
+        before_dispatch: BeforeDispatch | None = None,
     ) -> Result[AppPublishResult, ReleaseError]: ...
 
     def print_notes_status(
