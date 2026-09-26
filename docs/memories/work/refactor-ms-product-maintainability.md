@@ -1,10 +1,11 @@
 # Refactor : maintenabilité des produits MIDI Studio
 
 **Scope** : `midi-studio/core`, `midi-studio/plugin-bitwig`, `midi-studio/ui`, frontières avec `device-support` et OpenControl  
-**Status** : planned  
+**Status** : en cours — correctifs poussés, qualification visuelle acquise, atterrissage en cours
+
 **Created** : 2026-09-26  
 **Updated** : 2026-09-26  
-**Nature** : feuille de route d'exécution et passation ; aucun lot d'implémentation commencé.
+**Nature** : feuille de route d'exécution et passation. Le tableau de la section 5 fait autorité pour l'état courant ; les entrées du journal conservent les preuves historiques.
 
 ## 1. Cap et résultat attendu
 
@@ -92,14 +93,14 @@ Prendre comme références `core/docs/CORE_ARCHITECTURE.md`, `ARCHITECTURE_REVIE
 
 | Lot | Livraison | Dépendance | État |
 | --- | --- | --- | --- |
-| L0 | Reprise du contexte et état de référence | Aucune | À faire |
-| L1 | Capacités de build cohérentes | L0 | À faire |
-| L2 | Tests des mises à jour Bitwig | L0 | À faire |
-| L3 | Consolidation de `ListOverlay` | L2 recommandé avant refactoring Bitwig | À faire |
-| L4 | Parcours pilote de collage de page Core | L1 | À faire |
-| L5 | Dépendances ciblées sur ce parcours | L4 | À faire |
-| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | À faire |
-| L7 | Onboarding et clôture documentaire | Changements concernés stabilisés | À faire |
+| L0 | Reprise du contexte et état de référence | Aucune | Effectué |
+| L1 | Capacités de build cohérentes | L0 | Correctif et pins UI/Bitwig poussés #178, propagés L4/L5/L6 ; snapshot propre validé ; merge protégé en cours |
+| L2 | Tests des mises à jour Bitwig | L0 | #28 mergée ; scénario page/device→batch et infrastructure Java ouverts |
+| L3 | Consolidation de `ListOverlay` | L2 recommandé avant refactoring Bitwig | UI #15 et Bitwig #29 mergées ; CI UI/Bitwig vertes ; captures avant/après identiques |
+| L4 | Parcours pilote de collage de page Core | L1 | Implémenté #179 ; revue et suite native validées |
+| L5 | Dépendances ciblées sur ce parcours | L4 | Implémenté #180 ; revue et suite native validées |
+| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181 ; preuve d'ordre et compteur d'écritures corrigés et poussés ; autres familles textuelles ouvertes |
+| L7 | Onboarding et clôture documentaire | Changements concernés stabilisés | Onboarding Core/Bitwig/UI actualisé et poussé ; clôture après atterrissage et validations finales |
 
 Ordre recommandé pour une reprise séquentielle : L0 → L1 → L2 → L3 → L4 → L5 → L6 → L7. Chaque lot doit rester relisible et validable séparément. Ne pas mélanger le déplacement massif de fichiers avec une modification de comportement.
 
@@ -161,7 +162,7 @@ Examiner ensuite le batching Java : isoler sa logique testable seulement si cela
 
 **Acceptation** : un seul moteur de liste pour les consommateurs migrés, API publique limitée aux besoins observés, tests des cas limites touchés et builds des deux produits passent. Vérifier visuellement les sélecteurs concernés en simulation et comparer aux captures avant migration.
 
-**Attention test** : le CMake autonome de `ui` ne déclare actuellement que `test_CurvePreviewGeometry`, bien qu'un fichier `test_VirtualListOverlay` existe. Retrouver où ce dernier est exécuté et raccorder les nouveaux tests au runner réel ; la présence d'un fichier de test n'est pas une validation.
+**Attention test** : lacune initiale corrigée localement après revue : le CMake autonome de `ui` déclare aussi `test_VirtualListOverlay` (voir journal des correctifs et README UI). Son exécution automatique en CI reste à raccorder.
 
 ### L4 — Simplifier un parcours Core : collage d'une page de séquenceur
 
@@ -262,7 +263,7 @@ Prochain lot :
 
 Un lot est terminé lorsque son critère d'acceptation est satisfait, ses vérifications pertinentes sont exécutées et les limites restantes sont explicites. Une qualification matérielle requise mais indisponible laisse cette partie bloquée, même si les tests natifs passent.
 
-**Prochaine action sans ambiguïté : exécuter L0, puis traiter la divergence 256/272 dans L1.** La refonte générale de Core n'est pas un préalable à cette première livraison.
+La priorité initiale était L0 puis la divergence 256/272 de L1. Pour la reprise actuelle, utiliser le tableau de la section 5 et la dernière entrée du journal.
 
 ### Suivi des livraisons
 
@@ -324,7 +325,7 @@ Un lot est terminé lorsque son critère d'acceptation est satisfait, ses vérif
 - Constat traité : aucune validation ni coordination strictement redondante démontrée (chaque étage a un rôle distinct ; la revérification est une ré-analyse, pas une copie). La frontière illisible était le « settlement » : un `uint16_t` packé (`outcome << 8 | focus`) échangé entre trois helpers quasi identiques et leurs appelants, avec la double table préflight/résultat dupliquée trois fois.
 - Changement livré : type nommé `PreparedStructureSettlement` (2 octets, ABI de retour identique) ; fabriques Failed/NoChange/Committed ; helper unique `applyPreparedPageStructurePlan`, propriétaire de la règle « un préflight non-Ready n'exécute jamais le plan, NoChange porte le focus, seul StepPaste conserve le focus commité pour le curseur » ; trois helpers de collage simplifiés.
 - Preuve du gain de maintenabilité : les trois doubles switchs (~28 lignes chacun) deviennent trois délégations de ~6 lignes ; 24 packs et 15 unpacks supprimés ; aucune sémantique modifiée (206/206).
-- Commandes exécutées et résultats : `ms test core --workspace .tmp/l4-runner-bench` → **206/206 (172,6 s) dans le runner officiel, contre la branche, sans toucher au checkout principal** ; `check-architecture-contracts.py` OK ; `ms build core --target teensy --env dev` via le même bench → **BUILD OK** 50 s (FLASH 18 %, RAM1 70 %, RAM2 35 %, PSRAM 14 %) ; `ms test plugin-bitwig --workspace .tmp/l4-runner-bench` → 2/2 OK (branche L3).
+- Commandes et résultats rapportés (syntaxe `--workspace` corrigée lors de la revue) : `ms --workspace .tmp/l4-runner-bench test core` → **206/206 (172,6 s)** ; `check-architecture-contracts.py` OK ; `ms --workspace .tmp/l4-runner-bench build core --target teensy --env dev` → **BUILD OK** 50 s (FLASH 18 %, RAM1 70 %, RAM2 35 %, PSRAM 14 %) ; `ms --workspace .tmp/l4-runner-bench test plugin-bitwig` → 2/2 OK (branche L3).
 - Incident significatif (preuve F2 pour L6) : la première exécution a fait échouer `check-architecture-contracts.py`, car une règle exige la présence textuelle de `executeSequencerPreparedPageStructureMutationPlan` dans chaque helper ; le refactor déplaçait — correctement — l'appel dans le helper partagé. La règle a été reciblée sur la garantie structurelle (délégation exigée + exécution unique dans le helper). C'est exactement le risque décrit par l'audit : un refactoring correct rejeté à cause de son écriture.
 - Vérifications non exécutées / blocages : qualification matérielle non exécutée ; la règle reste textuelle (cible L6) ; le bench runner (`--workspace`) est la méthode recommandée pour rejouer les suites sur une branche sans toucher au checkout principal.
 - Prochain lot : L5.
@@ -338,30 +339,97 @@ Branches poussées et PR ouvertes :
 | L1 | Core | `codex/core-maintainability-l1` | [#178](https://github.com/petitechose-midi-studio/core/pull/178) | `main` |
 | L4 | Core | `codex/core-maintainability-l4` | [#179](https://github.com/petitechose-midi-studio/core/pull/179) | `codex/core-maintainability-l1` |
 | L5 | Core | `codex/core-maintainability-l5` | [#180](https://github.com/petitechose-midi-studio/core/pull/180) | `codex/core-maintainability-l4` |
+| L6 | Core | `codex/core-maintainability-l6` | [#181](https://github.com/petitechose-midi-studio/core/pull/181) | `codex/core-maintainability-l5` |
 | L2 | Plugin Bitwig | `codex/bitwig-maintainability-l2` | [#28](https://github.com/petitechose-midi-studio/plugin-bitwig/pull/28) | `main` |
 | L3 | Plugin Bitwig | `codex/bitwig-maintainability-l3` | [#29](https://github.com/petitechose-midi-studio/plugin-bitwig/pull/29) | `codex/bitwig-maintainability-l2` |
 | L3 | UI | `codex/ui-maintainability-l3` | [#15](https://github.com/petitechose-midi-studio/ui/pull/15) | `main` |
 
-Ordre de merge : **UI #15 → Bitwig #28 → Bitwig #29 → Core #178 → Core #179**. Chaque branche est un fast-forward de sa base (ancêtre vérifié) ; les PR empilées ont la branche précédente comme base.
+Ordre de merge : **UI #15 → Bitwig #28 → Bitwig #29 → Core #178 → Core #179 → Core #180 → Core #181**. Intégrer d'abord les correctifs locaux sur leurs branches, puis mettre à jour les bases des PR empilées. Les statuts distants ci-dessus sont ceux rapportés précédemment, non revérifiés pendant cette correction.
 
 Après merge :
 
-1. Avancer le pin/lockfile Bitwig dans `ms-dev-env` vers la révision mergée.
-2. Régénérer le snapshot de topologie Core (le hash `bitwig/CMakeLists.txt` est suivi par `check-build-topology.py`) dans un bench propre, puis commit du snapshot avec le pin.
+1. Avancer les pins de qualification Core (`MIDI_STUDIO_BITWIG_SHA` et `MIDI_STUDIO_UI_SHA` dans `.github/workflows/ci.yml`, plus `ms-ui` dans `platformio.ini`) vers les révisions mergées. `.ms/repos.lock.json` est un inventaire local de synchronisation, pas le pin produit ; ne pas y déclarer des HEAD que les checkouts principaux n'ont pas réellement adoptés.
+2. Régénérer le snapshot de topologie Core (les hashes des CMake UI/Bitwig sont suivis) dans un bench propre aux dépendances exactes, puis commiter le snapshot. Les hashes Git des fichiers d'entrée portent sur leur version commitée : commiter les pins avant cette génération.
 3. Rejouer `ms test core` et `ms test plugin-bitwig` sur les `main` mergés.
-4. Clore L3 : vérification visuelle et captures des sélecteurs (non réalisables dans l'environnement d'agent).
+4. Rejouer CTest UI sur les révisions intégrées. La qualification visuelle des sélecteurs et ses captures restent exigées **avant merge de L3** ; les tests headless ne s'y substituent pas.
 
-Points de revue à ne pas perdre : L2 — l'offset de modulation du batch est calculé avec la valeur pré-batch (décision produit à confirmer, épinglée par test) ; L3 — équivalence visuelle (captures) : seul point restant, le build firmware Bitwig est vérifié sur la PR #29 (SUCCESS, 58 s, FLASH code 333 072 B + data 109 072 B, RAM1 libre 196 064 B, RAM2 libre 336 192 B) ; L1 — régénération du snapshot à la fenêtre de coordination ci-dessus ; L4 — règle d'architecture reciblée sur la délégation (preuve concrète pour L6).
+Points de revue à ne pas perdre : L2 — l'offset de modulation du batch utilise la valeur pré-batch (décision produit à confirmer, épinglée par test) ; L3 — captures et exécution CI des tests UI restantes. Le succès firmware #29 a été rapporté précédemment (58 s), non rejoué ici ; L1 — intégrer le correctif SDL puis régénérer le snapshot à la fenêtre de coordination (changements UI et Bitwig inclus) ; L4 — règle d'architecture reciblée sur la délégation.
 
-**Prochaine action sans ambiguïté : exécuter la suite L5 sur `ClipWorkspaceHandler` avec le patron établi (PR #180), puis L6 ; la revue/merge suit la séquence de la section d'atterrissage (ajouter #180 après #179).**
+### L6 — Règles textuelles remplacées par des garanties exécutables (première livraison)
+
+- Lot / état : terminé localement le 2026-09-26 ; branche Core `codex/core-maintainability-l6` (worktree `.worktrees/core-maintainability-l6`, empilée sur L5 `e43c001d`), commit `97f61835`, PR [#181](https://github.com/petitechose-midi-studio/core/pull/181).
+- Constat traité : `midi_sync_command_contract_errors()` figeait la forme du header (`ApplyStatus`, `ApplyResult`, signatures), le corps de `applyMidiSyncMode` (`policy::validMode`, délégation `applyChoice(0U,`), l'ordre reconcile → no-change → stage → commit → publish et le nombre de retours `PERSISTENCE_FAILED` (== 3).
+- Changement livré : ces contrôles sont retirés du script ; `test_DeviceSettingsDomainServices` est documenté comme le remplacement exécutable (validation du mode, no-change sans écriture, persistance avant publication, échecs structurés `IO_ERROR` / `COMMIT_FAILED` sans publication, absence de publication périmée après échec). Les règles de cycle de vie du sélecteur partagé restent textuelles (pas encore de remplacement exécutable).
+- Preuves : un refactor local équivalent (constante `midiSyncModeRow`) est rejeté par l'ancienne règle puis accepté après retrait ; désactiver le garde `validMode` fait échouer la suite (`Assertion failed: !invalid.success()`) puis revert ; `check-architecture-contracts.py` OK ; `ms test core` **206/206** (aucun changement firmware, Teensy non requis).
+- Décision durable : chaque retrait futur suit le même patron — garantir d'abord par test exécutable, puis retirer le marqueur textuel ; les règles de dépendance et de placement mémoire restent.
+- Familles restantes connues (incréments ultérieurs) : les règles textuelles reciblées pendant L4/L5 (settlement, view switcher, clip workspace) et les contrôles de cycle de vie des sélecteurs.
+- Prochain lot : L7, puis incréments L6 au fil des refactors.
+
+**Prochaine action : terminer les merges protégés de la pile Core, puis rejouer les validations sur les révisions intégrées. Les pins UI/Bitwig et le snapshot sont coordonnés.**
 
 ### L5 — dépendances ciblées (première livraison)
 
-- Lot / état : terminé localement le 2026-09-26 ; branche Core `codex/core-maintainability-l5` (worktree `.worktrees/core-maintainability-l5`, empilée sur L4 `fadb19ff`), commit `6191aad4`, PR [#180](https://github.com/petitechose-midi-studio/core/pull/180).
+- Lot / état : terminé localement le 2026-09-26 ; branche Core `codex/core-maintainability-l5` (worktree `.worktrees/core-maintainability-l5`, empilée sur L4 `fadb19ff`), commits `6191aad4` (view switcher) et `e43c001d` (clip workspace), PR [#180](https://github.com/petitechose-midi-studio/core/pull/180).
 - Constat : sur le parcours L4, aucun consommateur n'utilise `CoreState&` (workflow, transaction et `SequencerStepHandler` déjà ciblés). Premier consommateur large retenu : `ViewSwitcherHandler`, qui n'utilisait que six tranches d'état et quatre opérations d'historique de projet.
 - Changement livré : `ViewSwitcherHandler::Refs` remplace `CoreState&` — six références ciblées plus `Refs::HistoryOps` (quatre pointeurs de fonction + contexte, même idiome que les adaptateurs de transaction) ; le `.cpp` du handler n'inclut plus `state/CoreState.hpp` ; `StandaloneGlobalHandlerAssembly` possède les thunks ; `CoreState` reste inchangé ; `test_ViewSwitcherHandler` recâblé sur les mêmes `Refs`.
 - Preuve du gain : le handler ne peut plus atteindre l'agrégat ; sa dépendance est énumérable (six tranches, quatre opérations) ; l'inclusion de `CoreState.hpp` disparaît de son unité de compilation.
-- Commandes exécutées et résultats : `ms test core --workspace .tmp/l4-runner-bench` → **206/206** (126,6 s, `test_ViewSwitcherHandler` inclus) ; `ms build core --target teensy --env dev` (même bench) → BUILD OK 61 s, budgets inchangés (FLASH 18 %, RAM1 70 %, RAM2 35 %, PSRAM 14 %) ; contrats d'architecture OK.
+- Commandes et résultats rapportés (syntaxe `--workspace` corrigée lors de la revue) : `ms --workspace .tmp/l4-runner-bench test core` → **206/206** (126,6 s, `test_ViewSwitcherHandler` inclus) ; `ms --workspace .tmp/l4-runner-bench build core --target teensy --env dev` → BUILD OK 61 s, budgets inchangés (FLASH 18 %, RAM1 70 %, RAM2 35 %, PSRAM 14 %) ; contrats d'architecture OK.
 - Vérifications non exécutées / blocages : qualification matérielle ; la règle d'architecture de ce handler reste du même ordre textuel (cible L6).
-- Suite L5 : `ClipWorkspaceHandler` reste le plus gros consommateur `CoreState&` de `handler/sequencer` (opérations clip grid/launch, `ProjectTrackDomainServices::fromCoreState`, `statusBar`) ; le patron `Refs` + thunks de cette livraison s'applique directement.
-- Prochain lot : suite L5 sur `ClipWorkspaceHandler`, puis L6.
+- Deuxième consommateur livré (`e43c001d`) : `ClipWorkspaceHandler::Refs` — quinze tranches d'état plus `ClipWorkspaceOps` (douze thunks : création, bascule d'édition, suppression, duplication, déplacement, stop slot, comportements clip/scène, demandes de lancement/stop/scène, état des pistes partagées) ; le `.hpp` et le `.cpp` n'incluent plus `state/CoreState.hpp` ; assemblage dans `SequencerFeatureModule` et recâblage du harnais `test_SequencerStepHandler`. Quatre règles d'architecture qui figeaient le texte des appels `core_.…` ont été reciblées (troisième cas d'école pour L6).
+- Suite L5 (optionnelle) : les méthodes statiques des services de presets (`SequencerChordPresetDomainServices`, `SequencerPatternPresetDomainServices`, `SequencerStepPresetDomainServices`) restent des consommateurs ponctuels de `CoreState&` par appel ; aucune urgence.
+- Prochain lot : L6.
+
+### Correctifs après revue indépendante — 2026-09-26
+
+**Livraison locale, non commitée/non poussée.** Trois worktrees concernés :
+
+| Branche | Fichiers / correction | Validation indépendante |
+| --- | --- | --- |
+| `.worktrees/core-maintainability-l6` | `test/test_DeviceSettingsDomainServices/test_main.cpp` : le stockage observe l'ancien mode pendant `write()` et `commit()` ; compte les deux opérations et vérifie leur absence pour un no-op sur stockage propre | Core **206/206**, 41,16 s ; mutation publication avant commit avec rollback désormais rejetée ; mutation validation désactivée également rejetée ; architecture OK |
+| `.worktrees/core-maintainability-l1` | `script/dev/check-build-topology.py` : capacités littérales sur la cible SDL attendue, seulement hors condition ou sous `APP_ID STREQUAL "core"` ; rejet des autres scopes, valeurs indirectes, doublons et définitions non reconnues | Self-test **14 contrats**, dont six configurations négatives ; remplacement réel du bloc Core par `if(FALSE)` rejeté ; inventaire du bench L1 identique au snapshot |
+| `.worktrees/ui-maintainability-l3` | `CMakeLists.txt`, `cmake/MidiStudioUiLvglTests.cmake`, test LVGL et README : cible headless CTest, dépendances explicites, assertions actives ; scénario du widget partagé ajouté | Build Zig Debug ; CTest **2/2**, 0,51 s, contre le checkout ui-lvgl propre du bench L1 |
+
+Les quatre espaces de fin de ligne de `ClipWorkspaceHandler.cpp` ont aussi été retirés dans L6. Le correctif L1 est porté uniquement par sa branche propriétaire : le propager lors de la mise à jour de la pile L4/L5/L6, avant validation finale intégrée. Aucun comportement de production n'a été modifié par ces correctifs.
+
+Commandes de reprise depuis la racine du workspace (outils locaux sous Windows) :
+
+```powershell
+.venv/Scripts/ms.exe --workspace .tmp/l4-runner-bench test core
+.venv/Scripts/python.exe .worktrees/core-maintainability-l6/script/dev/check-architecture-contracts.py
+.venv/Scripts/python.exe .worktrees/core-maintainability-l1/script/dev/check-build-topology.py --self-test
+tools/cmake/bin/cmake.exe -S .worktrees/ui-maintainability-l3 -B .tmp/l3-ui-review -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM="$PWD/tools/ninja/ninja.exe" -DCMAKE_C_COMPILER="$PWD/tools/bin/zig-cc.cmd" -DCMAKE_CXX_COMPILER="$PWD/tools/bin/zig-cxx.cmd" -DMS_UI_OPEN_CONTROL_ROOT="$PWD/.tmp/l1-topology-20260926/bench/open-control" -DMS_UI_LVGL_DIR="$PWD/midi-studio/core/.pio/libdeps/dev/lvgl"
+tools/cmake/bin/cmake.exe --build .tmp/l3-ui-review --parallel 8
+tools/cmake/bin/ctest.exe --test-dir .tmp/l3-ui-review --output-on-failure
+```
+
+Précisions sur les preuves :
+- `--check` topologie refuse normalement le worktree L1 tant que le correctif n'est pas commité. Pendant cette correction, appel direct de `build_inventory()` et comparaison `structural_diff()` avec le snapshot du bench L1 : **aucune différence**. Rejouer le vrai `--check` après intégration sur arbre propre ; le garde de propreté n'a pas été changé.
+- Mutation L6 compilée dans un répertoire temporaire : ajouter `oldMode`, publier `policy::MODES[appliedIndex]` avant `store_->commitStatus()`, restaurer `oldMode` sur échec. Le binaire lié au vrai test échoue dans `assertModeNotPublished()` ; baseline verte. Le script de cette session est dans `%LOCALAPPDATA%/Temp/opencode/review_l6_mutation.py`.
+- Ruff appliqué au script Core complet relève des écarts préexistants (imports, longues lignes, `zip`, etc.) ; ne pas annoncer ce contrôle global vert. Les contrôles spécifiques de topologie et `git diff --check` des correctifs passent.
+- CTest UI fournit maintenant une commande locale reproductible ; ni le catalogue `ms test` ni une CI UI n'ont été ajoutés. Raccorder la commande CTest à la CI produit avec les dépendances épinglées avant de considérer la couverture automatique acquise.
+- Les tests headless emploient les polices LVGL intégrées. Restent avant clôture L3 : captures comparatives des sélecteurs dans Core/Bitwig avec assets réels (ouverture, défilement, réduction, réouverture), puis validation visuelle. L2 page/device→batch et Java restent ouverts.
+
+Ordre immédiat : intégrer les trois correctifs → mettre à jour la pile Core → qualification visuelle L3 et raccordement CI → atterrissage selon la section dédiée → régénération coordonnée du snapshot/pins → validations sur les révisions mergées. La clôture documentaire L7 suivra ces preuves.
+
+### Intégration, qualification visuelle et L7 — 2026-09-26
+
+Cette entrée remplace les actions restantes de l'entrée précédente.
+
+- Correctifs commités/poussés : Core L1 `286d802a` (parseur), `7c710f46` (hash du script dans le snapshot) ; Core L6 `c186529f` (ordre persistance/publication et écritures) ; UI `e638bc2` (CTest et CI).
+- La pile Core a été mise à jour par merges ordinaires, sans force-push.
+- CI UI ajoutée dans `.github/workflows/ci.yml` : GCC/Linux, Release avec assertions actives, deux exécutables CTest et dépendances épinglées aux révisions qualifiées Core. Run [36235971136](https://github.com/petitechose-midi-studio/ui/actions/runs/36235971136) **SUCCESS**, 40 s.
+- UI #15 mergée : `fc0fe91ad7aab1510c3e9a8ee475f91e41e64918`.
+- Bitwig #28 mergée : `f56e89d` ; #29 remise à jour avec `main`, puis CI [36236480471](https://github.com/petitechose-midi-studio/plugin-bitwig/actions/runs/36236480471) **SUCCESS**, 3 min 52 s, firmware release et extension. #29 mergée : `8bc9a7f3fafb7746372349339effb24efe9c1c18`.
+- Pins de qualification Core alignés sur ces deux merges (`4eb0c470`), snapshot recalculé et commité (`a83fdb17`), puis propagés aux branches L4/L5/L6. Vrai `--check` sur le bench propre `.tmp/product-landing-bench` : **PASS**.
+- Onboarding produit livré : Core `docs/DEVELOPER_ONBOARDING.md` (`d2c46d48`) ; README Bitwig (`d256ff6`) ; README UI inclus dans `e638bc2`. Propriétaires, adaptateurs, garanties exécutables et commandes sont explicités sans recopier les roadmaps.
+
+**Qualification L3 :** le seul consommateur Bitwig migré est `ViewSelector` via `BaseSelector`. Les sélecteurs pages/devices/tracks utilisent leurs composants dédiés ; le sélecteur Core utilise aussi un autre composant.
+
+1. Harnais compilant le vrai `ViewSelector` avant (`f872b345`) et après (`b188c7a`), avec les six polices binaires produit chargées : **7 paires de captures identiques octet par octet** (ouverture, dernier élément, défilement de 12 lignes, réduction à une ligne, masquage, réouverture, destruction).
+2. Application Bitwig SDL réelle : hook temporaire sur les signaux publics `BitwigContext::state().viewSelector` ; contexte, abonnements et composants réels. **4 paires avant/après identiques pixel par pixel** (ouverture, sélection, masquage, réouverture).
+3. Capture Core SDL `--capture-scenario view-selector` réalisée et inspectée ; textes/icônes/sélection visibles. Les comparaisons Bitwig ont également été inspectées visuellement.
+4. Preuves et sources du harnais : `.tmp/l3-visual-qualification/README.md`, `comparison.png`, `simulators.png`, `manifest.json` ; archive `.tmp/l3-visual-evidence.zip`. Le CMake SDL a été remis sur l'entrée native normale et reconstruit après les captures.
+
+Une première tentative headless sans support des polices compressées produisait des glyphes absents : elle a été rejetée. Les preuves retenues activent `LV_USE_FONT_COMPRESSED=1`, comme le produit, et affichent effectivement les polices. Cette qualification ne couvre ni les échanges avec Bitwig Studio ni le matériel Teensy.
+
+**Atterrissage Core en cours :** `.tmp/land-core-stack.py` traite #178 → #179 → #180 → #181, remet chaque branche à jour avec `main`, attend les checks, exige le succès firmware/unit tests et merge le HEAD exact. Aucun contournement administrateur, suppression de branche ni déclenchement de publication produit. Les validations finales sur les merges restent à enregistrer après achèvement.
