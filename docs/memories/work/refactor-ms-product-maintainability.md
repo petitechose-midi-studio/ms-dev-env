@@ -99,7 +99,7 @@ Prendre comme références `core/docs/CORE_ARCHITECTURE.md`, `ARCHITECTURE_REVIE
 | L3 | Consolidation de `ListOverlay` | L2 recommandé avant refactoring Bitwig | UI #15 et Bitwig #29 mergées ; CI UI/Bitwig vertes ; captures avant/après identiques |
 | L4 | Parcours pilote de collage de page Core | L1 | #179 mergée ; revue, suite native et CI validées |
 | L5 | Dépendances ciblées sur ce parcours | L4 | #180 mergée ; revue, suite native et CI validées |
-| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181 et #182 mergées ; garanties persistance/publication et acceptation/fermeture exécutables ; checks MIDI Sync redondants retirés ; autres familles textuelles ouvertes |
+| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181–183 mergées ; garanties persistance/publication, acceptation/fermeture et entrées ClipWorkspace exécutables ; checks redondants correspondants retirés ; settlement et câblage des sélecteurs encore ouverts |
 | L7 | Onboarding et clôture documentaire | Changements concernés stabilisés | Première intégration clôturée : onboarding intégré, validations finales Core 206/206, Bitwig 2/2, UI 2/2, architecture et topologie OK |
 
 Ordre recommandé pour une reprise séquentielle : L0 → L1 → L2 → L3 → L4 → L5 → L6 → L7. Chaque lot doit rester relisible et validable séparément. Ne pas mélanger le déplacement massif de fichiers avec une modification de comportement.
@@ -458,7 +458,7 @@ Validation locale des commits mergés terminée avec `.tmp/validate-product-land
 - `git diff --exit-code` confirme les arbres identiques entre chaque HEAD qualifié et son merge : Core `40f55523` → `06446104`, Bitwig `bcdc8f4` → `ced775e8`. Les validations locales et CI ci-dessus portent donc sur le contenu intégré.
 - Suite ordonnée : migrer les garanties settlement, clip-workspace et le câblage des consommateurs de sélecteurs ; compléter la suite métier Java et décider du comportement de modulation pré-batch. Chaque retrait de check doit référencer sa preuve exécutable ; ne pas conserver de shim ou de double chemin après migration.
 
-### Suite L6 : ClipWorkspace — travail en cours
+### Suite L6 : ClipWorkspace — intégré et qualifié
 
 - Branche `codex/core-clip-contracts`, worktree `.worktrees/core-clip-contracts`, base mergée `06446104`, bench `.tmp/clip-contract-bench` aux pins coordonnés de #182.
 - Quatre checks textuels ClipWorkspace remplacés par la suite `test_SequencerStepHandler` : création/mute sur en-tête, Stop momentané sur BOTTOM_LEFT, ouverture de l'éditeur et sélection de piste. Le check « long action » décrivait mal le câblage actuel de l'éditeur : l'entrée physique testée est le relâchement LEFT_CENTER ; NAV long démarre la sélection.
@@ -466,4 +466,5 @@ Validation locale des commits mergés terminée avec `.tmp/validate-product-land
 - Couverture complémentaire : piste désactivée non sélectionnable, Add header sans éditeur de l'ancienne piste, éditeur ouvert sur la piste focalisée, sélection/Remove exclusive du Stop, assertions après drainage des notifications.
 - Preuves déjà acquises : scénario nouveau rouge avant correction puis suite SequencerStepHandler verte ; cinq mutants retirés après détection (création supprimée, mute supprimé, entrée Stop supprimée, sortie Stop supprimée, éditeur supprimé). Architecture **OK** après suppression des quatre checks et de leur constante morte.
 - Suite Core complète après restauration des mutants et ajout des derniers cas négatifs : **206/206**, 141,80 s. Topologie sur bench propre après commit : **PASS**. Onboarding Core actualisé pour pointer vers la preuve physique et le ciblage explicite.
-- Commit `6dfd8d7c` poussé, [PR Core #183](https://github.com/petitechose-midi-studio/core/pull/183) ouverte. Suivi CI sur le SHA exact puis merge protégé automatisé ; résultat distant et merge restent à consigner.
+- [PR Core #183](https://github.com/petitechose-midi-studio/core/pull/183) mergée : `ce08cb2f66877ba281a8b7b2a68c65eda88689a2`. CI [36242195609](https://github.com/petitechose-midi-studio/core/actions/runs/36242195609) **SUCCESS** : tests natifs, firmware release, SDL native avec AddressSanitizer et parcours UI, SDL WASM, agrégat `unit tests`.
+- `git diff --exit-code` confirme l'arbre identique entre le HEAD qualifié `6dfd8d7c` et le merge `ce08cb2f`. Ce lot est clôturé ; les migrations settlement/câblage des sélecteurs et la couverture Java restent ouvertes.
