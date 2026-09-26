@@ -1,7 +1,7 @@
 # Refactor : maintenabilité des produits MIDI Studio
 
 **Scope** : `midi-studio/core`, `midi-studio/plugin-bitwig`, `midi-studio/ui`, frontières avec `device-support` et OpenControl  
-**Status** : en cours — correctifs poussés, qualification visuelle acquise, atterrissage en cours
+**Status** : première intégration qualifiée et clôturée ; incréments de couverture L2 et d'allègement L6 en cours
 
 **Created** : 2026-09-26  
 **Updated** : 2026-09-26  
@@ -94,13 +94,13 @@ Prendre comme références `core/docs/CORE_ARCHITECTURE.md`, `ARCHITECTURE_REVIE
 | Lot | Livraison | Dépendance | État |
 | --- | --- | --- | --- |
 | L0 | Reprise du contexte et état de référence | Aucune | Effectué |
-| L1 | Capacités de build cohérentes | L0 | Correctif et pins UI/Bitwig poussés #178, propagés L4/L5/L6 ; snapshot propre validé ; merge protégé en cours |
-| L2 | Tests des mises à jour Bitwig | L0 | #28 mergée ; scénario page/device→batch et infrastructure Java ouverts |
+| L1 | Capacités de build cohérentes | L0 | #178 mergée ; correctif, pins UI/Bitwig et snapshot intégrés ; CI verte |
+| L2 | Tests des mises à jour Bitwig | L0 | #28 mergée ; scénario page/device→batch validé localement sur branche de suite ; infrastructure Java ouverte |
 | L3 | Consolidation de `ListOverlay` | L2 recommandé avant refactoring Bitwig | UI #15 et Bitwig #29 mergées ; CI UI/Bitwig vertes ; captures avant/après identiques |
-| L4 | Parcours pilote de collage de page Core | L1 | Implémenté #179 ; revue et suite native validées |
-| L5 | Dépendances ciblées sur ce parcours | L4 | Implémenté #180 ; revue et suite native validées |
-| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181 ; preuve d'ordre et compteur d'écritures corrigés et poussés ; autres familles textuelles ouvertes |
-| L7 | Onboarding et clôture documentaire | Changements concernés stabilisés | Onboarding Core/Bitwig/UI actualisé et poussé ; clôture après atterrissage et validations finales |
+| L4 | Parcours pilote de collage de page Core | L1 | #179 mergée ; revue, suite native et CI validées |
+| L5 | Dépendances ciblées sur ce parcours | L4 | #180 mergée ; revue, suite native et CI validées |
+| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181 mergée ; preuve d'ordre et compteur d'écritures corrigés ; CI verte ; autres familles textuelles ouvertes |
+| L7 | Onboarding et clôture documentaire | Changements concernés stabilisés | Première intégration clôturée : onboarding intégré, validations finales Core 206/206, Bitwig 2/2, UI 2/2, architecture et topologie OK |
 
 Ordre recommandé pour une reprise séquentielle : L0 → L1 → L2 → L3 → L4 → L5 → L6 → L7. Chaque lot doit rester relisible et validable séparément. Ne pas mélanger le déplacement massif de fichiers avec une modification de comportement.
 
@@ -432,4 +432,26 @@ Cette entrée remplace les actions restantes de l'entrée précédente.
 
 Une première tentative headless sans support des polices compressées produisait des glyphes absents : elle a été rejetée. Les preuves retenues activent `LV_USE_FONT_COMPRESSED=1`, comme le produit, et affichent effectivement les polices. Cette qualification ne couvre ni les échanges avec Bitwig Studio ni le matériel Teensy.
 
-**Atterrissage Core en cours :** `.tmp/land-core-stack.py` traite #178 → #179 → #180 → #181, remet chaque branche à jour avec `main`, attend les checks, exige le succès firmware/unit tests et merge le HEAD exact. Aucun contournement administrateur, suppression de branche ni déclenchement de publication produit. Les validations finales sur les merges restent à enregistrer après achèvement.
+**Atterrissage Core terminé :** `.tmp/land-core-stack.py` a intégré #178 → #179 → #180 → #181, après mise à jour avec `main`, succès de la CI associée au SHA exact et merge protégé de ce HEAD. L'attente a été corrigée pour supporter le retard des checks après push et du reciblage automatique après merge.
+
+| PR Core | Commit de merge |
+| --- | --- |
+| #178 | `584b4398717bc530b31cf0d36c218aeaf02cf09f` |
+| #179 | `11563eed5766ef7a81efed74bb2b6dbd2582602b` |
+| #180 | `9743f8e5c58616b48fedecd745de99757940c8df` |
+| #181 | `b61e0b9158f6e1cc7677794f709caf6c4c59196d` |
+
+CI finale de #181 : [36238014167](https://github.com/petitechose-midi-studio/core/actions/runs/36238014167), **SUCCESS** : firmware release, tests natifs, SDL WASM, SDL native avec AddressSanitizer et parcours de durée de vie UI, agrégat `unit tests`.
+
+Validation locale des commits mergés terminée avec `.tmp/validate-product-landing.ps1` dans `.tmp/product-final-bench` : **PASS**. Core **206/206** (187,40 s), Bitwig **2/2** (8,60 s), UI **2/2** (CTest 0,36 s), architecture et vrai `--check` topologie OK. Les suites L2 (Java, décision sur l'offset de modulation pré-batch) et L6 (autres familles textuelles) restent ouvertes.
+
+### Suite : couverture page/device et suppression des checks redondants
+
+- Bitwig : branche `codex/bitwig-page-batch-cleanup`, commit `bcdc8f4`, [PR #30](https://github.com/petitechose-midi-studio/plugin-bitwig/pull/30), worktree `.worktrees/bitwig-page-batch-cleanup`. Le scénario passe par le vrai protocole binaire et les handlers device/page/paramètres : invalidation du cache, loading des huit slots, remplacement des noms/types/listes/visibilité, batch dirty/echo, puis seconde page avec une autre cardinalité de liste.
+- Dépendances retirées : état global et API encodeur physique des handlers page/device concernés, import des polices/LVGL depuis les constantes d'état, deuxième passe d'initialisation des types dans PageHostHandler. Le port encodeur existant est réutilisé ; aucun adaptateur de compatibilité ajouté.
+- Bitwig : `ms --workspace .tmp/cleanup-bench test plugin-bitwig` **2/2** ; build SDL application complet **PASS**. Deux mutations testées puis retirées : suppression du loading device et cardinalité de liste incorrecte, toutes deux détectées par le nouveau scénario alors que les cinq scénarios antérieurs passent.
+- Core : branche `codex/core-contract-cleanup`, commit `ea636e5a`, [PR #182](https://github.com/petitechose-midi-studio/core/pull/182), worktree `.worktrees/core-contract-cleanup`. Suppression des inspections textuelles redondantes pour l'ordre acceptation/fermeture, l'initialisation du service Project, le nombre d'appels NAV/OPT, le texte d'erreur, la ligne Clock et les noms/contenus des tests Project/ViewSwitcher. Les contrôles de frontières/ownership encore nécessaires restent explicites.
+- Preuves Core : six exécutables ciblés **6/6**, architecture **OK**. `test_ModalSelectionUtils` observe désormais la pile pendant `apply` ; mutants fermeture avant acceptation et rejet ignoré détectés, retirés, puis test normal **PASS**. Les preuves existantes ProjectHandler/MenuModel/HistoryCoordinator/ViewSwitcher s'exécutent plutôt que d'être reconnues par leurs chaînes de caractères.
+- Topologie Core avec ses pins actuels : `.tmp/core-contract-pin-bench` **PASS**. Le bench de développement `.tmp/cleanup-bench` signale exactement les deux différences commit/tree attendues pour Bitwig #30 ; promouvoir cette révision exigera l'actualisation coordonnée du pin CI et du snapshot Core.
+- CI des deux PR en cours : Bitwig [36239514350](https://github.com/petitechose-midi-studio/plugin-bitwig/actions/runs/36239514350), Core [36239514454](https://github.com/petitechose-midi-studio/core/actions/runs/36239514454). Validation distante et intégration de ces incréments encore à consigner.
+- Suite ordonnée : publier/revoir ces deux incréments, puis migrer les garanties settlement, clip-workspace et le câblage des consommateurs de sélecteurs. Chaque retrait de check doit référencer sa preuve exécutable ; ne pas conserver de shim ou de double chemin après migration.
