@@ -13,9 +13,10 @@ from pathlib import Path
 
 import pytest
 
+from ms.core.result import Ok
 from ms.platform.detection import Platform
 from ms.platform.shell import generate_activation_scripts
-from ms.tools.definitions import ALL_TOOLS, get_tool, get_tools_by_mode
+from ms.tools.definitions import ALL_TOOLS, get_tool
 from ms.tools.http import MockHttpClient
 from ms.tools.registry import ToolRegistry
 from ms.tools.state import get_installed_version, set_installed_version
@@ -31,7 +32,6 @@ class TestToolDefinitionsIntegration:
             # Check spec
             assert tool.spec.id
             assert tool.spec.name
-            assert isinstance(tool.spec.required_for, frozenset)
 
             # Check methods exist (don't call - may need HTTP)
             assert hasattr(tool, "latest_version")
@@ -47,23 +47,6 @@ class TestToolDefinitionsIntegration:
             tool = get_tool(tool_id)
             assert tool is not None
             assert hasattr(tool, "repo")
-
-    def test_mode_filtering_works(self) -> None:
-        """Tools can be filtered by mode."""
-        dev_tools = get_tools_by_mode("dev")
-        enduser_tools = get_tools_by_mode("enduser")
-
-        # Dev should have more tools than enduser
-        assert len(dev_tools) >= len(enduser_tools)
-
-        # JDK and Maven should be in both
-        dev_ids = {t.spec.id for t in dev_tools}
-        enduser_ids = {t.spec.id for t in enduser_tools}
-        assert "jdk" in dev_ids
-        assert "jdk" in enduser_ids
-        assert "maven" in dev_ids
-        assert "maven" in enduser_ids
-
 
 class TestToolRegistryIntegration:
     """Integration tests for ToolRegistry."""
@@ -163,20 +146,24 @@ class TestStateManagementIntegration:
 
         # Get version
         version = get_installed_version(tmp_path, "ninja")
-        assert version == "1.12.1"
+        assert isinstance(version, Ok)
+        assert version.value == "1.12.1"
 
     def test_version_tracking_multiple_tools(self, tmp_path: Path) -> None:
         """Multiple tools can be tracked."""
         set_installed_version(tmp_path, "ninja", "1.12.1")
         set_installed_version(tmp_path, "cmake", "3.28.0")
 
-        assert get_installed_version(tmp_path, "ninja") == "1.12.1"
-        assert get_installed_version(tmp_path, "cmake") == "3.28.0"
+        ninja = get_installed_version(tmp_path, "ninja")
+        cmake = get_installed_version(tmp_path, "cmake")
+        assert isinstance(ninja, Ok) and ninja.value == "1.12.1"
+        assert isinstance(cmake, Ok) and cmake.value == "3.28.0"
 
     def test_unknown_tool_returns_none(self, tmp_path: Path) -> None:
         """Unknown tool returns None."""
         version = get_installed_version(tmp_path, "unknown")
-        assert version is None
+        assert isinstance(version, Ok)
+        assert version.value is None
 
 
 class TestWrapperGenerationIntegration:
@@ -261,7 +248,9 @@ class TestEndToEndWorkflow:
         set_installed_version(tmp_path, "ninja", "1.12.1")
         set_installed_version(tmp_path, "cmake", "3.28.0")
         assert registry.is_installed("ninja")
-        assert get_installed_version(tmp_path, "ninja") == "1.12.1"
+        ninja = get_installed_version(tmp_path, "ninja")
+        assert isinstance(ninja, Ok)
+        assert ninja.value == "1.12.1"
 
         scripts = generate_activation_scripts(
             tmp_path,

@@ -31,27 +31,25 @@ def validate_app_confirm_inputs(
     return Ok((session.tag, session.version, session.repo_sha, session.tooling_sha))
 
 
-def dispatch_app_release[PrepareT: AppPrepareResultLike](
+def prepare_app_release[PrepareT: AppPrepareResultLike](
     *,
     deps: AppGuidedDependencies[PrepareT],
     workspace_root: Path,
     console: ConsoleProtocol,
-    watch: bool,
     dry_run: bool,
     session: AppReleaseSession,
     pinned: tuple[PinnedRepo, ...],
     tag: str,
     version: str,
     repo_sha: str,
-    tooling_sha: str,
     remote_coherence_checked: bool = False,
-) -> Result[None, ReleaseError]:
+) -> Result[PrepareT, ReleaseError]:
     if not remote_coherence_checked:
         coherence = assert_release_remote_coherence(
             workspace_root=workspace_root,
             console=console,
             pinned=pinned,
-            tooling=app_session_tooling(tooling_sha=tooling_sha),
+            tooling=app_session_tooling(tooling_sha=session.tooling_sha or ""),
             dry_run=dry_run,
         )
         if isinstance(coherence, Err):
@@ -78,18 +76,34 @@ def dispatch_app_release[PrepareT: AppPrepareResultLike](
         notes_sha256=session.notes_sha256,
         auto_label="notes: automatic notes only",
     )
+    return Ok(prepared.value)
 
+
+def publish_prepared_app_release[PrepareT: AppPrepareResultLike](
+    *,
+    deps: AppGuidedDependencies[PrepareT],
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    watch: bool,
+    dry_run: bool,
+    session: AppReleaseSession,
+    prepared: PrepareT,
+    tag: str,
+    tooling_sha: str,
+    request_id: str | None = None,
+) -> Result[None, ReleaseError]:
     run = deps.publish_app_release(
         workspace_root=workspace_root,
         console=console,
         tag=tag,
-        source_sha=prepared.value.source_sha,
+        source_sha=prepared.source_sha,
         tooling_sha=tooling_sha,
         notes_markdown=session.notes_markdown,
         notes_source_path=session.notes_path,
         watch=watch,
         dry_run=dry_run,
         remote_coherence_checked=True,
+        request_id=request_id,
     )
     if isinstance(run, Err):
         return run

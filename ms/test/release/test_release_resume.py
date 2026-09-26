@@ -1,0 +1,671 @@
+"""Tests for release resume: pending_op reconciliation and write-ahead persistence."""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
+
+import pytest
+
+from ms.core.result import Err, Ok, Result
+from ms.output.console import ConsoleProtocol, MockConsole
+from ms.release.domain import config
+from ms.release.domain.models import PinnedRepo, ReleasePlan, ReleaseRepo, ReleaseTooling
+from ms.release.errors import ReleaseError
+from ms.release.flow.app_prepare import AppPrepareResult
+from ms.release.flow.guided import app_confirm_step, content_confirm_step, pending_op
+from ms.release.flow.guided.app_confirm_step import run_app_confirm_step
+from ms.release.flow.guided.app_contracts import AppGuidedDependencies
+from ms.release.flow.guided.content_confirm_step import run_content_confirm_step
+from ms.release.flow.guided.content_contracts import ContentGuidedDependencies
+from ms.release.flow.guided.fsm import FINISH
+from ms.release.flow.guided.pending_op import PendingReconciliation
+from ms.release.flow.guided.session_models import SessionCursor
+from ms.release.flow.guided.sessions import (
+    AppReleaseSession,
+    ContentReleaseSession,
+    load_app_session,
+    load_content_session,
+    new_app_session,
+    new_content_session,
+    save_app_session,
+    save_content_session,
+)
+from ms.release.flow.remote_coherence import RemoteCoherenceReport
+from ms.release.infra.github.workflow_dispatch_lookup import WorkflowRunResolution
+
+_SHA = "a" * 40
+_TOOLING = "b" * 40
+
+
+def _session() -> AppReleaseSession:
+    session = new_app_session(created_by="test", notes_path=None)
+    return replace(
+        session,
+        step="confirm",
+        channel="beta",
+        bump="patch",
+        tag="app-v1.0.0",
+        version="1.0.0",
+        repo_sha=_SHA,
+        tooling_sha=_TOOLING,
+    )
+
+
+def _pending_session() -> AppReleaseSession:
+    return replace(
+        _session(),
+        pending_kind="app_release",
+        pending_request_id="ms-req123",
+        pending_repo=config.APP_REPO_SLUG,
+        pending_workflow=config.APP_RELEASE_WORKFLOW,
+        pending_tag="app-v1.0.0",
+        pending_source_sha=_SHA,
+        pending_tooling_sha=_TOOLING,
+        pending_at="2026-09-26T00:00:00+00:00",
+    )
+
+
+# --- session round-trip --------------------------------------------------------
+
+
+class TestSessionRoundTrip:
+    def test_app_session_round_trip(self, tmp_path: Path) -> None:
+        session = replace(
+            _pending_session(),
+            cursor=SessionCursor(channel=2, bump=3, sha=4, summary=5, return_to_summary=True),
+        )
+        assert isinstance(save_app_session(workspace_root=tmp_path, session=session), Ok)
+
+        loaded = load_app_session(workspace_root=tmp_path)
+        assert isinstance(loaded, Ok)
+        assert loaded.value == session
+
+    def test_content_session_round_trip(self, tmp_path: Path) -> None:
+        session = new_content_session(created_by="test", notes_path=None)
+        session = replace(
+            session,
+            step="summary",
+            channel="beta",
+            bump="patch",
+            tag="content-v1",
+            cursor=SessionCursor(
+                channel=2, bump=3, repo=1, summary=4, candidates=5, return_to_summary=True
+            ),
+            pending_kind="content_release",
+            pending_request_id="ms-creq",
+            pending_tag="content-v1",
+            pending_at="2026-09-26T00:00:00+00:00",
+        )
+        assert isinstance(save_content_session(workspace_root=tmp_path, session=session), Ok)
+
+        loaded = load_content_session(workspace_root=tmp_path)
+        assert isinstance(loaded, Ok)
+        assert loaded.value == session
+
+
+# --- pending_op reconciliation -------------------------------------------------
+
+
+def _run_found(
+    *, workspace_root: Path, repo_slug: str, request_id: str
+) -> Result[WorkflowRunResolution | None, ReleaseError]:
+    return Ok(WorkflowRunResolution(run_id=42, url="https://example.test/run/42"))
+
+
+def _run_missing(
+    *, workspace_root: Path, repo_slug: str, request_id: str
+) -> Result[WorkflowRunResolution | None, ReleaseError]:
+    return Ok(None)
+
+
+def _released(
+    *, workspace_root: Path, repo: str, tag: str
+) -> Result[bool, ReleaseError]:
+    return Ok(True)
+
+
+def _not_released(
+    *, workspace_root: Path, repo: str, tag: str
+) -> Result[bool, ReleaseError]:
+    return Ok(False)
+
+
+def _run_status_in_progress(
+    *, workspace_root: Path, endpoint: str
+) -> Result[object, ReleaseError]:
+    return Ok({"status": "in_progress", "conclusion": None})
+
+
+def _run_status_failed(
+    *, workspace_root: Path, endpoint: str
+) -> Result[object, ReleaseError]:
+    return Ok({"status": "completed", "conclusion": "failure"})
+
+
+def _run_status_success(
+    *, workspace_root: Path, endpoint: str
+) -> Result[object, ReleaseError]:
+    return Ok({"status": "completed", "conclusion": "success"})
+
+
+class TestReconcilePendingOp:
+    def _reconcile(self, monkeypatch: pytest.MonkeyPatch) -> PendingReconciliation:
+        result = pending_op.reconcile_pending_op(
+            workspace_root=Path("/tmp/ws"),
+            repo=config.APP_REPO_SLUG,
+            workflow_file=config.APP_RELEASE_WORKFLOW,
+            tag="app-v1.0.0",
+            request_id="ms-req123",
+            attempts=1,
+        )
+        assert isinstance(result, Ok)
+        return result.value
+
+    def test_release_without_proven_run_is_undetermined(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(pending_op, "find_dispatched_run", _run_missing)
+        monkeypatch.setattr(pending_op, "release_exists_by_tag", _released)
+
+        outcome = self._reconcile(monkeypatch)
+
+        assert outcome.state == "undetermined"
+        assert "identity is not verified" in outcome.detail
+
+    def test_persisted_request_id_is_used_for_lookup(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        seen: list[str] = []
+
+        def lookup(
+            *, workspace_root: Path, repo_slug: str, request_id: str
+        ) -> Result[WorkflowRunResolution | None, ReleaseError]:
+            seen.append(request_id)
+            return Ok(None)
+
+        monkeypatch.setattr(pending_op, "find_dispatched_run", lookup)
+        monkeypatch.setattr(pending_op, "release_exists_by_tag", _not_released)
+
+        outcome = self._reconcile(monkeypatch)
+
+        assert seen == ["ms-req123"]
+        assert outcome.state == "undetermined"
+
+    def test_run_in_progress_is_not_replayed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(pending_op, "find_dispatched_run", _run_found)
+        monkeypatch.setattr(pending_op, "gh_api_json", _run_status_in_progress)
+        monkeypatch.setattr(pending_op, "release_exists_by_tag", _not_released)
+
+        outcome = self._reconcile(monkeypatch)
+
+        assert outcome.state == "in_flight"
+        assert outcome.run_url == "https://example.test/run/42"
+
+    def test_failed_run_is_reported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(pending_op, "find_dispatched_run", _run_found)
+        monkeypatch.setattr(pending_op, "gh_api_json", _run_status_failed)
+
+        outcome = self._reconcile(monkeypatch)
+
+        assert outcome.state == "failed"
+
+    def test_success_and_release_visible_completes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(pending_op, "find_dispatched_run", _run_found)
+        monkeypatch.setattr(pending_op, "gh_api_json", _run_status_success)
+        monkeypatch.setattr(pending_op, "release_exists_by_tag", _released)
+
+        outcome = self._reconcile(monkeypatch)
+
+        assert outcome.state == "completed"
+
+    def test_success_without_release_is_undetermined(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(pending_op, "find_dispatched_run", _run_found)
+        monkeypatch.setattr(pending_op, "gh_api_json", _run_status_success)
+        monkeypatch.setattr(pending_op, "release_exists_by_tag", _not_released)
+
+        outcome = self._reconcile(monkeypatch)
+
+        assert outcome.state == "undetermined"
+
+    def test_nothing_found_is_undetermined(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(pending_op, "find_dispatched_run", _run_missing)
+        monkeypatch.setattr(pending_op, "release_exists_by_tag", _not_released)
+
+        outcome = self._reconcile(monkeypatch)
+
+        assert outcome.state == "undetermined"
+
+
+# --- confirm step resume behavior ---------------------------------------------
+
+
+class _FakeDeps:
+    def __init__(self, *, fail_save: bool = False) -> None:
+        self.calls: list[str] = []
+        self.saved: list[AppReleaseSession] = []
+        self.confirm_called = False
+        self._fail_save = fail_save
+
+    def save_state(
+        self, *, session: AppReleaseSession
+    ) -> Result[AppReleaseSession, ReleaseError]:
+        self.calls.append("save")
+        if self._fail_save:
+            return Err(ReleaseError(kind="repo_failed", message="save failed"))
+        self.saved.append(session)
+        return Ok(session)
+
+    def confirm(self, *, prompt: str) -> bool:
+        self.confirm_called = True
+        return True
+
+    def ensure_ci_green(
+        self, *, workspace_root: Path, pinned: tuple[PinnedRepo, ...], allow_non_green: bool
+    ) -> Result[None, ReleaseError]:
+        return Ok(None)
+
+
+def _deps(deps: _FakeDeps) -> AppGuidedDependencies[AppPrepareResult]:
+    return cast(AppGuidedDependencies[AppPrepareResult], deps)
+
+
+def _content_deps(deps: _FakeDeps) -> ContentGuidedDependencies:
+    return cast(ContentGuidedDependencies, deps)
+
+
+def _fake_reconcile(state: str, detail: str = "detail") -> object:
+    def reconcile(**kwargs: object) -> Result[PendingReconciliation, ReleaseError]:
+        return Ok(PendingReconciliation(state=state, detail=detail))  # type: ignore[arg-type]
+
+    return reconcile
+
+
+def test_completed_pending_clears_and_finishes(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = _pending_session()
+    deps = _FakeDeps()
+    monkeypatch.setattr(app_confirm_step, "reconcile_pending_op", _fake_reconcile("completed"))
+
+    result = run_app_confirm_step(
+        session=session,
+        workspace_root=Path("/tmp/ws"),
+        console=MockConsole(),
+        watch=False,
+        dry_run=False,
+        app_release_repo=config.APP_RELEASE_REPO,
+        deps=_deps(deps),
+    )
+
+    assert isinstance(result, Ok)
+    assert result.value is FINISH
+    assert not deps.confirm_called
+    assert deps.saved[0].pending_kind is None
+
+
+@pytest.mark.parametrize("state", ["in_flight", "failed", "undetermined"])
+def test_pending_not_replayed_when_unresolved(
+    monkeypatch: pytest.MonkeyPatch, state: str
+) -> None:
+    session = _pending_session()
+    deps = _FakeDeps()
+    monkeypatch.setattr(app_confirm_step, "reconcile_pending_op", _fake_reconcile(state))
+
+    result = run_app_confirm_step(
+        session=session,
+        workspace_root=Path("/tmp/ws"),
+        console=MockConsole(),
+        watch=False,
+        dry_run=False,
+        app_release_repo=config.APP_RELEASE_REPO,
+        deps=_deps(deps),
+    )
+
+    assert isinstance(result, Err)
+    assert not deps.confirm_called
+    assert deps.calls == []
+
+
+# --- write-ahead persistence before dispatch -----------------------------------
+
+
+def _identity_refresh(
+    *, session: AppReleaseSession, workspace_root: Path, console: ConsoleProtocol
+) -> Result[AppReleaseSession, ReleaseError]:
+    return Ok(session)
+
+
+def _coherence_ok(
+    *,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    pinned: tuple[PinnedRepo, ...],
+    tooling: ReleaseTooling,
+    dry_run: bool,
+    verify_ci: bool = True,
+) -> Result[RemoteCoherenceReport, ReleaseError]:
+    return Ok(RemoteCoherenceReport(items=()))
+
+
+def _pinned_ok(
+    *, app_release_repo: ReleaseRepo, session: AppReleaseSession
+) -> Result[tuple[PinnedRepo, ...], ReleaseError]:
+    return Ok(())
+
+
+def _request_id(
+    *,
+    workspace_root: Path,
+    tag: str,
+    source_sha: str,
+    tooling_sha: str,
+    notes_markdown: str | None,
+    notes_source_path: str | None,
+) -> Result[str, ReleaseError]:
+    return Ok("ms-req123")
+
+
+class _DispatchRecorder:
+    def __init__(self) -> None:
+        self.request_ids: list[str | None] = []
+        self.pending_seen: list[str | None] = []
+
+    def __call__(
+        self,
+        *,
+        deps: object,
+        workspace_root: Path,
+        console: ConsoleProtocol,
+        watch: bool,
+        dry_run: bool,
+        session: AppReleaseSession,
+        prepared: object,
+        tag: str,
+        tooling_sha: str,
+        request_id: str | None = None,
+    ) -> Result[None, ReleaseError]:
+        self.request_ids.append(request_id)
+        self.pending_seen.append(session.pending_request_id)
+        return Ok(None)
+
+
+class _PreparedDouble:
+    @property
+    def source_sha(self) -> str:
+        return _SHA
+
+
+class _DispatchRecorderContent:
+    def __init__(self) -> None:
+        self.request_ids: list[str | None] = []
+
+    def __call__(
+        self,
+        *,
+        deps: object,
+        workspace_root: Path,
+        console: ConsoleProtocol,
+        watch: bool,
+        dry_run: bool,
+        plan: object,
+        request_id: str | None = None,
+    ) -> Result[None, ReleaseError]:
+        self.request_ids.append(request_id)
+        return Ok(None)
+
+
+def _prepare_app_release_ok(
+    *,
+    deps: object,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    dry_run: bool,
+    session: AppReleaseSession,
+    pinned: tuple[PinnedRepo, ...],
+    tag: str,
+    version: str,
+    repo_sha: str,
+    remote_coherence_checked: bool = False,
+) -> Result[_PreparedDouble, ReleaseError]:
+    return Ok(_PreparedDouble())
+
+
+def _prepare_confirm_step(monkeypatch: pytest.MonkeyPatch, deps: _FakeDeps) -> _DispatchRecorder:
+    recorder = _DispatchRecorder()
+    monkeypatch.setattr(app_confirm_step, "refresh_app_session_tooling", _identity_refresh)
+    monkeypatch.setattr(app_confirm_step, "assert_release_remote_coherence", _coherence_ok)
+    monkeypatch.setattr(app_confirm_step, "pinned_app_repo", _pinned_ok)
+    monkeypatch.setattr(app_confirm_step, "app_release_request_id", _request_id)
+    monkeypatch.setattr(app_confirm_step, "prepare_app_release", _prepare_app_release_ok)
+    monkeypatch.setattr(app_confirm_step, "publish_prepared_app_release", recorder)
+    return recorder
+
+
+def _content_session() -> ContentReleaseSession:
+    session = new_content_session(created_by="test", notes_path=None)
+    return replace(session, step="confirm", channel="beta", bump="patch", tag="content-v1")
+
+
+def _pending_content_session() -> ContentReleaseSession:
+    session = new_content_session(created_by="test", notes_path=None)
+    return replace(
+        session,
+        step="confirm",
+        channel="beta",
+        bump="patch",
+        tag="content-v1",
+        pending_kind="content_release",
+        pending_request_id="ms-creq",
+        pending_repo=config.DIST_REPO_SLUG,
+        pending_workflow=config.DIST_PUBLISH_WORKFLOW,
+        pending_tag="content-v1",
+        pending_tooling_sha=_TOOLING,
+        pending_at="2026-09-26T00:00:00+00:00",
+    )
+
+
+def test_content_completed_pending_clears(monkeypatch: pytest.MonkeyPatch) -> None:
+    deps = _FakeDeps()
+    monkeypatch.setattr(content_confirm_step, "reconcile_pending_op", _fake_reconcile("completed"))
+
+    result = run_content_confirm_step(
+        deps=_content_deps(deps),
+        workspace_root=Path("/tmp/ws"),
+        console=MockConsole(),
+        watch=False,
+        dry_run=False,
+        session=_pending_content_session(),
+        release_repos=(),
+    )
+
+    assert isinstance(result, Ok)
+    assert result.value is FINISH
+    assert not deps.confirm_called
+    assert deps.saved[0].pending_kind is None
+
+
+@pytest.mark.parametrize("state", ["in_flight", "failed", "undetermined"])
+def test_content_pending_not_replayed(monkeypatch: pytest.MonkeyPatch, state: str) -> None:
+    deps = _FakeDeps()
+    monkeypatch.setattr(content_confirm_step, "reconcile_pending_op", _fake_reconcile(state))
+
+    result = run_content_confirm_step(
+        deps=_content_deps(deps),
+        workspace_root=Path("/tmp/ws"),
+        console=MockConsole(),
+        watch=False,
+        dry_run=False,
+        session=_pending_content_session(),
+        release_repos=(),
+    )
+
+    assert isinstance(result, Err)
+    assert not deps.confirm_called
+    assert deps.calls == []
+
+
+class _RealStoreDeps(_FakeDeps):
+    def __init__(self, *, workspace: Path) -> None:
+        super().__init__()
+        self._workspace = workspace
+
+    def save_state(
+        self, *, session: AppReleaseSession
+    ) -> Result[AppReleaseSession, ReleaseError]:
+        written = save_app_session(workspace_root=self._workspace, session=session)
+        if isinstance(written, Err):
+            return Err(written.error)
+        self.saved.append(session)
+        return Ok(session)
+
+
+def test_remote_success_then_crash_resumes_without_redispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 1) dispatch succeeded remotely, crash before local clear: session on disk keeps pending_op
+    first_deps = _RealStoreDeps(workspace=tmp_path)
+    first_recorder = _prepare_confirm_step(monkeypatch, first_deps)
+
+    first = run_app_confirm_step(
+        session=_session(),
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        watch=True,
+        dry_run=False,
+        app_release_repo=config.APP_RELEASE_REPO,
+        deps=_deps(first_deps),
+    )
+    assert isinstance(first, Ok)
+    assert first_recorder.request_ids == ["ms-req123"]
+
+    on_disk = load_app_session(workspace_root=tmp_path)
+    assert isinstance(on_disk, Ok)
+    assert on_disk.value is not None
+    assert on_disk.value.pending_request_id == "ms-req123"
+
+    # 2) resume: GitHub boundary says the dispatch completed; no re-dispatch, disk cleared
+    seen_request_ids: list[str | None] = []
+
+    def reconcile_completed(**kwargs: object) -> Result[PendingReconciliation, ReleaseError]:
+        seen_request_ids.append(cast(str | None, kwargs.get("request_id")))
+        return Ok(PendingReconciliation(state="completed", detail="proven"))
+
+    monkeypatch.setattr(app_confirm_step, "reconcile_pending_op", reconcile_completed)
+    resume_deps = _RealStoreDeps(workspace=tmp_path)
+    resume_recorder = _DispatchRecorder()
+    monkeypatch.setattr(app_confirm_step, "publish_prepared_app_release", resume_recorder)
+
+    resumed = run_app_confirm_step(
+        session=on_disk.value,
+        workspace_root=tmp_path,
+        console=MockConsole(),
+        watch=False,
+        dry_run=False,
+        app_release_repo=config.APP_RELEASE_REPO,
+        deps=_deps(resume_deps),
+    )
+
+    assert isinstance(resumed, Ok)
+    assert resumed.value is FINISH
+    assert resume_recorder.request_ids == []
+    assert seen_request_ids == ["ms-req123"]
+    cleared = load_app_session(workspace_root=tmp_path)
+    assert isinstance(cleared, Ok)
+    assert cleared.value is not None
+    assert cleared.value.pending_kind is None
+
+
+def test_content_pending_persisted_before_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    deps = _FakeDeps()
+    recorder = _DispatchRecorderContent()
+
+    def bom_aligned(**kwargs: object) -> object:
+        return SimpleNamespace(status="aligned", label="aligned", detail="")
+
+    def plan_ok(**kwargs: object) -> Result[ReleasePlan, ReleaseError]:
+        return Ok(
+            ReleasePlan(
+                channel="beta",
+                tag="content-v1",
+                spec_path="releases/beta/spec-content-v1.json",
+                tooling=ReleaseTooling(
+                    repo="petitechose-midi-studio/ms-dev-env", ref="main", sha=_TOOLING
+                ),
+                pinned=(),
+                notes_path=None,
+                title="Content v1",
+            )
+        )
+
+    def clean_ok(**kwargs: object) -> Result[None, ReleaseError]:
+        return Ok(None)
+
+    def prepare_ok(**kwargs: object) -> Result[object, ReleaseError]:
+        return Ok(object())
+
+    def request_ok(**kwargs: object) -> Result[str, ReleaseError]:
+        return Ok("ms-creq")
+
+    monkeypatch.setattr(content_confirm_step, "assess_content_bom", bom_aligned)
+    monkeypatch.setattr(content_confirm_step, "resolve_content_release_plan", plan_ok)
+    monkeypatch.setattr(content_confirm_step, "ensure_open_control_clean", clean_ok)
+    monkeypatch.setattr(content_confirm_step, "assert_release_remote_coherence", _coherence_ok)
+    monkeypatch.setattr(content_confirm_step, "prepare_content_release", prepare_ok)
+    monkeypatch.setattr(content_confirm_step, "dispatch_publish_request_id", request_ok)
+    monkeypatch.setattr(content_confirm_step, "publish_prepared_content_release", recorder)
+
+    result = run_content_confirm_step(
+        deps=_content_deps(deps),
+        workspace_root=Path("/tmp/ws"),
+        console=MockConsole(),
+        watch=True,
+        dry_run=False,
+        session=_content_session(),
+        release_repos=(),
+    )
+
+    assert isinstance(result, Ok)
+    assert deps.saved[0].pending_request_id == "ms-creq"
+    assert recorder.request_ids == ["ms-creq"]
+
+
+def test_pending_persisted_before_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    deps = _FakeDeps()
+    recorder = _prepare_confirm_step(monkeypatch, deps)
+
+    result = run_app_confirm_step(
+        session=_session(),
+        workspace_root=Path("/tmp/ws"),
+        console=MockConsole(),
+        watch=True,
+        dry_run=False,
+        app_release_repo=config.APP_RELEASE_REPO,
+        deps=_deps(deps),
+    )
+
+    assert isinstance(result, Ok)
+    assert deps.calls == ["save"]
+    assert deps.saved[0].pending_request_id == "ms-req123"
+    assert recorder.pending_seen == ["ms-req123"]
+    assert recorder.request_ids == ["ms-req123"]
+
+
+def test_save_failure_blocks_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    deps = _FakeDeps(fail_save=True)
+    recorder = _prepare_confirm_step(monkeypatch, deps)
+
+    result = run_app_confirm_step(
+        session=_session(),
+        workspace_root=Path("/tmp/ws"),
+        console=MockConsole(),
+        watch=True,
+        dry_run=False,
+        app_release_repo=config.APP_RELEASE_REPO,
+        deps=_deps(deps),
+    )
+
+    assert isinstance(result, Err)
+    assert recorder.request_ids == []

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ms.core.result import Result
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -46,7 +46,6 @@ class EmscriptenTool(Tool):
     spec = ToolSpec(
         id="emscripten",
         name="Emscripten SDK",
-        required_for=frozenset({Mode.DEV}),
     )
 
     # Git repository URL

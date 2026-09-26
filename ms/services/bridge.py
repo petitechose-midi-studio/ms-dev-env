@@ -87,7 +87,7 @@ class BridgeService:
     ) -> None:
         self._workspace = workspace
         self._platform = platform
-        self._config = config
+        self._config: Config = config if config is not None else Config()
         self._console = console
 
     def build(self, *, release: bool = True, dry_run: bool = False) -> Result[Path, BridgeError]:
@@ -298,7 +298,7 @@ class BridgeService:
                 return int(ErrorCode.ENV_ERROR)
 
     def _bridge_dir(self) -> Path:
-        rel = self._config.paths.bridge if self._config is not None else "open-control/bridge"
+        rel = self._config.paths.bridge
         return self._workspace.root / rel
 
     def _built_bridge_bin(self, bridge_dir: Path, *, release: bool) -> Path:

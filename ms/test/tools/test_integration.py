@@ -14,7 +14,7 @@ from ms.tools.definitions.ninja import NinjaTool
 from ms.tools.download import Downloader
 from ms.tools.http import MockHttpClient
 from ms.tools.installer import Installer
-from ms.tools.resolver import ToolResolver
+from ms.tools.registry import ToolRegistry
 
 
 def create_mock_ninja_zip() -> bytes:
@@ -56,7 +56,7 @@ class TestNinjaInstallFlow:
         tool = NinjaTool()
         downloader = Downloader(client, cache_dir)
         installer = Installer()
-        resolver = ToolResolver(tools_dir, Platform.LINUX)
+        registry = ToolRegistry(tools_dir, Platform.LINUX)
 
         # Step 1: Fetch latest version
         version_result = tool.latest_version(client)
@@ -89,10 +89,9 @@ class TestNinjaInstallFlow:
         tool.post_install(install_dir, Platform.LINUX)
 
         # Step 6: Resolve
-        resolve_result = resolver.resolve(tool)
-        assert isinstance(resolve_result, Ok)
-        assert resolve_result.value.bundled is True
-        assert resolve_result.value.path.exists()
+        resolved = registry.resolve_executable("ninja")
+        assert resolved is not None
+        assert resolved.exists()
 
     def test_cached_download(self, tmp_path: Path) -> None:
         """Second download should use cache."""
@@ -131,13 +130,11 @@ class TestNinjaInstallFlow:
         (ninja_dir / "ninja").write_bytes(b"fake binary")
 
         tool = NinjaTool()
-        resolver = ToolResolver(tools_dir, Platform.LINUX)
+        registry = ToolRegistry(tools_dir, Platform.LINUX)
 
         # Should be found without any downloads
         assert tool.is_installed(tools_dir, Platform.LINUX) is True
-        resolve_result = resolver.resolve(tool)
-        assert isinstance(resolve_result, Ok)
-        assert resolve_result.value.bundled is True
+        assert registry.resolve_executable("ninja") is not None
 
 
 class TestWindowsInstallFlow:
@@ -163,7 +160,7 @@ class TestWindowsInstallFlow:
         tool = NinjaTool()
         downloader = Downloader(client, cache_dir)
         installer = Installer()
-        resolver = ToolResolver(tools_dir, Platform.WINDOWS)
+        resolver = ToolRegistry(tools_dir, Platform.WINDOWS)
 
         # Download
         download_url = tool.download_url("1.12.1", Platform.WINDOWS, Arch.X64)
@@ -181,9 +178,9 @@ class TestWindowsInstallFlow:
         assert (install_dir / "ninja.exe").exists()
 
         # Resolve
-        resolve_result = resolver.resolve(tool)
-        assert isinstance(resolve_result, Ok)
-        assert resolve_result.value.path.name == "ninja.exe"
+        resolved = resolver.resolve_executable("ninja")
+        assert resolved is not None
+        assert resolved.name == "ninja.exe"
 
 
 class TestMultipleTools:
@@ -202,12 +199,9 @@ class TestMultipleTools:
         (tools_dir / "cmake" / "bin" / "cmake").touch()
 
         # Both should be resolvable independently
-        resolver = ToolResolver(tools_dir, Platform.LINUX)
+        registry = ToolRegistry(tools_dir, Platform.LINUX)
 
-        ninja_tool = NinjaTool()
-        resolve_result = resolver.resolve(ninja_tool)
-        assert isinstance(resolve_result, Ok)
-        assert resolve_result.value.bundled is True
+        assert registry.resolve_executable("ninja") is not None
 
         # CMake would need its own tool class, but we can check the directory exists
         assert (tools_dir / "cmake" / "bin" / "cmake").exists()

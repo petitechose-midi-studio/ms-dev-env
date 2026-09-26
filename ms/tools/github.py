@@ -36,7 +36,7 @@ class GitHubTool(Tool):
 
     Example:
         class NinjaTool(GitHubTool):
-            spec = ToolSpec(id="ninja", name="Ninja", required_for=frozenset({Mode.DEV}))
+            spec = ToolSpec(id="ninja", name="Ninja")
             repo = "ninja-build/ninja"
 
             def asset_name(self, version: str, platform: Platform, arch: Arch) -> str:

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ms.core.result import Err, Result
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -36,7 +36,6 @@ class PlatformioTool(Tool):
     spec = ToolSpec(
         id="platformio",
         name="PlatformIO",
-        required_for=frozenset({Mode.DEV}),
     )
 
     def latest_version(self, http: HttpClient) -> Result[str, HttpError]:

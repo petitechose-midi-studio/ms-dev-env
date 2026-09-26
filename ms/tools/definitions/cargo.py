@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ms.core.result import Err, Result
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -41,7 +41,6 @@ class CargoTool(Tool):
     spec = ToolSpec(
         id="cargo",
         name="Cargo (Rust)",
-        required_for=frozenset({Mode.DEV}),
     )
 
     # Installation hint for users

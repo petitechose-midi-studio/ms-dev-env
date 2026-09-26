@@ -1,6 +1,5 @@
 """Tests for tools.definitions module."""
 
-from ms.tools.base import Mode
 from ms.tools.definitions import (
     ALL_TOOLS,
     BunTool,
@@ -14,7 +13,6 @@ from ms.tools.definitions import (
     Sdl2Tool,
     UvTool,
     get_tool,
-    get_tools_by_mode,
 )
 
 
@@ -35,7 +33,6 @@ class TestAllTools:
         for tool in ALL_TOOLS:
             assert tool.spec.id
             assert tool.spec.name
-            assert isinstance(tool.spec.required_for, frozenset)
 
     def test_expected_tools_present(self) -> None:
         """Expected tools are in ALL_TOOLS."""
@@ -76,49 +73,6 @@ class TestGetTool:
             result = get_tool(tool.spec.id)
             assert result is not None
             assert result.spec.id == tool.spec.id
-
-
-class TestGetToolsByMode:
-    """Tests for get_tools_by_mode function."""
-
-    def test_dev_mode_tools(self) -> None:
-        """get_tools_by_mode returns dev tools."""
-        dev_tools = get_tools_by_mode("dev")
-        assert len(dev_tools) > 0
-
-        # All returned tools should be required for dev
-        for tool in dev_tools:
-            assert tool.spec.is_required_for(Mode.DEV)
-
-    def test_enduser_mode_tools(self) -> None:
-        """get_tools_by_mode returns enduser tools."""
-        enduser_tools = get_tools_by_mode("enduser")
-
-        # All returned tools should be required for enduser
-        for tool in enduser_tools:
-            assert tool.spec.is_required_for(Mode.ENDUSER)
-
-    def test_case_insensitive(self) -> None:
-        """get_tools_by_mode is case insensitive."""
-        dev1 = get_tools_by_mode("dev")
-        dev2 = get_tools_by_mode("DEV")
-        dev3 = get_tools_by_mode("Dev")
-
-        assert len(dev1) == len(dev2) == len(dev3)
-
-    def test_jdk_maven_required_for_both(self) -> None:
-        """JDK and Maven are required for both modes."""
-        dev_tools = get_tools_by_mode("dev")
-        enduser_tools = get_tools_by_mode("enduser")
-
-        dev_ids = {tool.spec.id for tool in dev_tools}
-        enduser_ids = {tool.spec.id for tool in enduser_tools}
-
-        # JDK and Maven should be in both
-        assert "jdk" in dev_ids
-        assert "jdk" in enduser_ids
-        assert "maven" in dev_ids
-        assert "maven" in enduser_ids
 
 
 class TestToolClassExports:

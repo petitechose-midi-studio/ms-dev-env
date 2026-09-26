@@ -12,7 +12,7 @@ import shutil
 from typing import TYPE_CHECKING
 
 from ms.platform.files import remove_tree
-from ms.tools.base import Mode, ToolSpec
+from ms.tools.base import ToolSpec
 from ms.tools.github import GitHubTool
 
 if TYPE_CHECKING:
@@ -34,7 +34,6 @@ class CMakeTool(GitHubTool):
     spec = ToolSpec(
         id="cmake",
         name="CMake",
-        required_for=frozenset({Mode.DEV}),
     )
     repo = "Kitware/CMake"
 

@@ -23,7 +23,7 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
     ) -> Result[None, ToolchainError]:
         tool_ids = tuple(
             tool.spec.id
-            for tool in self._registry.tools_for_mode("dev")
+            for tool in self._registry.tools()
             if not is_system_tool(tool)
         )
         return self._sync_tools(tool_ids=tool_ids, dry_run=dry_run, force=force)
@@ -74,12 +74,18 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
                     self._console.print("install jdk latest", Style.DIM)
                     continue
 
-                if (
-                    not force
-                    and tool.is_installed(self._paths.tools_dir, self._platform.platform)
-                    and get_installed_version(self._paths.tools_dir, tool.spec.id) is not None
+                if not force and tool.is_installed(
+                    self._paths.tools_dir, self._platform.platform
                 ):
-                    continue
+                    current = get_installed_version(self._paths.tools_dir, tool.spec.id)
+                    if isinstance(current, Err):
+                        self._console.print(
+                            f"{tool.spec.id}: {current.error.message}", Style.ERROR
+                        )
+                        has_errors = True
+                        continue
+                    if current.value is not None:
+                        continue
 
                 if not self._install_jdk(
                     http=http,
@@ -105,12 +111,14 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
                         continue
                     version = vres.value
 
-            if (
-                not force
-                and self._is_installed_at_version(tool.spec.id, version)
-                and tool.is_installed(self._paths.tools_dir, self._platform.platform)
-            ):
-                continue
+            if not force and tool.is_installed(self._paths.tools_dir, self._platform.platform):
+                installed = self._is_installed_at_version(tool.spec.id, version)
+                if isinstance(installed, Err):
+                    self._console.print(f"{tool.spec.id}: {installed.error.message}", Style.ERROR)
+                    has_errors = True
+                    continue
+                if installed.value:
+                    continue
 
             self._console.print(f"install {tool.spec.id} {version}", Style.DIM)
             if dry_run:
@@ -127,7 +135,12 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
                 if not self._install_git_tool(tool, dry_run=dry_run):
                     has_errors = True
                 else:
-                    set_installed_version(self._paths.tools_dir, tool.spec.id, version)
+                    saved = set_installed_version(self._paths.tools_dir, tool.spec.id, version)
+                    if isinstance(saved, Err):
+                        self._console.print(
+                            f"{tool.spec.id}: {saved.error.message}", Style.ERROR
+                        )
+                        has_errors = True
                 continue
 
             dres = downloader.download(url)
@@ -160,7 +173,10 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
                 continue
 
             tool.post_install(install_dir, self._platform.platform)
-            set_installed_version(self._paths.tools_dir, tool.spec.id, version)
+            saved = set_installed_version(self._paths.tools_dir, tool.spec.id, version)
+            if isinstance(saved, Err):
+                self._console.print(f"{tool.spec.id}: {saved.error.message}", Style.ERROR)
+                has_errors = True
 
         self._generate_wrappers(wrapper_gen, dry_run=dry_run)
 
@@ -191,7 +207,7 @@ class ToolchainSyncMixin(ToolchainHelpersMixin):
         return Ok(None)
 
     def needs_git_for_sync_dev(self) -> bool:
-        for tool in self._registry.tools_for_mode("dev"):
+        for tool in self._registry.tools():
             if is_system_tool(tool):
                 continue
 

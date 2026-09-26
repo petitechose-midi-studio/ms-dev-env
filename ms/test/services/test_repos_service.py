@@ -147,6 +147,37 @@ def test_sync_skips_dirty_repo(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_sync_skips_repo_when_git_status_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    url, _ = _init_remote_repo(tmp_path, "framework")
+
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir()
+    manifest = tmp_path / "repos.toml"
+    _write_manifest(manifest, url=url)
+
+    console = MockConsole()
+    service = RepoService(
+        workspace=Workspace(root=ws_root), console=console, manifest_paths=(manifest,)
+    )
+    assert isinstance(service.sync_all(dry_run=False), Ok)
+
+    dest = ws_root / "open-control" / "framework"
+
+    def fake_is_dirty(self: RepoService, repo_dir: Path) -> bool | None:
+        return None
+
+    monkeypatch.setattr(RepoService, "_is_dirty", fake_is_dirty)
+
+    console.clear()
+    result = service.sync_all(dry_run=False)
+    assert isinstance(result, Ok)
+    assert "git status failed" in console.text
+    assert (dest / "hello.txt").exists()
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
 def test_sync_skips_repo_on_wrong_branch(tmp_path: Path) -> None:
     url, seed = _init_remote_repo(tmp_path, "framework")
 

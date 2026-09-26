@@ -47,6 +47,22 @@ BRIDGE_HARDWARE_PORT = 9000
 BRIDGE_NATIVE_PORT = 9100
 BRIDGE_WASM_PORT = 9200
 
+_PORT_MIN = 1
+_PORT_MAX = 65535
+
+
+def _port(table: Mapping[str, object], key: str, default: int) -> int:
+    """Read a TCP port: absent -> default, present but invalid -> ValueError."""
+    if key not in table:
+        return default
+    parsed = get_int(table, key)
+    value = table[key]
+    if parsed is None:
+        raise ValueError(f"invalid port '{key}': expected integer in 1..65535, got {value!r}")
+    if not (_PORT_MIN <= parsed <= _PORT_MAX):
+        raise ValueError(f"invalid port '{key}': {parsed} outside 1..65535")
+    return parsed
+
 
 @dataclass(frozen=True, slots=True)
 class ConfigError:
@@ -130,7 +146,11 @@ class Config:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, object]) -> Config:
-        """Create Config from a mapping (parsed TOML)."""
+        """Create Config from a mapping (parsed TOML).
+
+        Absent values fall back to defaults. Present but invalid values raise
+        ValueError so load_config can report an explicit ConfigError.
+        """
         ports: StrDict = get_table(data, "ports") or {}
         controller: StrDict = get_table(ports, "controller") or {}
         midi: StrDict = get_table(data, "midi") or {}
@@ -139,15 +159,16 @@ class Config:
 
         return cls(
             ports=PortsConfig(
-                hardware=get_int(ports, "hardware") or BRIDGE_HARDWARE_PORT,
-                native=get_int(ports, "native") or BRIDGE_NATIVE_PORT,
-                wasm=get_int(ports, "wasm") or BRIDGE_WASM_PORT,
+                hardware=_port(ports, "hardware", BRIDGE_HARDWARE_PORT),
+                native=_port(ports, "native", BRIDGE_NATIVE_PORT),
+                wasm=_port(ports, "wasm", BRIDGE_WASM_PORT),
                 controller=ControllerPortsConfig(
-                    core_native=get_int(controller, "core_native") or CONTROLLER_CORE_NATIVE_PORT,
-                    core_wasm=get_int(controller, "core_wasm") or CONTROLLER_CORE_WASM_PORT,
-                    bitwig_native=get_int(controller, "bitwig_native")
-                    or CONTROLLER_BITWIG_NATIVE_PORT,
-                    bitwig_wasm=get_int(controller, "bitwig_wasm") or CONTROLLER_BITWIG_WASM_PORT,
+                    core_native=_port(controller, "core_native", CONTROLLER_CORE_NATIVE_PORT),
+                    core_wasm=_port(controller, "core_wasm", CONTROLLER_CORE_WASM_PORT),
+                    bitwig_native=_port(
+                        controller, "bitwig_native", CONTROLLER_BITWIG_NATIVE_PORT
+                    ),
+                    bitwig_wasm=_port(controller, "bitwig_wasm", CONTROLLER_BITWIG_WASM_PORT),
                 ),
             ),
             midi=MidiConfig(

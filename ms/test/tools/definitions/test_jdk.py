@@ -8,7 +8,6 @@ import pytest
 
 from ms.core.result import Err, Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.jdk import DEFAULT_JDK_MAJOR, JdkTool
 from ms.tools.http import HttpError, MockHttpClient
 
@@ -37,7 +36,6 @@ class TestJdkTool:
 
         assert tool.spec.id == "jdk"
         assert tool.spec.name == "Eclipse Temurin JDK"
-        assert tool.spec.required_for == frozenset({Mode.DEV, Mode.ENDUSER})
         assert tool.spec.version_args == ("-version",)
 
     def test_install_dir_name(self) -> None:

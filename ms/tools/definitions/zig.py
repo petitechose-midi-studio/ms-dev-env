@@ -16,7 +16,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ms.tools.base import Mode, ToolSpec
+from ms.tools.base import ToolSpec
 from ms.tools.github import GitHubTool
 
 if TYPE_CHECKING:
@@ -38,7 +38,6 @@ class ZigTool(GitHubTool):
     spec = ToolSpec(
         id="zig",
         name="Zig",
-        required_for=frozenset({Mode.DEV}),
         version_args=("version",),
     )
     repo = "ziglang/zig"

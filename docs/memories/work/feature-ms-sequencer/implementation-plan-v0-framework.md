@@ -52,7 +52,7 @@ status: 'active'
 
 ## Contraintes et invariants
 
-- State est la source de verite (UI = projection), cf. `midi-studio/core/docs/INVARIANTS.md`.
+- State est la source de verite (UI = projection), cf. `midi-studio/core/docs/CORE_ARCHITECTURE.md`.
 - L'engine ne doit jamais appeler `lv_*`.
 - Le playback ne doit pas etre scope a une vue (pas de couplage d'autorite input).
 

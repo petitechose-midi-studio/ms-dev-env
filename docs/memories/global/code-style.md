@@ -1,16 +1,16 @@
 # Code Style & Conventions
 
-> **Référence officielle** pour midi-studio (Core & Bitwig Plugin)
+> Référence de travail locale. Le code produit (Core & Bitwig Plugin) fait foi via
+> `midi-studio/core/docs/CODE_STYLE.md`.
 > Dernière mise à jour: 2026-02-11
 
 ## Documentation complète
 
-Pour les guides tutoriels détaillés, voir `midi-studio/core/docs/`:
-- `STATE_MANAGEMENT.md` - Signals et state réactif
-- `HOW_TO_ADD_WIDGET.md` - Création de widgets LVGL
-- `HOW_TO_ADD_HANDLER.md` - Input bindings
-- `HOW_TO_ADD_VIEW.md` - Vues complètes
-- `HOW_TO_ADD_OVERLAY.md` - Overlays modaux
+Guides produit actuels dans `midi-studio/core/docs/` :
+- `CORE_ARCHITECTURE.md` - Architecture et état réactif
+- `INPUT_BINDINGS.md` - Input bindings et handlers
+- `CONTEXT_PRESENTATION.md` - Vues, overlays, présentation
+- `CC_LANE_FEATURE.md` - Exemple de parcours complet
 
 ---
 
@@ -318,4 +318,4 @@ Views → subscribe to State (automatic UI updates)
 
 - `docs/memories/midi-studio/overview.md` - Structure des projets
 - `docs/memories/midi-studio/shared-ui-ms-ui.md` - Shared UI include conventions
-- `midi-studio/core/docs/` - Guides HOW_TO_* détaillés
+- `midi-studio/core/docs/README.md` - Index de la documentation produit

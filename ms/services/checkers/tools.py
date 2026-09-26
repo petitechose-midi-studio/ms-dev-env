@@ -82,7 +82,7 @@ class ToolsChecker:
         return results
 
     def check_platformio_runtime(self) -> CheckResult:
-        runtime = resolve_platformio_runtime(self.tools_dir.parent)
+        runtime = resolve_platformio_runtime(self.tools_dir.parent, tools_dir=self.tools_dir)
         if isinstance(runtime, Err):
             return CheckResult.error(
                 "platformio",

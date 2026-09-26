@@ -1,7 +1,6 @@
 """Base definitions for the tools system.
 
 This module defines the core abstractions:
-- Mode: Installation mode (dev vs end-user)
 - ToolSpec: Immutable tool metadata
 - Tool: Abstract base class for all tools
 """
@@ -10,7 +9,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,24 +18,9 @@ if TYPE_CHECKING:
     from ms.tools.http import HttpClient, HttpError
 
 __all__ = [
-    "Mode",
     "ToolSpec",
     "Tool",
 ]
-
-
-class Mode(Enum):
-    """Installation mode.
-
-    DEV: Development mode - all tools needed for building
-    ENDUSER: End-user mode - minimal tools for running
-    """
-
-    DEV = auto()
-    ENDUSER = auto()
-
-    def __str__(self) -> str:
-        return self.name.lower()
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,13 +30,11 @@ class ToolSpec:
     Attributes:
         id: Unique identifier (e.g., "ninja", "cmake")
         name: Human-readable name (e.g., "Ninja", "CMake")
-        required_for: Set of modes where this tool is required
         version_args: Arguments to get version (default: ("--version",))
     """
 
     id: str
     name: str
-    required_for: frozenset[Mode]
     version_args: tuple[str, ...] = ("--version",)
 
     def __post_init__(self) -> None:
@@ -64,10 +45,6 @@ class ToolSpec:
             raise ValueError("Tool name cannot be empty")
         if not self.id.isidentifier() or not self.id.islower():
             raise ValueError(f"Tool id must be lowercase identifier: {self.id!r}")
-
-    def is_required_for(self, mode: Mode) -> bool:
-        """Check if tool is required for given mode."""
-        return mode in self.required_for
 
 
 class Tool(ABC):

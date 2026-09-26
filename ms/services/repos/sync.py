@@ -102,7 +102,18 @@ class RepoSyncMixin(RepoGitOpsMixin):
                 head_sha=None,
             )
 
-        if self._is_dirty(dest):
+        dirty = self._is_dirty(dest)
+        if dirty is None:
+            self._console.print(f"skip (git status failed): {dest}", Style.WARNING)
+            return RepoLockEntry(
+                org=repo.org,
+                name=repo.name,
+                url=repo.url,
+                default_branch=repo.branch,
+                head_sha=None,
+            )
+
+        if dirty:
             self._console.print(f"skip dirty repo: {dest}", Style.WARNING)
             return RepoLockEntry(
                 org=repo.org,

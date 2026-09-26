@@ -44,7 +44,7 @@ def run_guided_content_release_flow(
         choice = deps.select_channel(
             title="Content Release Channel",
             subtitle="Choose content release channel",
-            initial_index=session.idx_channel,
+            initial_index=session.cursor.channel,
             allow_back=True,
         )
         if choice.action == "cancel":
@@ -59,9 +59,10 @@ def run_guided_content_release_flow(
                     session,
                     channel=choice.value,
                     tag=None,
-                    idx_channel=choice.index,
-                    step=("summary" if session.return_to_summary else "bump"),
-                    return_to_summary=False,
+                    cursor=replace(
+                        session.cursor, channel=choice.index, return_to_summary=False
+                    ),
+                    step=("summary" if session.cursor.return_to_summary else "bump"),
                 )
             )
         )
@@ -72,7 +73,7 @@ def run_guided_content_release_flow(
         choice = deps.select_bump(
             title="Content Version Bump",
             subtitle="Choose semantic version bump",
-            initial_index=session.idx_bump,
+            initial_index=session.cursor.bump,
             allow_back=True,
         )
         if choice.action == "cancel":
@@ -87,10 +88,9 @@ def run_guided_content_release_flow(
                     session,
                     bump=choice.value,
                     tag=None,
-                    idx_bump=choice.index,
+                    cursor=replace(session.cursor, bump=choice.index, return_to_summary=False),
                     repo_cursor=0,
-                    step=("summary" if session.return_to_summary else "repo"),
-                    return_to_summary=False,
+                    step=("summary" if session.cursor.return_to_summary else "repo"),
                 )
             )
         )
@@ -112,7 +112,7 @@ def run_guided_content_release_flow(
             title=f"Source Commit ({repo.id})",
             subtitle=f"Pick CI-green commit for {repo.slug}",
             current_sha=current_sha,
-            initial_index=current.idx_repo,
+            initial_index=current.cursor.repo,
             allow_back=True,
         )
         if isinstance(commit, Err):
@@ -121,8 +121,16 @@ def run_guided_content_release_flow(
         if choice.action == "cancel":
             return Err(ReleaseError(kind="invalid_input", message="release cancelled"))
         if choice.action == "back":
-            if current.return_to_summary:
-                return Ok(advance(replace(current, step="summary", return_to_summary=False)))
+            if current.cursor.return_to_summary:
+                return Ok(
+                    advance(
+                        replace(
+                            current,
+                            step="summary",
+                            cursor=replace(current.cursor, return_to_summary=False),
+                        )
+                    )
+                )
             if current.repo_cursor == 0:
                 return Ok(advance(replace(current, step="bump")))
             return Ok(advance(replace(current, repo_cursor=current.repo_cursor - 1)))
@@ -135,9 +143,19 @@ def run_guided_content_release_flow(
             repo_id=repo.id,
             sha=choice.value,
         )
-        next_session = replace(next_session, idx_repo=choice.index)
-        if next_session.return_to_summary:
-            return Ok(advance(replace(next_session, step="summary", return_to_summary=False)))
+        next_session = replace(
+            next_session, cursor=replace(next_session.cursor, repo=choice.index)
+        )
+        if next_session.cursor.return_to_summary:
+            return Ok(
+                advance(
+                    replace(
+                        next_session,
+                        step="summary",
+                        cursor=replace(next_session.cursor, return_to_summary=False),
+                    )
+                )
+            )
         if next_session.repo_cursor + 1 < len(release_repos):
             return Ok(advance(replace(next_session, repo_cursor=next_session.repo_cursor + 1)))
         return Ok(advance(replace(next_session, step="tag")))
@@ -175,7 +193,16 @@ def run_guided_content_release_flow(
             return Err(ReleaseError(kind="invalid_input", message="release cancelled"))
         if choice.action == "back":
             return Ok(advance(replace(session, step="repo", repo_cursor=len(release_repos) - 1)))
-        return Ok(advance(replace(session, tag=tag, step="summary", return_to_summary=False)))
+        return Ok(
+            advance(
+                replace(
+                    session,
+                    tag=tag,
+                    step="summary",
+                    cursor=replace(session.cursor, return_to_summary=False),
+                )
+            )
+        )
 
     def _step_summary(
         session: ContentReleaseSession,
@@ -211,7 +238,7 @@ def run_guided_content_release_flow(
                         choice.value.session,
                         step="repo",
                         repo_cursor=core_index,
-                        return_to_summary=True,
+                        cursor=replace(choice.value.session.cursor, return_to_summary=True),
                     )
                 )
             )
@@ -220,7 +247,7 @@ def run_guided_content_release_flow(
                 replace(
                     choice.value.session,
                     step="summary",
-                    return_to_summary=False,
+                    cursor=replace(choice.value.session.cursor, return_to_summary=False),
                 )
             )
         )

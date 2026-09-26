@@ -24,6 +24,6 @@ def apply_notes_selection[SessionT: (AppReleaseSession, ContentReleaseSession)](
             notes_markdown=None if clear else session.notes_markdown,
             notes_sha256=None if clear else session.notes_sha256,
             step="summary",
-            return_to_summary=False,
+            cursor=replace(session.cursor, return_to_summary=False),
         )
     )

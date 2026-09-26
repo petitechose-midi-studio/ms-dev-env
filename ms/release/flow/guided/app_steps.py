@@ -42,7 +42,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         choice = deps.select_channel(
             title="Release Channel",
             subtitle="Choose app release channel",
-            initial_index=s.idx_channel,
+            initial_index=s.cursor.channel,
             allow_back=True,
         )
         if choice.action == "cancel":
@@ -58,9 +58,10 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
                     channel=choice.value,
                     tag=None,
                     version=None,
-                    idx_channel=choice.index,
-                    step=("summary" if s.return_to_summary else "bump"),
-                    return_to_summary=False,
+                    cursor=replace(
+                        s.cursor, channel=choice.index, return_to_summary=False
+                    ),
+                    step=("summary" if s.cursor.return_to_summary else "bump"),
                 )
             )
         )
@@ -69,7 +70,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
         choice = deps.select_bump(
             title="Version Bump",
             subtitle="Choose semantic version bump",
-            initial_index=s.idx_bump,
+            initial_index=s.cursor.bump,
             allow_back=True,
         )
         if choice.action == "cancel":
@@ -85,9 +86,8 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
                     bump=choice.value,
                     tag=None,
                     version=None,
-                    idx_bump=choice.index,
-                    step=("summary" if s.return_to_summary else "sha"),
-                    return_to_summary=False,
+                    cursor=replace(s.cursor, bump=choice.index, return_to_summary=False),
+                    step=("summary" if s.cursor.return_to_summary else "sha"),
                 )
             )
         )
@@ -101,7 +101,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             title="Source Commit",
             subtitle="Pick CI-green commit",
             current_sha=s.repo_sha,
-            initial_index=s.idx_sha,
+            initial_index=s.cursor.sha,
             allow_back=True,
         )
         if isinstance(commit, Err):
@@ -120,9 +120,8 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
                     repo_sha=choice.value,
                     tag=None,
                     version=None,
-                    idx_sha=choice.index,
-                    step=("summary" if s.return_to_summary else "tag"),
-                    return_to_summary=False,
+                    cursor=replace(s.cursor, sha=choice.index, return_to_summary=False),
+                    step=("summary" if s.cursor.return_to_summary else "tag"),
                 )
             )
         )
@@ -166,7 +165,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
                     version=version,
                     tooling_sha=plan.tooling.sha,
                     step="summary",
-                    return_to_summary=False,
+                    cursor=replace(s.cursor, return_to_summary=False),
                 )
             )
         )
@@ -176,7 +175,7 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             title="App Release Summary",
             subtitle="Select an item to edit, or start release",
             options=build_app_summary_options(s),
-            initial_index=s.idx_summary,
+            initial_index=s.cursor.summary,
             allow_back=True,
         )
         if choice.action == "cancel":
@@ -193,12 +192,15 @@ def run_guided_app_release_flow[PrepareT: AppPrepareResultLike](
             advance(
                 replace(
                     s,
-                    idx_summary=choice.index,
-                    step=next_step,
-                    return_to_summary=(
-                        choice.value in {"channel", "bump", "sha", "tag", "notes", "start"}
-                        and next_step != "confirm"
+                    cursor=replace(
+                        s.cursor,
+                        summary=choice.index,
+                        return_to_summary=(
+                            choice.value in {"channel", "bump", "sha", "tag", "notes", "start"}
+                            and next_step != "confirm"
+                        ),
                     ),
+                    step=next_step,
                 )
             )
         )

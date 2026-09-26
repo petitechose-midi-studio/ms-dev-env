@@ -45,7 +45,7 @@ def run_content_candidates_step(
         title="Content Release Candidates",
         subtitle="Review candidate availability before final confirmation",
         options=_candidate_options(assessments=assessed.value),
-        initial_index=session.idx_candidates,
+        initial_index=session.cursor.candidates,
         allow_back=True,
     )
     if choice.action == "cancel":
@@ -56,7 +56,9 @@ def run_content_candidates_step(
         return Err(ReleaseError(kind="invalid_input", message="missing candidate action"))
 
     if choice.value.startswith("target:") or choice.value == "refresh":
-        return Ok(advance(replace(session, idx_candidates=choice.index)))
+        return Ok(
+            advance(replace(session, cursor=replace(session.cursor, candidates=choice.index)))
+        )
 
     if choice.value == "ensure":
         ensured = deps.ensure_content_candidates(
@@ -67,10 +69,20 @@ def run_content_candidates_step(
         )
         if isinstance(ensured, Err):
             return ensured
-        return Ok(advance(replace(session, idx_candidates=choice.index)))
+        return Ok(
+            advance(replace(session, cursor=replace(session.cursor, candidates=choice.index)))
+        )
 
     if choice.value == "continue":
-        return Ok(advance(replace(session, step="confirm", idx_candidates=choice.index)))
+        return Ok(
+            advance(
+                replace(
+                    session,
+                    step="confirm",
+                    cursor=replace(session.cursor, candidates=choice.index),
+                )
+            )
+        )
 
     return Err(
         ReleaseError(kind="invalid_input", message=f"unknown candidate action: {choice.value}")

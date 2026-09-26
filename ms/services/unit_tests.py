@@ -19,6 +19,7 @@ from ms.platform.files import atomic_write_text
 from ms.platform.process import run
 from ms.services.base import BaseService
 from ms.services.build_errors import ToolMissing
+from ms.services.toolchain_env import base_env
 from ms.tools.download import Downloader
 from ms.tools.http import RealHttpClient
 from ms.tools.installer import Installer
@@ -767,7 +768,7 @@ class UnitTestService(BaseService):
                 source_dir=self._workspace.root,
                 build_dir=build_root / "ms-dev-env",
                 label="ms-dev-env",
-                env_vars=(("MS_ARCH_CHECKS", "1"), ("MS_ARCH_STRICT", "1")),
+                env_vars=(("MS_ARCH_CHECKS", "1"),),
             ),
             "protocol-codegen": UnitTestTarget(
                 name="protocol-codegen",
@@ -861,10 +862,7 @@ class UnitTestService(BaseService):
         }
 
     def _base_env(self) -> dict[str, str]:
-        env = os.environ.copy()
-        env.update(self._registry.get_env_vars())
-        env.update(self._workspace.platformio_env_vars())
-        return env
+        return base_env(registry=self._registry, workspace=self._workspace)
 
     def _target_env(self, target: UnitTestTarget) -> dict[str, str]:
         env = self._base_env()
@@ -888,14 +886,9 @@ class UnitTestService(BaseService):
         return env
 
     def _get_tool_path(self, tool_id: str) -> Result[Path, UnitTestError]:
-        path = self._registry.get_bin_path(tool_id)
-        if path is not None and path.exists():
+        path = self._registry.resolve_executable(tool_id)
+        if path is not None:
             return Ok(path)
-
-        found = shutil.which(tool_id)
-        if found:
-            return Ok(Path(found))
-
         return Err(ToolMissing(tool_id=tool_id))
 
     def _ctest_path(self) -> Result[Path, UnitTestError]:

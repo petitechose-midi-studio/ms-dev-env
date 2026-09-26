@@ -4,7 +4,6 @@ from pathlib import Path
 
 from ms.core.result import Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.cmake import CMakeTool
 from ms.tools.http import MockHttpClient
 
@@ -18,7 +17,6 @@ class TestCMakeTool:
 
         assert tool.spec.id == "cmake"
         assert tool.spec.name == "CMake"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
 
     def test_repo(self) -> None:
         """CMakeTool uses correct GitHub repo."""

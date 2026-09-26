@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
@@ -34,8 +34,21 @@ ContentSessionStep = Literal[
 
 
 @dataclass(frozen=True, slots=True)
+class SessionCursor:
+    """UI navigation state, kept out of the business release plan."""
+
+    channel: int = 0
+    bump: int = 0
+    sha: int = 0
+    repo: int = 0
+    summary: int = 0
+    candidates: int = 0
+    return_to_summary: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class AppReleaseSession:
-    schema: Literal[3]
+    schema: Literal[4]
     release_id: str
     created_at: str
     created_by: str
@@ -51,16 +64,20 @@ class AppReleaseSession:
     notes_path: str | None
     notes_markdown: str | None
     notes_sha256: str | None
-    idx_channel: int
-    idx_bump: int
-    idx_sha: int
-    idx_summary: int
-    return_to_summary: bool
+    cursor: SessionCursor = field(default_factory=SessionCursor)
+    pending_kind: str | None = None
+    pending_request_id: str | None = None
+    pending_repo: str | None = None
+    pending_workflow: str | None = None
+    pending_tag: str | None = None
+    pending_source_sha: str | None = None
+    pending_tooling_sha: str | None = None
+    pending_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class ContentReleaseSession:
-    schema: Literal[3]
+    schema: Literal[4]
     release_id: str
     created_at: str
     created_by: str
@@ -74,18 +91,21 @@ class ContentReleaseSession:
     notes_path: str | None
     notes_markdown: str | None
     notes_sha256: str | None
-    idx_channel: int
-    idx_bump: int
-    idx_repo: int
-    idx_summary: int
-    idx_candidates: int
-    return_to_summary: bool
+    cursor: SessionCursor = field(default_factory=SessionCursor)
+    pending_kind: str | None = None
+    pending_request_id: str | None = None
+    pending_repo: str | None = None
+    pending_workflow: str | None = None
+    pending_tag: str | None = None
+    pending_source_sha: str | None = None
+    pending_tooling_sha: str | None = None
+    pending_at: str | None = None
 
 
 def new_app_session(*, created_by: str, notes_path: Path | None) -> AppReleaseSession:
     now = datetime.now(tz=UTC).isoformat()
     return AppReleaseSession(
-        schema=3,
+        schema=4,
         release_id=f"app-{uuid4().hex[:12]}",
         created_at=now,
         created_by=created_by,
@@ -101,18 +121,13 @@ def new_app_session(*, created_by: str, notes_path: Path | None) -> AppReleaseSe
         notes_path=(str(notes_path) if notes_path is not None else None),
         notes_markdown=None,
         notes_sha256=None,
-        idx_channel=0,
-        idx_bump=0,
-        idx_sha=0,
-        idx_summary=0,
-        return_to_summary=False,
     )
 
 
 def new_content_session(*, created_by: str, notes_path: Path | None) -> ContentReleaseSession:
     now = datetime.now(tz=UTC).isoformat()
     return ContentReleaseSession(
-        schema=3,
+        schema=4,
         release_id=f"content-{uuid4().hex[:12]}",
         created_at=now,
         created_by=created_by,
@@ -126,10 +141,4 @@ def new_content_session(*, created_by: str, notes_path: Path | None) -> ContentR
         notes_path=(str(notes_path) if notes_path is not None else None),
         notes_markdown=None,
         notes_sha256=None,
-        idx_channel=0,
-        idx_bump=0,
-        idx_repo=0,
-        idx_summary=0,
-        idx_candidates=0,
-        return_to_summary=False,
     )

@@ -8,7 +8,7 @@ from ms.core.structured import as_str_dict
 from ms.platform.files import atomic_write_text
 from ms.release.errors import ReleaseError
 
-_SESSION_SCHEMA = 3
+_SESSION_SCHEMA = 4
 
 
 def write_session(*, path: Path, payload: dict[str, object]) -> Result[None, ReleaseError]:
@@ -32,7 +32,7 @@ def read_session(*, path: Path) -> Result[dict[str, object] | None, ReleaseError
 
     try:
         raw: object = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         return Err(
             ReleaseError(
                 kind="invalid_input",

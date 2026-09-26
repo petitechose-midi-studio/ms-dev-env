@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from ms.core.result import Result
 from ms.tools.api import maven_latest_version
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -38,7 +38,6 @@ class MavenTool(Tool):
     spec = ToolSpec(
         id="maven",
         name="Apache Maven",
-        required_for=frozenset({Mode.ENDUSER, Mode.DEV}),
     )
 
     # Major version prefix for version filtering

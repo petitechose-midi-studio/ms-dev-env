@@ -4,7 +4,6 @@ from pathlib import Path
 
 from ms.core.result import Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.emscripten import EmscriptenTool
 from ms.tools.http import MockHttpClient
 
@@ -18,7 +17,6 @@ class TestEmscriptenTool:
 
         assert tool.spec.id == "emscripten"
         assert tool.spec.name == "Emscripten SDK"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
 
     def test_repo(self) -> None:
         """EmscriptenTool uses correct GitHub repo."""

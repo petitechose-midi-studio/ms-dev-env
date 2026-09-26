@@ -40,6 +40,22 @@ def _ok[T, E](value: Ok[T] | Err[E]) -> T:
     return value.value
 
 
+def test_available_apps_tracks_workflow_directory(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+
+    assert service.available_apps() == ()
+
+    workflow_dir = tmp_path / "midi-studio" / "core" / "sdl" / "integration" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    apps = service.available_apps()
+
+    assert [app.name for app in apps] == ["core"]
+    assert apps[0].workflow_dir == workflow_dir
+    assert apps[0].output_root == (
+        tmp_path / "midi-studio" / "core" / ".captures" / "ux" / "workflows"
+    )
+
+
 def test_unknown_expectations_fail_with_valid_trace_and_captures(tmp_path: Path) -> None:
     _write_workflow(
         tmp_path,

@@ -9,6 +9,10 @@ inputs:
     description: MS Manager Git ref whose consumer contract must remain compatible.
     required: false
     default: main
+  distribution-tag:
+    description: Pinned Distribution release tag to validate. Empty = latest published prerelease.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -30,11 +34,14 @@ runs:
         GH_TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
-        tag="$(gh release list \
-          --repo petitechose-midi-studio/distribution \
-          --limit 100 \
-          --json tagName,isDraft,isPrerelease,publishedAt \
-          --jq 'map(select(.isPrerelease and (.isDraft | not))) | sort_by(.publishedAt) | last | .tagName')"
+        tag="${{ inputs.distribution-tag }}"
+        if [ -z "$tag" ]; then
+          tag="$(gh release list \
+            --repo petitechose-midi-studio/distribution \
+            --limit 100 \
+            --json tagName,isDraft,isPrerelease,publishedAt \
+            --jq 'map(select(.isPrerelease and (.isDraft | not))) | sort_by(.publishedAt) | last | .tagName')"
+        fi
         if [ -z "$tag" ] || [ "$tag" = "null" ]; then
           echo "no published Distribution prerelease found" >&2
           exit 1

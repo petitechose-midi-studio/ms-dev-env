@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from ms.core.result import Err
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.cargo import CargoTool
 from ms.tools.http import MockHttpClient
 
@@ -19,7 +18,6 @@ class TestCargoTool:
 
         assert tool.spec.id == "cargo"
         assert tool.spec.name == "Cargo (Rust)"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
 
     def test_install_hint(self) -> None:
         """CargoTool has install hint."""

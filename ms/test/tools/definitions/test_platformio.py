@@ -4,7 +4,6 @@ from pathlib import Path
 
 from ms.core.result import Err
 from ms.platform.detection import Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.platformio import PlatformioTool
 from ms.tools.http import MockHttpClient
 
@@ -18,7 +17,6 @@ class TestPlatformioTool:
 
         assert tool.spec.id == "platformio"
         assert tool.spec.name == "PlatformIO"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
 
     def test_install_dir_name(self) -> None:
         """PlatformioTool returns 'platformio' for install_dir_name."""

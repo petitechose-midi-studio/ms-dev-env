@@ -105,6 +105,7 @@ def run_guided_app_release(
             watch: bool,
             dry_run: bool,
             remote_coherence_checked: bool = False,
+            request_id: str | None = None,
         ) -> Result[AppPublishResult, ReleaseError]:
             return publish_app_release(
                 workspace_root=workspace_root,
@@ -117,6 +118,7 @@ def run_guided_app_release(
                 watch=watch,
                 dry_run=dry_run,
                 remote_coherence_checked=remote_coherence_checked,
+                request_id=request_id,
             )
 
     return run_guided_app_release_flow(

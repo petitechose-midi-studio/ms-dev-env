@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from ms.core.hashing import sha256_file
-from ms.core.result import Err
+from ms.core.result import Err, Ok, Result
 from ms.output.console import Style
 from ms.platform.process import run as run_process
 from ms.platform.process import run_silent
@@ -13,7 +13,7 @@ from ms.tools.download import Downloader
 from ms.tools.http import RealHttpClient
 from ms.tools.installer import Installer
 from ms.tools.pins import ToolPins
-from ms.tools.state import get_installed_version, set_installed_version
+from ms.tools.state import StateError, get_installed_version, set_installed_version
 from ms.tools.wrapper import (
     WrapperGenerator,
     WrapperSpec,
@@ -38,9 +38,13 @@ class ToolchainHelpersMixin(ToolchainContextBase):
         timeout = _NETWORK_TOOL_TIMEOUT_SECONDS if network else _LOCAL_TOOL_TIMEOUT_SECONDS
         return run_silent(cmd, cwd=cwd, timeout=timeout)
 
-    def _is_installed_at_version(self, tool_id: str, version: str) -> bool:
+    def _is_installed_at_version(
+        self, tool_id: str, version: str
+    ) -> Result[bool, StateError]:
         current = get_installed_version(self._paths.tools_dir, tool_id)
-        return current == version
+        if isinstance(current, Err):
+            return current
+        return Ok(current.value == version)
 
     def _generate_wrappers(self, wrapper_gen: WrapperGenerator, *, dry_run: bool) -> None:
         if dry_run:
@@ -144,7 +148,10 @@ class ToolchainHelpersMixin(ToolchainContextBase):
                 self._console.print(stderr, Style.DIM)
             return False
 
-        set_installed_version(self._paths.tools_dir, "platformio", version)
+        saved = set_installed_version(self._paths.tools_dir, "platformio", version)
+        if isinstance(saved, Err):
+            self._console.print(f"platformio: {saved.error.message}", Style.ERROR)
+            return False
         return True
 
     def _install_jdk(
@@ -205,7 +212,10 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             return False
 
         tool.post_install(install_dir, self._platform.platform)
-        set_installed_version(self._paths.tools_dir, tool.spec.id, resolved_version)
+        saved = set_installed_version(self._paths.tools_dir, tool.spec.id, resolved_version)
+        if isinstance(saved, Err):
+            self._console.print(f"{tool.spec.id}: {saved.error.message}", Style.ERROR)
+            return False
         return True
 
     def _platformio_python(self, venv_dir: Path) -> Path:

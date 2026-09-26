@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
   workflow_dispatch:
     inputs:
       build_wasm:
@@ -78,9 +80,11 @@ jobs:
         run: uv run ms release verify-bom
 
       - name: Validate latest beta manifest with MS Manager
+        if: ${{ github.event_name != 'pull_request' }}
         uses: ./.github/actions/validate-distribution-manager-contract
         with:
           token: ${{ github.token }}
+          manager-ref: main
 
       - name: Validate release BOM targets (main/manual only)
         if: ${{ github.event_name != 'pull_request' }}

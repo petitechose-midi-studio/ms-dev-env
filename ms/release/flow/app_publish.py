@@ -28,6 +28,7 @@ def publish_app_release(
     watch: bool,
     dry_run: bool,
     remote_coherence_checked: bool = False,
+    request_id: str | None = None,
 ) -> Result[AppPublishResult, ReleaseError]:
     if notes_markdown is not None:
         source_label = notes_source_path or "(unknown source)"
@@ -84,6 +85,7 @@ def publish_app_release(
         notes_source_path=notes_source_path,
         console=console,
         dry_run=dry_run,
+        request_id=request_id,
     )
     if isinstance(release, Err):
         return release

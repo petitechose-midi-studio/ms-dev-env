@@ -7,7 +7,6 @@ import pytest
 
 from ms.core.result import Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.ninja import NinjaTool
 from ms.tools.http import MockHttpClient
 
@@ -21,7 +20,6 @@ class TestNinjaTool:
 
         assert tool.spec.id == "ninja"
         assert tool.spec.name == "Ninja"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
         assert tool.spec.version_args == ("--version",)
 
     def test_repo(self) -> None:

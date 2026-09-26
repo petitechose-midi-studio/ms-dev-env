@@ -8,6 +8,7 @@ import typer
 
 from ms.cli.context import CLIContext
 from ms.cli.selector import SelectorOption, SelectorRunResult
+from ms.core.config import Config
 from ms.core.errors import ErrorCode
 from ms.core.result import Ok
 from ms.core.workspace import Workspace
@@ -26,7 +27,7 @@ def _ctx(tmp_path: Path) -> CLIContext:
     return CLIContext(
         workspace=Workspace(root=tmp_path),
         platform=detect(),
-        config=None,
+        config=Config(),
         console=MockConsole(),
     )
 

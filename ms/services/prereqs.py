@@ -32,7 +32,7 @@ class PrereqsService:
     ) -> None:
         self._workspace = workspace
         self._platform = platform
-        self._config = config
+        self._config: Config = config if config is not None else Config()
         self._console = console
         self._confirm = confirm
 
@@ -126,7 +126,7 @@ class PrereqsService:
         from ms.services.checkers import SystemChecker, ToolsChecker, load_hints
 
         hints = load_hints()
-        tools_dir = self._workspace.root / (self._config.paths.tools if self._config else "tools")
+        tools_dir = self._workspace.root / self._config.paths.tools
 
         system_checker = SystemChecker(
             platform=self._platform.platform,

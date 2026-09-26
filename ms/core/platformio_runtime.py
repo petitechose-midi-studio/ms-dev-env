@@ -33,6 +33,7 @@ def resolve_platformio_runtime(
     start: Path,
     *,
     current_python: Path | None = None,
+    tools_dir: Path | None = None,
 ) -> Result[PlatformioRuntime, PlatformioRuntimeError]:
     workspace_root = find_workspace_upward(start.resolve())
     env = dict(os.environ)
@@ -51,7 +52,8 @@ def resolve_platformio_runtime(
     workspace = Workspace(root=workspace_root)
     env.update(workspace.platformio_env_vars())
 
-    python = _workspace_platformio_python(workspace_root)
+    effective_tools = tools_dir if tools_dir is not None else workspace_root / "tools"
+    python = _workspace_platformio_python(effective_tools)
     if not python.exists():
         return Err(
             PlatformioRuntimeError(
@@ -70,8 +72,8 @@ def resolve_platformio_runtime(
     )
 
 
-def _workspace_platformio_python(workspace_root: Path) -> Path:
-    venv_dir = workspace_root / "tools" / "platformio" / "venv"
+def _workspace_platformio_python(tools_dir: Path) -> Path:
+    venv_dir = tools_dir / "platformio" / "venv"
     if os.name == "nt":
         return venv_dir / "Scripts" / "python.exe"
     return venv_dir / "bin" / "python"

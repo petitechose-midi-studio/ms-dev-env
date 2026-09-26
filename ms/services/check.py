@@ -40,7 +40,7 @@ class CheckService:
     ) -> None:
         self._workspace = workspace
         self._platform = platform
-        self._config = config
+        self._config: Config = config if config is not None else Config()
 
     def run(self) -> CheckReport:
         hints = load_hints()
@@ -83,11 +83,7 @@ class CheckService:
         )
 
     def _resolve_tools_dir(self) -> Path:
-        if self._config is not None:
-            return self._workspace.root / self._config.paths.tools
-        return self._workspace.root / "tools"
+        return self._workspace.root / self._config.paths.tools
 
     def resolve_bitwig_paths(self) -> dict[str, str]:
-        if self._config is None:
-            return {}
         return self._config.bitwig.as_dict()

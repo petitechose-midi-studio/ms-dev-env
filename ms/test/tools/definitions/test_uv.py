@@ -3,7 +3,6 @@ from unittest.mock import patch
 
 from ms.core.result import Err
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.uv import UvTool
 from ms.tools.http import MockHttpClient
 
@@ -13,7 +12,6 @@ class TestUvTool:
         tool = UvTool()
         assert tool.spec.id == "uv"
         assert tool.spec.name == "UV"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
 
     def test_is_system_tool(self) -> None:
         tool = UvTool()

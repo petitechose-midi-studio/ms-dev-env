@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class ToolchainContextBase:
     _workspace: Workspace
     _platform: PlatformInfo
-    _config: Config | None
+    _config: Config
     _console: ConsoleProtocol
     _registry: ToolRegistry
     _paths: ToolchainPaths

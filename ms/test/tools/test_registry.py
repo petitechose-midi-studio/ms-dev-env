@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from ms.platform.detection import Platform
-from ms.tools.base import Mode
 from ms.tools.registry import ToolRegistry
 
 
@@ -52,29 +51,14 @@ class TestToolRegistryGetTool:
         assert tool is None
 
 
-class TestToolRegistryToolsForMode:
-    """Tests for ToolRegistry.tools_for_mode()."""
+class TestToolRegistryTools:
+    """Tests for ToolRegistry.tools()."""
 
-    def test_dev_mode_with_enum(self, registry: ToolRegistry) -> None:
-        """tools_for_mode works with Mode enum."""
-        tools = registry.tools_for_mode(Mode.DEV)
-
-        assert len(tools) > 0
-        for tool in tools:
-            assert tool.spec.is_required_for(Mode.DEV)
-
-    def test_dev_mode_with_string(self, registry: ToolRegistry) -> None:
-        """tools_for_mode works with string."""
-        tools = registry.tools_for_mode("dev")
+    def test_lists_all_tools(self, registry: ToolRegistry) -> None:
+        tools = registry.tools()
 
         assert len(tools) > 0
-
-    def test_enduser_mode(self, registry: ToolRegistry) -> None:
-        """tools_for_mode returns enduser tools."""
-        tools = registry.tools_for_mode(Mode.ENDUSER)
-
-        for tool in tools:
-            assert tool.spec.is_required_for(Mode.ENDUSER)
+        assert any(tool.spec.id == "ninja" for tool in tools)
 
 
 class TestToolRegistryIsInstalled:

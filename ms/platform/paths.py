@@ -47,7 +47,7 @@ def home() -> Path:
 def user_config_dir() -> Path:
     """Get the user-level configuration directory.
 
-    This is for global user preferences (e.g., mode=dev/enduser).
+    This is for global user preferences.
     Location: ~/.config/ms/ (Linux/macOS) or ~/AppData/Roaming/ms/ (Windows)
 
     Note: Workspace-specific config is in workspace/config.toml.

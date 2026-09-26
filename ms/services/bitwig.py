@@ -159,17 +159,12 @@ class BitwigService(BaseService):
         return Ok(deployed)
 
     def _host_dir(self) -> Path:
-        rel = (
-            self._config.paths.extension
-            if self._config is not None
-            else "midi-studio/plugin-bitwig/host"
-        )
-        return self._workspace.root / rel
+        return self._workspace.root / self._config.paths.extension
 
     def _resolve_extensions_dir(self) -> Path | None:
         platform = self._platform.platform
         platform_key = str(platform)
-        configured = self._config.bitwig.as_dict().get(platform_key) if self._config else None
+        configured = self._config.bitwig.as_dict().get(platform_key)
 
         if configured:
             p = _expand_user_vars(configured)

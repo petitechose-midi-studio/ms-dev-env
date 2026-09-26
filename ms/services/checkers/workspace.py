@@ -16,11 +16,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ms.core.config import Config
 from ms.services.checkers.base import CheckResult
 from ms.tools.definitions.emscripten import EmscriptenTool
 
 if TYPE_CHECKING:
-    from ms.core.config import Config
     from ms.core.workspace import Workspace
     from ms.platform.detection import Platform
 
@@ -37,13 +37,13 @@ class WorkspaceChecker:
     Attributes:
         workspace: The workspace to check
         platform: Current platform for platform-specific checks
-        config: Optional loaded config (if config.toml exists and is valid)
+        config: Loaded config (defaults when config.toml is absent)
         bitwig_paths: Platform-specific Bitwig paths from raw config
     """
 
     workspace: Workspace
     platform: Platform
-    config: Config | None = None
+    config: Config = field(default_factory=Config)
     bitwig_paths: dict[str, str] = field(default_factory=_empty_bitwig_paths)
 
     def check_all(self) -> list[CheckResult]:
@@ -89,9 +89,7 @@ class WorkspaceChecker:
                 "missing (using defaults)",
                 hint="Copy config.example.toml to config.toml",
             )
-        if self.config is not None:
-            return CheckResult.success("config.toml", "ok")
-        return CheckResult.warning("config.toml", "exists but not validated")
+        return CheckResult.success("config.toml", "ok")
 
     def check_emsdk(self) -> CheckResult:
         """Check that emsdk is installed and activated."""
@@ -146,22 +144,16 @@ class WorkspaceChecker:
         return CheckResult.warning("bitwig extensions", "not configured")
 
     def _get_tools_dir(self) -> Path:
-        """Get tools directory from config or default."""
-        if self.config is not None:
-            return self.workspace.root / self.config.paths.tools
-        return self.workspace.root / "tools"
+        """Get tools directory from config."""
+        return self.workspace.root / self.config.paths.tools
 
     def _get_bridge_dir(self) -> Path:
-        """Get bridge directory from config or default."""
-        if self.config is not None:
-            return self.workspace.root / self.config.paths.bridge
-        return self.workspace.root / "open-control" / "bridge"
+        """Get bridge directory from config."""
+        return self.workspace.root / self.config.paths.bridge
 
     def _get_extension_dir(self) -> Path:
-        """Get extension directory from config or default."""
-        if self.config is not None:
-            return self.workspace.root / self.config.paths.extension
-        return self.workspace.root / "midi-studio" / "plugin-bitwig" / "host"
+        """Get extension directory from config."""
+        return self.workspace.root / self.config.paths.extension
 
     def _get_bitwig_extensions_candidates(self) -> list[Path]:
         """Get candidate paths for Bitwig Extensions directory."""

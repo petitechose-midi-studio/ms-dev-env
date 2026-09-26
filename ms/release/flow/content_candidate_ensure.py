@@ -8,6 +8,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import ReleasePlan
 from ms.release.errors import ReleaseError
+from ms.release.flow.candidate_metadata import candidate_metadata_complete
 from ms.release.flow.candidate_types import CandidateVerifyRequest
 from ms.release.flow.candidate_verify import inspect_candidate_metadata
 from ms.release.infra.github.releases import download_release_assets, release_exists_by_tag
@@ -176,7 +177,7 @@ def _probe_content_candidate(
                     return Ok(ContentCandidateState.INCOMPLETE)
                 return Ok(ContentCandidateState.MISSING)
             return downloaded
-        if not _candidate_metadata_complete(metadata_dir):
+        if not candidate_metadata_complete(metadata_dir):
             return Ok(ContentCandidateState.INCOMPLETE)
 
         inspected = inspect_candidate_metadata(
@@ -220,12 +221,3 @@ def _wait_for_content_candidate_ready(
             return state
 
     return state
-
-
-def _candidate_metadata_complete(metadata_dir: Path) -> bool:
-    required = (
-        metadata_dir / "candidate.json",
-        metadata_dir / "checksums.txt",
-        metadata_dir / "candidate.json.sig",
-    )
-    return all(path.is_file() for path in required)

@@ -143,6 +143,7 @@ class ContentGuidedDependencies(Protocol):
         watch: bool,
         dry_run: bool,
         remote_coherence_checked: bool = False,
+        request_id: str | None = None,
     ) -> Result[str, ReleaseError]: ...
 
     def print_notes_status(

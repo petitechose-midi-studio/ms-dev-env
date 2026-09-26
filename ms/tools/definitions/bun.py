@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from ms.core.result import Result
 from ms.tools.api import github_latest_release
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -33,7 +33,6 @@ class BunTool(Tool):
     spec = ToolSpec(
         id="bun",
         name="Bun",
-        required_for=frozenset({Mode.DEV}),
     )
     repo = "oven-sh/bun"
 

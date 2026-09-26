@@ -5,7 +5,7 @@ It is used as a reference by planned feature specs so mappings stay consistent.
 
 Important invariants for input/overlay ownership are documented in:
 
-- `midi-studio/core/docs/INVARIANTS.md`
+- `midi-studio/core/docs/CORE_ARCHITECTURE.md` et `midi-studio/core/docs/INPUT_BINDINGS.md`
 
 ## Conventions (intent)
 

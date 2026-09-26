@@ -10,7 +10,22 @@ from ms.core.result import Err, Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo, detect
-from ms.services.unit_tests import UnitTestDependencyError, UnitTestService
+from ms.services.unit_tests import UnitTestDependencyError, UnitTestRunner, UnitTestService
+
+
+def test_target_catalog_is_stable(tmp_path: Path) -> None:
+    service = UnitTestService(
+        workspace=Workspace(root=tmp_path),
+        platform=detect(),
+        config=None,
+        console=MockConsole(),
+    )
+    targets = service._target_map()  # pyright: ignore[reportPrivateUsage]
+
+    assert {"ms-dev-env", "open-control-framework", "core", "plugin-bitwig"} <= set(targets)
+    assert targets["ms-dev-env"].runner is UnitTestRunner.PYTEST
+    assert targets["core"].runner is UnitTestRunner.CMAKE
+    assert targets["ms-dev-env"].env_vars == (("MS_ARCH_CHECKS", "1"),)
 
 
 def test_windows_compiler_paths_are_safe_for_cmake_cache(
@@ -164,7 +179,6 @@ def test_ms_dev_env_target_enables_strict_architecture_checks(
 
     assert not isinstance(result, Err)
     assert captured_env["MS_ARCH_CHECKS"] == "1"
-    assert captured_env["MS_ARCH_STRICT"] == "1"
 
 
 def test_ctest_path_filter_removes_workspace_venv(tmp_path: Path) -> None:

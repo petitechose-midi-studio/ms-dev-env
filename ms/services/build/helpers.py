@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from ms.services.build_errors import (
     ToolMissing,
 )
 from ms.services.checkers.common import get_platform_key, load_hints
+from ms.services.toolchain_env import base_env
 
 from ._context import BuildContextBase
 from .models import AppConfig, extract_cmake_var
@@ -48,13 +48,12 @@ class BuildHelpersMixin(BuildContextBase):
         return [f"-D{variable}={root}" for variable, root in roots]
 
     def _base_env(self) -> dict[str, str]:
-        env = os.environ.copy()
-        env.update(self._registry.get_env_vars())
-        env.update(self._workspace.platformio_env_vars())
-        return env
+        return base_env(registry=self._registry, workspace=self._workspace)
 
     def _platformio_cmd(self) -> list[str] | None:
-        runtime = resolve_platformio_runtime(self._workspace.root)
+        runtime = resolve_platformio_runtime(
+            self._workspace.root, tools_dir=self._registry.tools_dir
+        )
         if isinstance(runtime, Err):
             self._console.error("platformio: missing")
             if runtime.error.hint:
@@ -129,14 +128,9 @@ class BuildHelpersMixin(BuildContextBase):
         return Ok(None)
 
     def _get_tool_path(self, tool_id: str) -> Result[Path, BuildError]:
-        path = self._registry.get_bin_path(tool_id)
-        if path is not None and path.exists():
+        path = self._registry.resolve_executable(tool_id)
+        if path is not None:
             return Ok(path)
-
-        found = shutil.which(tool_id)
-        if found:
-            return Ok(Path(found))
-
         return Err(ToolMissing(tool_id=tool_id))
 
     def _check_windows_native_prereqs(

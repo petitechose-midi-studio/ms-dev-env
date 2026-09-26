@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -9,10 +8,9 @@ from ms.core.result import Err, Ok, Result
 from ms.git.repository import Repository
 from ms.release.domain.config import MS_DEFAULT_BRANCH
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.client import get_ref_head_sha
+from ms.release.infra.github.ref_resolver import RefResolver, github_ref_resolver
 
 DependencyPinSource = Literal["workspace", "github"]
-RefResolver = Callable[[str, str], Result[str, ReleaseError]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +102,7 @@ def _github_shas(
     workspace_root: Path,
     ref_resolver: RefResolver | None,
 ) -> Result[dict[str, str], ReleaseError]:
-    resolver = ref_resolver or _github_ref_resolver(workspace_root=workspace_root)
+    resolver = ref_resolver or github_ref_resolver(workspace_root=workspace_root)
     shas: dict[str, str] = {}
     for repo in PRODUCT_CI_ENV_REPOS:
         resolved = resolver(repo.repo_slug, MS_DEFAULT_BRANCH)
@@ -112,10 +110,3 @@ def _github_shas(
             return resolved
         shas[repo.repo_path] = resolved.value
     return Ok(shas)
-
-
-def _github_ref_resolver(*, workspace_root: Path) -> RefResolver:
-    def resolve(repo: str, ref: str) -> Result[str, ReleaseError]:
-        return get_ref_head_sha(workspace_root=workspace_root, repo=repo, ref=ref)
-
-    return resolve

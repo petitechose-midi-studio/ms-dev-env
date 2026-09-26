@@ -83,6 +83,8 @@ def compare_bom_state(
             blockers.append(f"workspace repo missing: open-control/{repo}")
         elif workspace_sha is None:
             blockers.append(f"workspace repo head unavailable: open-control/{repo}")
+        elif dirty is None:
+            blockers.append(f"workspace repo state unknown: open-control/{repo}")
         elif dirty and not allow_dirty_workspace:
             blockers.append(f"workspace repo dirty: open-control/{repo}")
 
@@ -141,6 +143,16 @@ def plan_bom_promotion(
                     kind="invalid_input",
                     message=f"workspace repo unavailable for BOM promotion: open-control/{repo}",
                     hint="Run: uv run ms sync --repos",
+                )
+            )
+        if workspace_state.dirty is None:
+            return Err(
+                ReleaseError(
+                    kind="invalid_input",
+                    message=(
+                        f"workspace repo state unknown for BOM promotion: open-control/{repo}"
+                    ),
+                    hint="Run git status in the workspace repo, then retry.",
                 )
             )
         if workspace_state.dirty and not allow_dirty_workspace:

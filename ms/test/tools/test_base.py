@@ -1,4 +1,4 @@
-"""Tests for tools/base.py - Mode, ToolSpec, and Tool ABC."""
+"""Tests for tools/base.py - ToolSpec and Tool ABC."""
 
 from dataclasses import FrozenInstanceError
 from pathlib import Path
@@ -7,35 +7,8 @@ import pytest
 
 from ms.core.result import Ok, Result
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpClient, HttpError, MockHttpClient
-
-# =============================================================================
-# Mode enum tests
-# =============================================================================
-
-
-class TestMode:
-    """Tests for Mode enum."""
-
-    def test_mode_values(self) -> None:
-        """Mode has DEV and ENDUSER values."""
-        assert Mode.DEV is not None
-        assert Mode.ENDUSER is not None
-        assert Mode.DEV != Mode.ENDUSER
-
-    def test_mode_str(self) -> None:
-        """Mode string representation is lowercase."""
-        assert str(Mode.DEV) == "dev"
-        assert str(Mode.ENDUSER) == "enduser"
-
-    def test_mode_iteration(self) -> None:
-        """Can iterate over all modes."""
-        modes = list(Mode)
-        assert len(modes) == 2
-        assert Mode.DEV in modes
-        assert Mode.ENDUSER in modes
-
 
 # =============================================================================
 # ToolSpec tests
@@ -50,11 +23,9 @@ class TestToolSpec:
         spec = ToolSpec(
             id="ninja",
             name="Ninja",
-            required_for=frozenset({Mode.DEV}),
         )
         assert spec.id == "ninja"
         assert spec.name == "Ninja"
-        assert spec.required_for == frozenset({Mode.DEV})
         assert spec.version_args == ("--version",)
 
     def test_create_with_version_args(self) -> None:
@@ -62,7 +33,6 @@ class TestToolSpec:
         spec = ToolSpec(
             id="java",
             name="Java",
-            required_for=frozenset({Mode.DEV}),
             version_args=("-version",),
         )
         assert spec.version_args == ("-version",)
@@ -72,16 +42,15 @@ class TestToolSpec:
         spec = ToolSpec(
             id="ninja",
             name="Ninja",
-            required_for=frozenset({Mode.DEV}),
         )
         with pytest.raises(FrozenInstanceError):
             spec.id = "other"  # type: ignore[misc]
 
     def test_is_hashable(self) -> None:
         """ToolSpec can be used in sets and as dict keys."""
-        spec1 = ToolSpec(id="ninja", name="Ninja", required_for=frozenset({Mode.DEV}))
-        spec2 = ToolSpec(id="ninja", name="Ninja", required_for=frozenset({Mode.DEV}))
-        spec3 = ToolSpec(id="cmake", name="CMake", required_for=frozenset({Mode.DEV}))
+        spec1 = ToolSpec(id="ninja", name="Ninja")
+        spec2 = ToolSpec(id="ninja", name="Ninja")
+        spec3 = ToolSpec(id="cmake", name="CMake")
 
         # Same specs are equal and hash the same
         assert spec1 == spec2
@@ -94,55 +63,35 @@ class TestToolSpec:
         specs = {spec1, spec2, spec3}
         assert len(specs) == 2
 
-    def test_is_required_for_dev(self) -> None:
-        """is_required_for returns True for included mode."""
-        spec = ToolSpec(
-            id="ninja",
-            name="Ninja",
-            required_for=frozenset({Mode.DEV}),
-        )
-        assert spec.is_required_for(Mode.DEV) is True
-        assert spec.is_required_for(Mode.ENDUSER) is False
-
-    def test_is_required_for_both(self) -> None:
-        """Tool can be required for multiple modes."""
-        spec = ToolSpec(
-            id="bridge",
-            name="Bridge",
-            required_for=frozenset({Mode.DEV, Mode.ENDUSER}),
-        )
-        assert spec.is_required_for(Mode.DEV) is True
-        assert spec.is_required_for(Mode.ENDUSER) is True
-
     def test_validation_empty_id(self) -> None:
         """Reject empty id."""
         with pytest.raises(ValueError, match="id cannot be empty"):
-            ToolSpec(id="", name="Ninja", required_for=frozenset({Mode.DEV}))
+            ToolSpec(id="", name="Ninja")
 
     def test_validation_empty_name(self) -> None:
         """Reject empty name."""
         with pytest.raises(ValueError, match="name cannot be empty"):
-            ToolSpec(id="ninja", name="", required_for=frozenset({Mode.DEV}))
+            ToolSpec(id="ninja", name="")
 
     def test_validation_uppercase_id(self) -> None:
         """Reject uppercase in id."""
         with pytest.raises(ValueError, match="lowercase identifier"):
-            ToolSpec(id="Ninja", name="Ninja", required_for=frozenset({Mode.DEV}))
+            ToolSpec(id="Ninja", name="Ninja")
 
     def test_validation_invalid_id_chars(self) -> None:
         """Reject invalid characters in id."""
         with pytest.raises(ValueError, match="lowercase identifier"):
-            ToolSpec(id="my-tool", name="My Tool", required_for=frozenset({Mode.DEV}))
+            ToolSpec(id="my-tool", name="My Tool")
 
     def test_validation_id_with_numbers(self) -> None:
         """Allow numbers in id (but not at start)."""
-        spec = ToolSpec(id="sdl2", name="SDL2", required_for=frozenset({Mode.DEV}))
+        spec = ToolSpec(id="sdl2", name="SDL2")
         assert spec.id == "sdl2"
 
     def test_validation_id_starting_with_number(self) -> None:
         """Reject id starting with number."""
         with pytest.raises(ValueError, match="lowercase identifier"):
-            ToolSpec(id="2sdl", name="SDL2", required_for=frozenset({Mode.DEV}))
+            ToolSpec(id="2sdl", name="SDL2")
 
 
 # =============================================================================
@@ -153,7 +102,7 @@ class TestToolSpec:
 class ConcreteTool(Tool):
     """Concrete implementation of Tool ABC for testing."""
 
-    spec = ToolSpec(id="testtool", name="Test Tool", required_for=frozenset({Mode.DEV}))
+    spec = ToolSpec(id="testtool", name="Test Tool")
 
     def latest_version(self, http: HttpClient) -> Result[str, HttpError]:
         return Ok("1.0.0")

@@ -113,6 +113,7 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         watch: bool,
         dry_run: bool,
         remote_coherence_checked: bool = False,
+        request_id: str | None = None,
     ) -> Result[AppPublishResult, ReleaseError]: ...
 
     def print_notes_status(

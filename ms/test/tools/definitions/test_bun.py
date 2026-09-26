@@ -7,7 +7,6 @@ import pytest
 
 from ms.core.result import Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.bun import BunTool
 from ms.tools.http import MockHttpClient
 
@@ -21,7 +20,6 @@ class TestBunTool:
 
         assert tool.spec.id == "bun"
         assert tool.spec.name == "Bun"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
 
     def test_repo(self) -> None:
         """BunTool uses correct GitHub repo."""

@@ -21,10 +21,10 @@ class ToolchainService(ToolchainSyncMixin):
     ) -> None:
         self._workspace = workspace
         self._platform = platform
-        self._config = config
+        self._config: Config = config if config is not None else Config()
         self._console = console
 
-        self._paths = ToolchainPaths.from_workspace(workspace, config)
+        self._paths = ToolchainPaths.from_workspace(workspace, self._config)
         self._registry = ToolRegistry(
             tools_dir=self._paths.tools_dir,
             platform=platform.platform,

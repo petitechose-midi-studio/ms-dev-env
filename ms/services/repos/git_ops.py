@@ -17,7 +17,8 @@ class RepoGitOpsMixin(RepoContextBase):
         timeout = _GIT_NETWORK_TIMEOUT_SECONDS if network else _GIT_TIMEOUT_SECONDS
         return run_process(cmd, cwd=cwd, timeout=timeout)
 
-    def _is_dirty(self, repo_dir: Path) -> bool:
+    def _is_dirty(self, repo_dir: Path) -> bool | None:
+        """Return True/False when git answered, None when inspection failed."""
         result = self._run_git(
             ["git", "-C", str(repo_dir), "status", "--porcelain"],
             cwd=repo_dir,
@@ -26,9 +27,9 @@ class RepoGitOpsMixin(RepoContextBase):
             case Ok(stdout):
                 return bool(stdout.strip())
             case Err(_):
-                return False
+                return None
             case _:
-                return False
+                return None
 
     def _current_branch(self, repo_dir: Path) -> str | None:
         result = self._run_git(

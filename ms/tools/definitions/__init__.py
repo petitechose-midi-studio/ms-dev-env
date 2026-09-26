@@ -51,7 +51,6 @@ __all__ = [
     # Registry
     "ALL_TOOLS",
     "get_tool",
-    "get_tools_by_mode",
 ]
 
 
@@ -89,23 +88,3 @@ def get_tool(tool_id: str) -> Tool | None:
         ...     print(ninja.spec.name)  # "Ninja"
     """
     return _TOOLS_BY_ID.get(tool_id)
-
-
-def get_tools_by_mode(mode: str) -> list[Tool]:
-    """Get all tools required for a specific mode.
-
-    Args:
-        mode: Mode name ("dev" or "enduser")
-
-    Returns:
-        List of tools required for that mode
-
-    Example:
-        >>> dev_tools = get_tools_by_mode("dev")
-        >>> for tool in dev_tools:
-        ...     print(tool.spec.id)
-    """
-    from ms.tools.base import Mode
-
-    mode_enum = Mode.DEV if mode.lower() == "dev" else Mode.ENDUSER
-    return [tool for tool in ALL_TOOLS if tool.spec.is_required_for(mode_enum)]
