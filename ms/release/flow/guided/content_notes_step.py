@@ -3,7 +3,7 @@ from __future__ import annotations
 from ms.core.result import Result
 from ms.release.errors import ReleaseError
 
-from .content_contracts import ContentGuidedDependencies
+from .contracts import MenuDependencies
 from .menu_option import MenuOption
 from .notes_transition import apply_notes_selection
 from .sessions import ContentReleaseSession
@@ -11,7 +11,7 @@ from .sessions import ContentReleaseSession
 
 def run_content_notes_step(
     *,
-    deps: ContentGuidedDependencies,
+    deps: MenuDependencies,
     session: ContentReleaseSession,
 ) -> Result[ContentReleaseSession, ReleaseError]:
     options: list[MenuOption[str]] = [

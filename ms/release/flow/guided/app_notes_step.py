@@ -3,15 +3,15 @@ from __future__ import annotations
 from ms.core.result import Result
 from ms.release.errors import ReleaseError
 
-from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
+from .contracts import MenuDependencies
 from .menu_option import MenuOption
 from .notes_transition import apply_notes_selection
 from .sessions import AppReleaseSession
 
 
-def run_app_notes_step[PrepareT: AppPrepareResultLike](
+def run_app_notes_step(
     *,
-    deps: AppGuidedDependencies[PrepareT],
+    deps: MenuDependencies,
     session: AppReleaseSession,
 ) -> Result[AppReleaseSession, ReleaseError]:
     choice = deps.select_menu(

@@ -10,13 +10,17 @@ from ms.release.errors import ReleaseError
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import (
+    ContentBomInspectionDependencies,
+    ContentPreparationDependencies,
+    ContentPublicationDependencies,
+)
 from .sessions import ContentReleaseSession
 
 
 def ensure_open_control_clean(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentBomInspectionDependencies,
     workspace_root: Path,
     pinned: tuple[PinnedRepo, ...],
 ) -> Result[None, ReleaseError]:
@@ -55,7 +59,7 @@ def validate_content_confirm_inputs(
 
 def prepare_content_release(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentPreparationDependencies,
     workspace_root: Path,
     console: ConsoleProtocol,
     dry_run: bool,
@@ -108,7 +112,7 @@ def prepare_content_release(
 
 def publish_prepared_content_release(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentPublicationDependencies,
     workspace_root: Path,
     console: ConsoleProtocol,
     watch: bool,

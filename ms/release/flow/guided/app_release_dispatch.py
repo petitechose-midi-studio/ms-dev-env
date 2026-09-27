@@ -10,7 +10,11 @@ from ms.release.errors import ReleaseError
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
 from ms.release.infra.github.workflows import BeforeDispatch
 
-from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
+from .app_contracts import (
+    AppPreparationDependencies,
+    AppPrepareResultLike,
+    AppPublicationDependencies,
+)
 from .sessions import AppReleaseSession
 
 
@@ -34,7 +38,7 @@ def validate_app_confirm_inputs(
 
 def prepare_app_release[PrepareT: AppPrepareResultLike](
     *,
-    deps: AppGuidedDependencies[PrepareT],
+    deps: AppPreparationDependencies[PrepareT],
     workspace_root: Path,
     console: ConsoleProtocol,
     dry_run: bool,
@@ -80,15 +84,15 @@ def prepare_app_release[PrepareT: AppPrepareResultLike](
     return Ok(prepared.value)
 
 
-def publish_prepared_app_release[PrepareT: AppPrepareResultLike](
+def publish_prepared_app_release(
     *,
-    deps: AppGuidedDependencies[PrepareT],
+    deps: AppPublicationDependencies,
     workspace_root: Path,
     console: ConsoleProtocol,
     watch: bool,
     dry_run: bool,
     session: AppReleaseSession,
-    prepared: PrepareT,
+    prepared: AppPrepareResultLike,
     tag: str,
     tooling_sha: str,
     request_id: str | None = None,

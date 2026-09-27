@@ -5,7 +5,7 @@ from pathlib import Path
 from ms.cli.release_guided_app import run_guided_app_release
 from ms.cli.release_guided_content import run_guided_content_release
 from ms.cli.release_guided_dependencies import run_guided_dependencies_release
-from ms.cli.release_guided_selectors import GuidedCliDependencies
+from ms.cli.release_guided_selectors import GuidedCliTerminal
 from ms.cli.selector import is_interactive_terminal
 from ms.core.result import Result
 from ms.output.console import ConsoleProtocol
@@ -21,7 +21,7 @@ def run_guided_release(
     watch: bool,
     dry_run: bool,
 ) -> Result[None, ReleaseError]:
-    class _Deps(GuidedCliDependencies):
+    class _Deps(GuidedCliTerminal):
         def is_interactive_terminal(self) -> bool:
             return is_interactive_terminal()
 

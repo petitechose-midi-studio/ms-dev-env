@@ -9,7 +9,7 @@ from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.content_candidates import ContentCandidateAssessment
 
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import ContentCandidatesDependencies
 from .content_plan_state import resolve_content_release_plan
 from .fsm import StepOutcome, advance
 from .menu_option import MenuOption
@@ -18,7 +18,7 @@ from .sessions import ContentReleaseSession
 
 def run_content_candidates_step(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentCandidatesDependencies,
     workspace_root: Path,
     console: ConsoleProtocol,
     dry_run: bool,

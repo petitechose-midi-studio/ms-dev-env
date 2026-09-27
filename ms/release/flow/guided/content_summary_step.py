@@ -8,7 +8,7 @@ from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 
 from .content_bom_step import assess_content_bom
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import ContentSummaryDependencies
 from .content_repo_pins import sha_map
 from .fsm import StepOutcome, advance
 from .menu_option import MenuOption
@@ -17,7 +17,7 @@ from .sessions import ContentReleaseSession
 
 def step_content_summary(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentSummaryDependencies,
     workspace_root: Path,
     session: ContentReleaseSession,
     release_repos: tuple[ReleaseRepo, ...],
@@ -171,8 +171,9 @@ def step_content_summary(
                     replace(
                         session,
                         step="tag",
-                        idx_summary=choice.index,
-                        return_to_summary=True,
+                        cursor=replace(
+                            session.cursor, summary=choice.index, return_to_summary=True
+                        ),
                     )
                 )
             )

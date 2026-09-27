@@ -10,7 +10,7 @@ from ms.release.domain.models import ReleaseRepo
 from ms.release.domain.open_control_models import OpenControlPreflightReport
 from ms.release.errors import ReleaseError
 
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import ContentBomDependencies, ContentBomInspectionDependencies
 from .content_repo_pins import set_sha, sha_map
 from .menu_option import MenuOption
 from .sessions import ContentReleaseSession
@@ -35,7 +35,7 @@ class ContentBomStepChoice:
 
 def assess_content_bom(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentBomInspectionDependencies,
     workspace_root: Path,
     session: ContentReleaseSession,
     release_repos: tuple[ReleaseRepo, ...],
@@ -127,7 +127,7 @@ def assess_content_bom(
 
 def run_content_bom_step(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentBomDependencies,
     workspace_root: Path,
     console: ConsoleProtocol,
     dry_run: bool,

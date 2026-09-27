@@ -13,7 +13,7 @@ from ms.release.flow.remote_coherence import assert_release_remote_coherence
 from ms.release.infra.github.workflows import dispatch_publish_request_id
 
 from .content_bom_step import assess_content_bom
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import ContentConfirmationDependencies
 from .content_plan_state import resolve_content_release_plan
 from .content_release_dispatch import (
     ensure_open_control_clean,
@@ -28,7 +28,7 @@ from .sessions import ContentReleaseSession
 
 def run_content_confirm_step(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentConfirmationDependencies,
     workspace_root: Path,
     console: ConsoleProtocol,
     watch: bool,
@@ -188,7 +188,7 @@ def _resume_content_pending(
     *,
     session: ContentReleaseSession,
     workspace_root: Path,
-    deps: ContentGuidedDependencies,
+    deps: ContentConfirmationDependencies,
 ) -> Result[StepOutcome[ContentReleaseSession], ReleaseError]:
     reconciled = reconcile_pending_op(
         workspace_root=workspace_root,

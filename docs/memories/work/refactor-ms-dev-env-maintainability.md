@@ -1,7 +1,7 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : ready — **Base** : `75ec6eb` (main, 2026-09-26)
-**Created** : 2026-09-26 — **Updated** : 2026-09-26
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 qualifié localement ; E4.3–E4.4 restants — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Created** : 2026-09-26 — **Updated** : 2026-09-27
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
 
@@ -120,6 +120,17 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### E4.2 — Dépendances des étapes et réduction `_Deps` (2026-09-27)
+
+- Branche `codex/guided-step-dependencies`, base locale `5aeb44f`. La publication distante de la pile Python antérieure reste à traiter séparément ; ce lot n'a pas poussé ces commits.
+- `contracts.py`, `app_contracts.py`, `content_contracts.py` déclarent chaque signature d'effet une seule fois et composent les besoins des étapes. Les contrats complets `AppGuidedDependencies`/`ContentGuidedDependencies` ne sont utilisés que par les deux orchestrateurs `*_steps.py`.
+- Notes → menu uniquement ; résumé Content → menu + inspection BOM ; BOM → inspection/présentation/promotion ; candidats → plan/inspection/préparation ; préparation → candidat/PR/présentation ; publication → dispatch/clôture. Confirmation conserve les effets requis pour persister l'intention, publier et réconcilier, sans bootstrap ni menus de configuration.
+- `ms/cli/release_guided_app.py` et `release_guided_content.py` lient directement les fonctions métier via `staticmethod` et le contexte de session via `partial`, au moment de l'appel. Les wrappers de transmission d'arguments sont supprimés ; l'adaptateur de promotion garde son contrôle de permission effectif. `GuidedCliTerminal` remplace `GuidedCliDependencies` et n'expose plus le contrôle CI.
+- Câblage des doubles CLI déplacé au propriétaire du contrôle CI ; assertions des parcours de reprise inchangées. Sonde temporaire Pyright : refus des trois effets hors contrat (Notes→clear, Résumé→promotion BOM, Publication→bootstrap), puis sonde supprimée.
+- Régression trouvée : Start depuis le résumé Content sans tag transmettait encore `idx_summary`/`return_to_summary` à la session et levait `TypeError`. `test_guided_content_summary.py` rouge avant correction, vert après migration vers `session.cursor`.
+- Qualification : `pytest ms/test -q` → **1261 passés, 14 skippés, 6 désélectionnés, 38,75 s**, E2E local inclus ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright **0 erreur** ; `git diff --check` propre. Aucun dispatch de release réelle.
+- Suite ordonnée : **E4.3**, remplacer les mixins build/repos/toolchains par composants explicites après lecture de leurs tests de caractérisation ; **E4.4**, extraire les responsabilités de `unit_tests.py` et `ux_workflows.py`. Un lot par changement, même matrice de validation ; pas de refactoring dicté par un nombre de lignes.
 
 ### Relecture de l'historique local (2026-09-27)
 

@@ -6,7 +6,7 @@ from ms.core.result import Err, Result
 from ms.release.domain.models import ReleasePlan, ReleaseRepo
 from ms.release.errors import ReleaseError
 
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import ContentPlanningDependencies
 from .content_release_dispatch import validate_content_confirm_inputs
 from .content_repo_pins import pinned
 from .sessions import ContentReleaseSession
@@ -14,7 +14,7 @@ from .sessions import ContentReleaseSession
 
 def resolve_content_release_plan(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentPlanningDependencies,
     workspace_root: Path,
     session: ContentReleaseSession,
     release_repos: tuple[ReleaseRepo, ...],

@@ -13,7 +13,13 @@ from ms.release.flow.app_publish import AppPublishResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.github.workflows import BeforeDispatch
 
-from .contracts import TerminalDependencies
+from .contracts import (
+    CiDependencies,
+    ConfirmationDependencies,
+    NotesStatusDependencies,
+    SessionCleanupDependencies,
+    TerminalDependencies,
+)
 from .sessions import AppReleaseSession
 
 
@@ -25,33 +31,19 @@ class AppPrepareResultLike(Protocol):
     def source_sha(self) -> str: ...
 
 
-class AppStorageDependencies(Protocol):
-    """Session persistence boundary."""
-
-    def bootstrap_session(
-        self, *, created_by: str, notes_file: Path | None
-    ) -> Result[AppReleaseSession, ReleaseError]: ...
-
+class AppSessionDependencies(SessionCleanupDependencies, Protocol):
     def save_state(
         self, *, session: AppReleaseSession
     ) -> Result[AppReleaseSession, ReleaseError]: ...
 
-    def clear_session(self) -> Result[None, ReleaseError]: ...
+
+class AppStorageDependencies(AppSessionDependencies, Protocol):
+    def bootstrap_session(
+        self, *, created_by: str, notes_file: Path | None
+    ) -> Result[AppReleaseSession, ReleaseError]: ...
 
 
-class AppReleaseOperations[PrepareT: AppPrepareResultLike](Protocol):
-    """Release business operations (GitHub/workspace boundary)."""
-
-    def preflight(self) -> Result[str, ReleaseError]: ...
-
-    def ensure_ci_green(
-        self,
-        *,
-        workspace_root: Path,
-        pinned: tuple[PinnedRepo, ...],
-        allow_non_green: bool,
-    ) -> Result[None, ReleaseError]: ...
-
+class AppPlanningDependencies(Protocol):
     def plan_app_release(
         self,
         *,
@@ -62,6 +54,8 @@ class AppReleaseOperations[PrepareT: AppPrepareResultLike](Protocol):
         pinned: tuple[PinnedRepo, ...],
     ) -> Result[AppReleasePlan, ReleaseError]: ...
 
+
+class AppPreparationDependencies[PrepareT: AppPrepareResultLike](NotesStatusDependencies, Protocol):
     def prepare_app_pr(
         self,
         *,
@@ -74,6 +68,8 @@ class AppReleaseOperations[PrepareT: AppPrepareResultLike](Protocol):
         dry_run: bool,
     ) -> Result[PrepareT, ReleaseError]: ...
 
+
+class AppPublicationDependencies(SessionCleanupDependencies, Protocol):
     def publish_app_release(
         self,
         *,
@@ -92,10 +88,24 @@ class AppReleaseOperations[PrepareT: AppPrepareResultLike](Protocol):
     ) -> Result[AppPublishResult, ReleaseError]: ...
 
 
-class AppGuidedDependencies[PrepareT: AppPrepareResultLike](
-    TerminalDependencies,
-    AppStorageDependencies,
-    AppReleaseOperations[PrepareT],
+class AppConfirmationDependencies[PrepareT: AppPrepareResultLike](
+    ConfirmationDependencies,
+    CiDependencies,
+    AppSessionDependencies,
+    AppPreparationDependencies[PrepareT],
+    AppPublicationDependencies,
     Protocol,
 ):
-    """Full guided app release boundary (composed of the three above)."""
+    """Confirm, prepare, persist intent, publish, and reconcile."""
+
+
+class AppGuidedDependencies[PrepareT: AppPrepareResultLike](
+    AppConfirmationDependencies[PrepareT],
+    AppStorageDependencies,
+    AppPlanningDependencies,
+    TerminalDependencies,
+    Protocol,
+):
+    """Complete dependency surface, only for the top-level flow."""
+
+    def preflight(self) -> Result[str, ReleaseError]: ...

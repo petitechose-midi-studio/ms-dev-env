@@ -6,9 +6,8 @@ from ms.cli.release_guided_green_commit import select_green_commit
 from ms.cli.selector import SelectorOption, SelectorResult, confirm_yn, select_one
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol
-from ms.release.domain.models import PinnedRepo, ReleaseBump, ReleaseChannel
+from ms.release.domain.models import ReleaseBump, ReleaseChannel
 from ms.release.errors import ReleaseError
-from ms.release.flow.ci_gate import ensure_ci_green
 from ms.release.flow.guided.bootstrap import ResumeChoice
 from ms.release.flow.guided.menu_option import MenuOption
 from ms.release.flow.guided.selection import Selection
@@ -102,7 +101,7 @@ def print_notes_status(
     )
 
 
-class GuidedCliDependencies:
+class GuidedCliTerminal:
     """CLI adapters shared by the app, content, and top-level release flows."""
 
     def select_channel(
@@ -178,19 +177,6 @@ class GuidedCliDependencies:
 
     def confirm(self, *, prompt: str) -> bool:
         return confirm_yn(prompt=prompt)
-
-    def ensure_ci_green(
-        self,
-        *,
-        workspace_root: Path,
-        pinned: tuple[PinnedRepo, ...],
-        allow_non_green: bool,
-    ) -> Result[None, ReleaseError]:
-        return ensure_ci_green(
-            workspace_root=workspace_root,
-            pinned=pinned,
-            allow_non_green=allow_non_green,
-        )
 
     def print_notes_status(
         self,

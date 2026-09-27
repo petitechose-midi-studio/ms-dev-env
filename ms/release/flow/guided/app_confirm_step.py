@@ -12,7 +12,7 @@ from ms.release.errors import ReleaseError
 from ms.release.flow.release_tooling import resolve_release_tooling
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
-from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
+from .app_contracts import AppConfirmationDependencies, AppPrepareResultLike
 from .app_pins import pinned_app_repo
 from .app_release_dispatch import (
     app_session_tooling,
@@ -57,7 +57,7 @@ def run_app_confirm_step[PrepareT: AppPrepareResultLike](
     watch: bool,
     dry_run: bool,
     app_release_repo: ReleaseRepo,
-    deps: AppGuidedDependencies[PrepareT],
+    deps: AppConfirmationDependencies[PrepareT],
 ) -> Result[StepOutcome[AppReleaseSession], ReleaseError]:
     if session.pending_kind is not None:
         return _resume_pending(
@@ -189,7 +189,7 @@ def _resume_pending[PrepareT: AppPrepareResultLike](
     *,
     session: AppReleaseSession,
     workspace_root: Path,
-    deps: AppGuidedDependencies[PrepareT],
+    deps: AppConfirmationDependencies[PrepareT],
 ) -> Result[StepOutcome[AppReleaseSession], ReleaseError]:
     reconciled = reconcile_pending_op(
         workspace_root=workspace_root,
