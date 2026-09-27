@@ -121,6 +121,11 @@ Format : `date | lot | état | fichiers | preuve | note`
 
 ## Reprise sans friction
 
+### Relecture de l'historique local (2026-09-27)
+
+- `0733c06177bd1f5434ce7ea72ff8a609a90195a8` relu : extraction des protocoles terminal/stockage/opérations et composition des contrats App/Content. Il réalise E4.2 étape 1 ; les signatures des étapes et `_Deps` restent à resserrer. Cette relecture n'est pas une nouvelle qualification d'exécution.
+- Dans l'historique présent, le correctif reprise est `54e2c5f` ; les mentions historiques de `1e36135` ci-dessous ne sont pas le SHA à utiliser pour reprendre. La racine contient plusieurs commits locaux non publiés ; ne pas les pousser comme simple accompagnement des promotions produit.
+
 ### Correction de revue — reprise release (2026-09-26, après `2dd7d94`)
 
 - **Identité effective** : le dispatcher app calcule l'identité avec le SHA issu de la préparation/fusion et les inputs réellement envoyés. Il appelle `before_dispatch` pour persister l'intention après le traitement du candidat (et son attente si demandée), avant le dispatch release. Un échec du candidat ou de cette écriture ne déclenche pas la release.
