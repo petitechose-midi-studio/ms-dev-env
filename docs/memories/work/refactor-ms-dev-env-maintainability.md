@@ -125,6 +125,7 @@ Format : `date | lot | état | fichiers | preuve | note`
 
 - `0733c06177bd1f5434ce7ea72ff8a609a90195a8` relu : extraction des protocoles terminal/stockage/opérations et composition des contrats App/Content. Il réalise E4.2 étape 1 ; les signatures des étapes et `_Deps` restent à resserrer. Cette relecture n'est pas une nouvelle qualification d'exécution.
 - Dans l'historique présent, le correctif reprise est `54e2c5f` ; les mentions historiques de `1e36135` ci-dessous ne sont pas le SHA à utiliser pour reprendre. La racine contient plusieurs commits locaux non publiés ; ne pas les pousser comme simple accompagnement des promotions produit.
+- Revalidation ciblée après relecture : `pytest ms/test/cli/test_release_guided_flows.py ms/test/release/test_release_resume.py -q` → **38 passés en 1,44 s**. Aucun changement Python dans cette continuation produit.
 
 ### Correction de revue — reprise release (2026-09-26, après `2dd7d94`)
 

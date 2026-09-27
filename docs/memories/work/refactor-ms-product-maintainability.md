@@ -95,11 +95,11 @@ Prendre comme références `core/docs/CORE_ARCHITECTURE.md`, `ARCHITECTURE_REVIE
 | --- | --- | --- | --- |
 | L0 | Reprise du contexte et état de référence | Aucune | Effectué |
 | L1 | Capacités de build cohérentes | L0 | #178 mergée ; correctif, pins UI/Bitwig et snapshot intégrés ; CI verte |
-| L2 | Tests des mises à jour Bitwig | L0 | #28 et #30 mergées ; scénario page/device→batch qualifié en local et CI ; infrastructure Java ouverte |
+| L2 | Tests des mises à jour Bitwig | L0 | #28, #30 et #31 mergées ; scénario firmware page/device→batch et suite métier Java qualifiés en local et CI |
 | L3 | Consolidation de `ListOverlay` | L2 recommandé avant refactoring Bitwig | UI #15 et Bitwig #29 mergées ; CI UI/Bitwig vertes ; captures avant/après identiques |
 | L4 | Parcours pilote de collage de page Core | L1 | #179 mergée ; revue, suite native et CI validées |
 | L5 | Dépendances ciblées sur ce parcours | L4 | #180 mergée ; revue, suite native et CI validées |
-| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181–183 mergées ; garanties persistance/publication, acceptation/fermeture et entrées ClipWorkspace exécutables ; checks redondants correspondants retirés ; settlement et câblage des sélecteurs encore ouverts |
+| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181–184 mergées ; persistance/publication, acceptation/fermeture, ClipWorkspace et settlement couverts ; #185 en qualification finale pour consommateurs de sélecteurs et retrait de l'inventaire >800 lignes |
 | L7 | Onboarding et clôture documentaire | Changements concernés stabilisés | Première intégration clôturée : onboarding intégré, validations finales Core 206/206, Bitwig 2/2, UI 2/2, architecture et topologie OK |
 
 Ordre recommandé pour une reprise séquentielle : L0 → L1 → L2 → L3 → L4 → L5 → L6 → L7. Chaque lot doit rester relisible et validable séparément. Ne pas mélanger le déplacement massif de fichiers avec une modification de comportement.
@@ -479,3 +479,5 @@ Validation locale des commits mergés terminée avec `.tmp/validate-product-land
 - Les anciens benches `.tmp` n'étaient plus présents à la reprise. Bench reconstruit `.tmp/settlement-contract-bench` depuis les SHA exacts de la CI #184 (worktrees détachés pour les dépendances, Core lié au worktree isolé). Aucune dépendance au WIP des checkouts principaux.
 - Allègement supplémentaire préparé dans #185 : inventaire automatique >800 lignes, option `--inventory`, appel Git/lecture intégrale dédiée et références documentaires supprimés ; deux autres constantes mortes retirées. La règle de revue garde les responsabilités/points de changement comme critère. Architecture PASS après retrait.
 - Package Java inspecté : aucune classe de test, JUnit ou Mockito dans `.bwextension`. Les quatre scénarios sont exécutés lors de `package`, les dépendances restent de scope `test`.
+- **Java intégré** : #31 mergée en `2a6beaf075d5250e5083aa9fa4850f5148a0c9d8`, arbre identique au HEAD qualifié `d6f64d6`. CI `36303953562` verte en 4m49s ; logs vérifiés : **2/2 natifs et 4/4 Java**, aucun test Java skippé, firmware release et extension produits.
+- **Promotion finale Core publiée** : #185 HEAD `c999101e`, inclut retrait inventaire `8ca2516a`, pin Bitwig `9346b780`, snapshot `c999101e`. Snapshot examiné : seuls hash CI et identité Bitwig changent ; inventaires C++ inchangés. `--check` sur bench propre **PASS**. Suivi CI/merge protégé lancé sur le SHA exact.
