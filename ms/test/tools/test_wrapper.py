@@ -312,7 +312,7 @@ class TestCreateEmscriptenWrappers:
             assert ".exe" in content
             assert ".bat" not in content
 
-    def test_windows_accepts_legacy_bat_launchers(self, tmp_path: Path) -> None:
+    def test_windows_wrappers_do_not_target_old_bat_launchers(self, tmp_path: Path) -> None:
         emsdk_dir = tmp_path / "emsdk"
         emscripten_dir = emsdk_dir / "upstream" / "emscripten"
         emscripten_dir.mkdir(parents=True)
@@ -327,8 +327,8 @@ class TestCreateEmscriptenWrappers:
 
         for path in paths:
             content = path.read_text()
-            assert ".bat" in content
-            assert ".exe" not in content
+            assert ".bat" not in content
+            assert ".exe" in content
 
 
 class TestCreateZigWrappers:

@@ -56,13 +56,11 @@ def _stub_previous_beta(
     monkeypatch.setattr(carry_prev_pins, "get_repo_file_text", fake_get_repo_file_text)
 
 
-@pytest.mark.parametrize("schema", (1, 2))
-def test_load_previous_channel_pins_accepts_supported_spec_schemas(
+def test_load_previous_channel_pins_accepts_current_spec_schema(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
-    schema: int,
 ) -> None:
-    _stub_previous_beta(monkeypatch=monkeypatch, schema=schema)
+    _stub_previous_beta(monkeypatch=monkeypatch, schema=2)
 
     parsed = carry_prev_pins.load_previous_channel_pins(
         workspace_root=tmp_path,
@@ -77,11 +75,13 @@ def test_load_previous_channel_pins_accepts_supported_spec_schemas(
     }
 
 
-def test_load_previous_channel_pins_rejects_unknown_spec_schema(
+@pytest.mark.parametrize("schema", (1, 3))
+def test_load_previous_channel_pins_rejects_unsupported_spec_schema(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
+    schema: int,
 ) -> None:
-    _stub_previous_beta(monkeypatch=monkeypatch, schema=3)
+    _stub_previous_beta(monkeypatch=monkeypatch, schema=schema)
 
     parsed = carry_prev_pins.load_previous_channel_pins(
         workspace_root=tmp_path,
@@ -91,5 +91,5 @@ def test_load_previous_channel_pins_rejects_unknown_spec_schema(
 
     assert isinstance(parsed, Err)
     assert parsed.error == (
-        "failed to load previous pins for v1.2.3-beta.4: unsupported spec schema: 3"
+        f"failed to load previous pins for v1.2.3-beta.4: unsupported spec schema: {schema}"
     )

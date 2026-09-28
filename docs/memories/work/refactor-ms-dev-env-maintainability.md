@@ -1,6 +1,6 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2–E4.4 qualifiés localement ; intégration distante/CI restantes — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2–E4.4 et retrait des compatibilités legacy qualifiés localement ; publication suspendue — **Base initiale** : `75ec6eb` (main, 2026-09-26)
 **Created** : 2026-09-26 — **Updated** : 2026-09-28
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
@@ -89,7 +89,7 @@ Contrôle épinglé PR / réel planifié (table décisions) ; suppression doublo
 | Lot E1 | `uv run pytest ms/test/core ms/test/tools ms/test/release ms/test/cli ms/test/services -q` | ~30 s |
 | Complète hors e2e | `uv run pytest ms/test -q --ignore=ms/test/e2e` | ~45 s (baseline 1216 p.) |
 | E2E local | `uv run pytest ms/test/e2e -q` | sans réseau |
-| Arch (Windows) | `$env:MS_ARCH_CHECKS="1"; uv run pytest ms/test/architecture -q` | 6 tests |
+| Arch (Windows) | `$env:MS_ARCH_CHECKS="1"; uv run pytest ms/test/architecture -q` | 4 tests actuels |
 | Lint / types | `uv run ruff check ms` ; `uv run pyright` | 0 erreur |
 
 Règles : aucun réseau dans les boucles ciblée/complète (tests `network` désélectionnés par défaut) ; matériel jamais requis ; réseau uniquement à la demande (`-m network`, 3 tests). Suite complète avant clôture de PR.
@@ -120,6 +120,16 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### Retrait legacy avant publication (2026-09-28)
+
+- Sur demande utilisateur, publication suspendue avant tout push/PR. Revue distante : `origin/main` est ancêtre de la pile (17 commits locaux à la base `b960d46`), aucune PR ouverte. Attention pour l'intégration : `test (fedora)` est requis par la protection de main mais le workflow actuel le saute sur PR ; qualifier réellement Fedora avant fusion, sans contourner les protections.
+- Emscripten Windows : suppression des replis `emcc.bat`/`emcmake.bat` dans résolution et wrappers. Seuls les lanceurs `.exe` actuels sont reconnus ; une ancienne installation devra passer par `ms sync --tools`. Le script officiel d'installation `emsdk.bat` reste le point d'entrée Windows du SDK.
+- Release : suppression du lecteur de spec v1 (v2 uniquement). Le spec distant `distribution/release-specs/v0.1.0-beta.6.json` a été vérifié en v2. Retrait de `app_release_request_id`, sans appelant depuis le calcul de l'identité après préparation du candidat.
+- Sessions : les stores App/Content exigent `cursor` et `pending_inputs` valides, sans reconstruire silencieusement un ancien format. Six cas couvrent absence/malformation et préservation des fichiers rejetés ; les 32 tests de reprise restent verts. Ceci remplace la tolérance historique consignée plus bas pour les sessions sans inputs.
+- UX : retrait du rapport de compatibilité pour captures sans manifeste. Un manifeste absent/invalide retourne `UxReportFailed` et demande une nouvelle exécution ; aucune capture existante n'est effacée par le rapport. Les statuts `failed` et `stale` restent des diagnostics du format courant.
+- Architecture : retrait des deux interdictions d'import visant `ms.services.release`, module inexistant ; Pyright contrôle les imports résolus. Les quatre contrôles actuels (services/CLI, couches release, Rich, subprocess) sont conservés.
+- Qualification : `pytest ms/test -q` → **1285 passés, 12 skippés, 6 désélectionnés, 41,47 s** ; architecture **4/4** ; Ruff/Pyright verts après correction du type `Err` du rapport. Aucun dispatch de release, aucune publication distante. Le nettoyage produit/Core reste un périmètre distinct ; ce lot retire les compatibilités Python identifiées.
 
 ### E4.4 — Décomposition de UX workflows (2026-09-28)
 

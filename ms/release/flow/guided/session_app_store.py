@@ -31,7 +31,8 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
         return Ok(None)
     data = loaded.value
 
-    cursor_data = get_table(data, "cursor") or {}
+    cursor_data = get_table(data, "cursor")
+    pending_inputs = parse_pending_inputs(data.get("pending_inputs"))
 
     release_id = get_str(data, "release_id")
     created_at = get_str(data, "created_at")
@@ -47,6 +48,8 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
         or step is None
         or product != "app"
         or repo_ref is None
+        or cursor_data is None
+        or pending_inputs is None
     ):
         return Err(
             ReleaseError(
@@ -89,7 +92,7 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
             pending_source_sha=get_str(data, "pending_source_sha"),
             pending_tooling_sha=get_str(data, "pending_tooling_sha"),
             pending_at=get_str(data, "pending_at"),
-            pending_inputs=parse_pending_inputs(data.get("pending_inputs")),
+            pending_inputs=pending_inputs,
         )
     )
 

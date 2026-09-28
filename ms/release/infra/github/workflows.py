@@ -265,40 +265,6 @@ def app_release_inputs(
     )
 
 
-def app_release_request_id(
-    *,
-    workspace_root: Path,
-    tag: str,
-    source_sha: str,
-    tooling_sha: str,
-    notes_markdown: str | None,
-    notes_source_path: str | None,
-) -> Result[str, ReleaseError]:
-    """Deterministic dispatch identity, computed before the dispatch itself."""
-    inputs = app_release_inputs(
-        tag=tag,
-        source_sha=source_sha,
-        tooling_sha=tooling_sha,
-        notes_markdown=notes_markdown,
-        notes_source_path=notes_source_path,
-    )
-    if isinstance(inputs, Err):
-        return inputs
-    head = get_ref_head_sha(
-        workspace_root=workspace_root, repo=APP_REPO_SLUG, ref=APP_DEFAULT_BRANCH
-    )
-    if isinstance(head, Err):
-        return head
-    return Ok(
-        dispatch_request_id(
-            repo_slug=APP_REPO_SLUG,
-            workflow_file=APP_RELEASE_WORKFLOW,
-            ref=head.value,
-            inputs=inputs.value,
-        )
-    )
-
-
 def dispatch_app_release_workflow(
     *,
     workspace_root: Path,

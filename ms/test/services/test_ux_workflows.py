@@ -11,6 +11,7 @@ from ms.platform.detection import detect
 from ms.platform.process import ProcessError
 from ms.services.ux_workflow import selection
 from ms.services.ux_workflow.models import (
+    UxReportFailed,
     UxRunFailed,
     UxWorkflowError,
     UxWorkflowNotFound,
@@ -707,7 +708,7 @@ def test_run_all_removes_stale_workflow_outputs(tmp_path: Path) -> None:
     assert not report.exists()
 
 
-def test_write_report_uses_existing_capture_outputs(tmp_path: Path) -> None:
+def test_write_report_rejects_capture_outputs_without_manifest(tmp_path: Path) -> None:
     _write_workflow(tmp_path, "overlay-exclusivity.ux", "10 capture screen first\n")
     output = tmp_path / "midi-studio" / "core" / ".captures" / "ux" / "workflows"
     out_dir = output / "overlay-exclusivity"
@@ -716,19 +717,16 @@ def test_write_report_uses_existing_capture_outputs(tmp_path: Path) -> None:
     (out_dir / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
     (out_dir / "001_first_screen.bmp").write_bytes(b"bmp")
 
-    report = _ok(
-        _service(tmp_path).write_report(
-            app_name="core",
-            selections=(),
-            all_workflows=True,
-        )
+    result = _service(tmp_path).write_report(
+        app_name="core",
+        selections=(),
+        all_workflows=True,
     )
-
-    text = report.read_text(encoding="utf-8")
-    assert "overlay-exclusivity.ux" in text
-    assert "001_first_screen.bmp" in text
-    assert "| overlay-exclusivity.ux | missing |" in text
-    assert "Provenance: unavailable (capture predates run manifests)" in text
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxReportFailed)
+    assert "missing or invalid UX run manifest" in result.error.message
+    assert not (output / "report.md").exists()
+    assert (out_dir / "001_first_screen.bmp").read_bytes() == b"bmp"
 
 
 def test_overlapping_selections_are_deduplicated_and_ambiguous_names_rejected(

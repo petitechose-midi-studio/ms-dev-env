@@ -82,12 +82,7 @@ class EmscriptenTool(Tool):
         if not platform.is_windows:
             return emscripten_dir / "emcc"
 
-        # Recent emsdk releases ship native Windows launchers, while older
-        # installations used batch files. Prefer the current layout but keep
-        # accepting existing legacy installations.
-        exe = emscripten_dir / "emcc.exe"
-        bat = emscripten_dir / "emcc.bat"
-        return exe if exe.exists() or not bat.exists() else bat
+        return emscripten_dir / "emcc.exe"
 
     def emcmake_path(self, tools_dir: Path) -> Path:
         """Get path to emcmake wrapper.

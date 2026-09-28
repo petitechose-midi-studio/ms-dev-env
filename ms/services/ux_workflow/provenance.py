@@ -56,10 +56,8 @@ def read_run_manifest(output_dir: Path) -> dict[str, object] | None:
 
 
 def run_manifest_provenance(
-    *, workflow: UxWorkflow, output_dir: Path, manifest: dict[str, object] | None,
+    *, workflow: UxWorkflow, output_dir: Path, manifest: dict[str, object],
 ) -> str:
-    if manifest is None:
-        return "missing"
     if manifest["verified"] is not True:
         return "failed"
     captures = sorted(output_dir.glob("*.bmp"))

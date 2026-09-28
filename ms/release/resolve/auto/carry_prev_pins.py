@@ -41,7 +41,7 @@ def _parse_spec_pins(text: str) -> Result[dict[str, tuple[str, str]], ReleaseErr
         return Err(ReleaseError(kind="invalid_input", message="invalid spec JSON: expected object"))
 
     schema = get_int(root, "schema")
-    if schema not in (1, 2):
+    if schema != 2:
         return Err(ReleaseError(kind="invalid_input", message=f"unsupported spec schema: {schema}"))
 
     repos_obj = get_list(root, "repos")

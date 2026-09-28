@@ -165,7 +165,9 @@ class UxWorkflowService(BaseService):
             catalog=catalog, workflows=selected_result.value,
             output_root=root, report_dir=destination.parent,
         )
-        atomic_write_text(destination, "\n".join(lines) + "\n", encoding="utf-8")
+        if isinstance(lines, Err):
+            return Err(lines.error)
+        atomic_write_text(destination, "\n".join(lines.value) + "\n", encoding="utf-8")
         return Ok(destination)
 
     def _resolve_executable(

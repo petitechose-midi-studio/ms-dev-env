@@ -73,17 +73,17 @@ def get_int(record: dict[str, object], *, name: str, default: int) -> int:
     return value if isinstance(value, int) else default
 
 
-def parse_pending_inputs(value: object) -> tuple[tuple[str, str], ...]:
+def parse_pending_inputs(value: object) -> tuple[tuple[str, str], ...] | None:
     rows = as_obj_list(value)
     if rows is None:
-        return ()
+        return None
     parsed: list[tuple[str, str]] = []
     for row in rows:
         pair = as_obj_list(row)
         if pair is None or len(pair) != 2:
-            return ()
+            return None
         key, item = pair
         if not isinstance(key, str) or not isinstance(item, str):
-            return ()
+            return None
         parsed.append((key, item))
     return tuple(parsed)

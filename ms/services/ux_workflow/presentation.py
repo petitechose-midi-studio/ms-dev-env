@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
+from ms.core.result import Err, Ok, Result
+
 from .models import (
     UxAppNotFound,
     UxBuildFailed,
@@ -147,7 +149,7 @@ def _expectation_suffix(expectations: tuple[str, ...]) -> str:
 def report_lines(
     *, catalog: UxWorkflowCatalog, workflows: tuple[UxWorkflow, ...],
     output_root: Path, report_dir: Path,
-) -> tuple[str, ...]:
+) -> Result[tuple[str, ...], UxReportFailed]:
     lines = [
         "# UX Workflow Report", "",
         f"App: {catalog.app.name}",
@@ -162,6 +164,11 @@ def report_lines(
     for workflow in workflows:
         run = inspect_run(workflow=workflow, output_dir=output_root / workflow.id, exit_code=0)
         manifest = read_run_manifest(run.output_dir)
+        if manifest is None:
+            return Err(UxReportFailed(
+                message=f"missing or invalid UX run manifest for '{workflow.relative_path}'; "
+                "run the workflow again before generating its report"
+            ))
         provenance = run_manifest_provenance(
             workflow=workflow, output_dir=run.output_dir, manifest=manifest,
         )
@@ -179,12 +186,12 @@ def report_lines(
             )
         )
     lines.extend(["", "## Workflows", "", *sections])
-    return tuple(lines)
+    return Ok(tuple(lines))
 
 
 def _workflow_report_section(
     *, workflow: UxWorkflow, run: UxWorkflowRun,
-    manifest: dict[str, object] | None, report_dir: Path,
+    manifest: dict[str, object], report_dir: Path,
 ) -> tuple[str, ...]:
     lines = [
         f"### {workflow.relative_path}", "",
@@ -195,16 +202,13 @@ def _workflow_report_section(
         f"- Run end: {run.run_ended}",
         f"- Dispatch: {run.has_dispatch}",
     ]
-    if manifest is None:
-        lines.append("- Provenance: unavailable (capture predates run manifests)")
-    else:
-        lines.extend([
-            f"- Run UTC: {manifest['run_utc']}",
-            f"- Executable: {Path(str(manifest['executable'])).name}",
-            f"- Binary SHA-256: `{manifest['executable_sha256']}`",
-            f"- Workflow SHA-256: `{manifest['workflow_sha256']}`",
-            f"- Manifest result: {str(manifest['verified']).lower()}",
-        ])
+    lines.extend([
+        f"- Run UTC: {manifest['run_utc']}",
+        f"- Executable: {Path(str(manifest['executable'])).name}",
+        f"- Binary SHA-256: `{manifest['executable_sha256']}`",
+        f"- Workflow SHA-256: `{manifest['workflow_sha256']}`",
+        f"- Manifest result: {str(manifest['verified']).lower()}",
+    ])
     lines.append("")
     captures = sorted(run.output_dir.glob("*.bmp"))
     if captures:
