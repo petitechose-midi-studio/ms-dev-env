@@ -7,10 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from ms.core.result import Ok
+from ms.core.result import Err, Ok, Result
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Platform
+from ms.platform.process import ProcessError
 from ms.services.repos import RepoService
 
 
@@ -165,16 +166,27 @@ def test_sync_skips_repo_when_git_status_fails(
 
     dest = ws_root / "open-control" / "framework"
 
-    def fake_is_dirty(self: RepoService, repo_dir: Path) -> bool | None:
-        return None
+    seen: list[list[str]] = []
 
-    monkeypatch.setattr(RepoService, "_is_dirty", fake_is_dirty)
+    def failed_status(
+        cmd: list[str], *, cwd: Path, timeout: float
+    ) -> Result[str, ProcessError]:
+        assert cwd == dest
+        assert timeout == 30.0
+        assert cmd == ["git", "-C", str(dest), "status", "--porcelain"]
+        seen.append(cmd)
+        return Err(ProcessError(command=tuple(cmd), returncode=128, stdout="", stderr="failed"))
+
+    monkeypatch.setattr("ms.services.repos.git_ops.run_process", failed_status)
 
     console.clear()
     result = service.sync_all(dry_run=False)
     assert isinstance(result, Ok)
     assert "git status failed" in console.text
     assert (dest / "hello.txt").exists()
+    assert len(seen) == 1
+    lock = json.loads((ws_root / ".ms" / "repos.lock.json").read_text(encoding="utf-8"))
+    assert lock[0]["head_sha"] is None
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
@@ -251,4 +263,34 @@ def test_sync_dry_run_does_not_generate_ms_manager_dev_artifacts(tmp_path: Path)
 
     assert isinstance(result, Ok)
     assert not (ws_root / "ms-manager" / "dev-artifacts.json").exists()
+    assert not (ws_root / "ms-manager").exists()
+    assert not (ws_root / ".ms" / "repos.lock.json").exists()
     assert "generate" in console.text
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+def test_sync_continues_after_clone_failure_and_records_only_successes(tmp_path: Path) -> None:
+    url, seed = _init_remote_repo(tmp_path, "framework")
+    ws_root = tmp_path / "ws"
+    ws_root.mkdir()
+    manifest = tmp_path / "repos.toml"
+    _write_manifest(manifest, url=url)
+    missing_url = (tmp_path / "missing.git").as_uri()
+    manifest.write_text(
+        '[[repos]]\norg = "open-control"\nname = "missing"\n'
+        f'url = "{missing_url}"\npath = "open-control/missing"\nbranch = "main"\n\n'
+        + manifest.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    result = RepoService(
+        workspace=Workspace(root=ws_root), console=MockConsole(), manifest_paths=(manifest,),
+    ).sync_all()
+
+    assert isinstance(result, Err)
+    assert result.error.kind == "sync_failed"
+    assert (ws_root / "open-control" / "framework" / "hello.txt").is_file()
+    lock = json.loads((ws_root / ".ms" / "repos.lock.json").read_text(encoding="utf-8"))
+    assert len(lock) == 1
+    assert lock[0]["name"] == "framework"
+    assert lock[0]["head_sha"] == _git(seed, "rev-parse", "HEAD")

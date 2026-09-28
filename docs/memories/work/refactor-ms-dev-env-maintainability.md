@@ -1,6 +1,6 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 et E4.3 Build qualifiés localement ; Repos/Toolchains et E4.4 restants — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 et E4.3 Build/Repos qualifiés localement ; Toolchains et E4.4 restants — **Base initiale** : `75ec6eb` (main, 2026-09-26)
 **Created** : 2026-09-26 — **Updated** : 2026-09-28
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
@@ -120,6 +120,15 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### E4.3 — Repos par composition (2026-09-28)
+
+- Base locale `032c9f3` (Build). `RepoService` dans `ms/services/repos/service.py` possède le chargement des manifestes, l'agrégation des résultats, l'inventaire `.ms/repos.lock.json` et la génération des artefacts ms-manager.
+- `sync.py` expose `RepoSync`, construit avec workspace/console, responsable d'un seul checkout. `git_ops.py` expose des fonctions sans état pour les commandes Git et les inspections. Les deux mixins et `_context.py` sont supprimés ; aucune couche de compatibilité.
+- Garanties conservées : dépôts modifiés ou sur une autre branche préservés, statut Git inconnu → abandon de la mise à jour, pull fast-forward uniquement, délais locaux/réseau distincts, dry-run sans écriture.
+- `ms/test/services/test_repos_service.py` : test d'échec du statut déplacé à la frontière processus (une seule commande, pas de fetch/pull, SHA inconnu dans l'inventaire) ; assertions dry-run renforcées ; nouveau test avec dépôts Git locaux prouvant la poursuite après échec de clonage, l'erreur agrégée et l'inventaire des seuls succès.
+- Qualification : tests Repos/manifestes/artefacts **13/13** ; `pytest ms/test -q` → **1269 passés, 14 skippés, 6 désélectionnés, 38,92 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright et `git diff --check` verts. Aucun dépôt produit synchronisé pour cette validation.
+- Prochain lot : **Toolchains**, puis **E4.4** (`unit_tests.py`, `ux_workflows.py`), avec la même matrice de validation. Publication distante et qualification CI de la pile Python toujours restantes.
 
 ### E4.3 — Build par composition (2026-09-28)
 

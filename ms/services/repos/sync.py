@@ -1,71 +1,21 @@
 from __future__ import annotations
 
-from pathlib import Path
+from ms.core.result import Err
+from ms.core.workspace import Workspace
+from ms.output.console import ConsoleProtocol, Style
 
-from ms.core.result import Err, Ok, Result
-from ms.output.console import Style
-
-from .git_ops import RepoGitOpsMixin
-from .lockfile import write_lock_file
-from .manifest import load_manifests
-from .models import RepoError, RepoLockEntry, RepoSpec
-from .ms_manager_artifacts import (
-    MS_MANAGER_DEV_ARTIFACTS_FILE,
-    MS_MANAGER_REPO_PATH,
-    write_ms_manager_dev_artifacts,
-)
+from . import git_ops
+from .models import RepoLockEntry, RepoSpec
 
 
-class RepoSyncMixin(RepoGitOpsMixin):
-    def sync_all(self, *, dry_run: bool = False) -> Result[None, RepoError]:
-        specs_result = load_manifests(self._manifest_paths)
-        if isinstance(specs_result, Err):
-            return specs_result
-        specs = specs_result.value
+class RepoSync:
+    """Synchronize one checkout without owning workspace inventory or artifacts."""
 
-        lock: list[RepoLockEntry] = []
-        has_errors = False
+    def __init__(self, *, workspace: Workspace, console: ConsoleProtocol) -> None:
+        self._workspace = workspace
+        self._console = console
 
-        for spec in specs:
-            entry = self._sync_repo(spec, dry_run=dry_run)
-            if entry is None:
-                has_errors = True
-                continue
-            lock.append(entry)
-
-        if not dry_run:
-            write_lock_file(workspace=self._workspace, lock=lock)
-
-        if any(Path(spec.path).as_posix().rstrip("/") == MS_MANAGER_REPO_PATH for spec in specs):
-            config_path = (
-                self._workspace.root / MS_MANAGER_REPO_PATH / MS_MANAGER_DEV_ARTIFACTS_FILE
-            )
-            if dry_run or config_path.parent.is_dir():
-                self._console.print(f"generate {config_path}", Style.DIM)
-            if not dry_run and config_path.parent.is_dir():
-                try:
-                    write_ms_manager_dev_artifacts(
-                        workspace=self._workspace,
-                        platform=self._platform,
-                    )
-                except OSError as error:
-                    return Err(
-                        RepoError(
-                            kind="sync_failed",
-                            message=f"failed to generate {config_path}: {error}",
-                        )
-                    )
-
-        if has_errors:
-            return Err(
-                RepoError(
-                    kind="sync_failed",
-                    message="some repositories failed to sync",
-                )
-            )
-        return Ok(None)
-
-    def _sync_repo(self, repo: RepoSpec, *, dry_run: bool) -> RepoLockEntry | None:
+    def sync_repo(self, repo: RepoSpec, *, dry_run: bool) -> RepoLockEntry | None:
         dest = self._workspace.root / repo.path
 
         if not dest.exists():
@@ -84,7 +34,7 @@ class RepoSyncMixin(RepoGitOpsMixin):
             if repo.branch:
                 cmd.extend(["--branch", repo.branch])
             cmd.extend([repo.url, str(dest)])
-            result = self._run_git(cmd, cwd=self._workspace.root, network=True)
+            result = git_ops.run_git(cmd, cwd=self._workspace.root, network=True)
             if isinstance(result, Err):
                 self._console.print(f"git clone failed: {repo.org}/{repo.name}", Style.ERROR)
                 stderr = result.error.stderr.strip()
@@ -102,7 +52,7 @@ class RepoSyncMixin(RepoGitOpsMixin):
                 head_sha=None,
             )
 
-        dirty = self._is_dirty(dest)
+        dirty = git_ops.is_dirty(dest)
         if dirty is None:
             self._console.print(f"skip (git status failed): {dest}", Style.WARNING)
             return RepoLockEntry(
@@ -120,10 +70,10 @@ class RepoSyncMixin(RepoGitOpsMixin):
                 name=repo.name,
                 url=repo.url,
                 default_branch=repo.branch,
-                head_sha=self._head_sha(dest) if not dry_run else None,
+                head_sha=git_ops.head_sha(dest) if not dry_run else None,
             )
 
-        current_branch = self._current_branch(dest)
+        current_branch = git_ops.current_branch(dest)
         if repo.branch and current_branch and current_branch != repo.branch:
             self._console.print(
                 f"skip (on branch {current_branch}, expected {repo.branch}): {dest}",
@@ -134,7 +84,7 @@ class RepoSyncMixin(RepoGitOpsMixin):
                 name=repo.name,
                 url=repo.url,
                 default_branch=repo.branch,
-                head_sha=self._head_sha(dest) if not dry_run else None,
+                head_sha=git_ops.head_sha(dest) if not dry_run else None,
             )
 
         self._console.print(f"update {repo.org}/{repo.name}", Style.DIM)
@@ -147,7 +97,7 @@ class RepoSyncMixin(RepoGitOpsMixin):
                 head_sha=None,
             )
 
-        fetch_result = self._run_git(
+        fetch_result = git_ops.run_git(
             ["git", "-C", str(dest), "fetch", "--prune", "origin"],
             cwd=self._workspace.root,
             network=True,
@@ -162,7 +112,7 @@ class RepoSyncMixin(RepoGitOpsMixin):
         pull_cmd = ["git", "-C", str(dest), "pull", "--ff-only"]
         if repo.branch:
             pull_cmd.extend(["origin", repo.branch])
-        pull_result = self._run_git(pull_cmd, cwd=self._workspace.root, network=True)
+        pull_result = git_ops.run_git(pull_cmd, cwd=self._workspace.root, network=True)
         if isinstance(pull_result, Err):
             self._console.print(f"git pull --ff-only failed: {dest}", Style.ERROR)
             stderr = pull_result.error.stderr.strip()
@@ -175,5 +125,5 @@ class RepoSyncMixin(RepoGitOpsMixin):
             name=repo.name,
             url=repo.url,
             default_branch=repo.branch,
-            head_sha=self._head_sha(dest),
+            head_sha=git_ops.head_sha(dest),
         )
