@@ -5,7 +5,9 @@ from pathlib import Path
 
 from ms.core.hashing import sha256_file
 from ms.core.result import Err, Ok, Result
-from ms.output.console import Style
+from ms.core.workspace import Workspace
+from ms.output.console import ConsoleProtocol, Style
+from ms.platform.detection import PlatformInfo
 from ms.platform.process import run as run_process
 from ms.platform.process import run_silent
 from ms.platform.resources import recommended_parallel_jobs
@@ -22,14 +24,28 @@ from ms.tools.wrapper import (
     create_zig_wrappers,
 )
 
-from ._context import ToolchainContextBase
-from .models import git_install_commands
+from .models import ToolchainPaths, git_install_commands
 
 _LOCAL_TOOL_TIMEOUT_SECONDS = 2 * 60.0
 _NETWORK_TOOL_TIMEOUT_SECONDS = 20 * 60.0
 
 
-class ToolchainHelpersMixin(ToolchainContextBase):
+class ToolchainInstaller:
+    """Installation operations with explicit paths, platform and output dependencies."""
+
+    def __init__(
+        self,
+        *,
+        workspace: Workspace,
+        platform: PlatformInfo,
+        paths: ToolchainPaths,
+        console: ConsoleProtocol,
+    ) -> None:
+        self._workspace = workspace
+        self._platform = platform
+        self._paths = paths
+        self._console = console
+
     def _run_tool_cmd(self, cmd: list[str], *, cwd: Path, network: bool = False):
         timeout = _NETWORK_TOOL_TIMEOUT_SECONDS if network else _LOCAL_TOOL_TIMEOUT_SECONDS
         return run_process(cmd, cwd=cwd, timeout=timeout)
@@ -38,7 +54,7 @@ class ToolchainHelpersMixin(ToolchainContextBase):
         timeout = _NETWORK_TOOL_TIMEOUT_SECONDS if network else _LOCAL_TOOL_TIMEOUT_SECONDS
         return run_silent(cmd, cwd=cwd, timeout=timeout)
 
-    def _is_installed_at_version(
+    def is_installed_at_version(
         self, tool_id: str, version: str
     ) -> Result[bool, StateError]:
         current = get_installed_version(self._paths.tools_dir, tool_id)
@@ -46,7 +62,7 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             return current
         return Ok(current.value == version)
 
-    def _generate_wrappers(self, wrapper_gen: WrapperGenerator, *, dry_run: bool) -> None:
+    def generate_wrappers(self, *, dry_run: bool) -> None:
         if dry_run:
             return
 
@@ -64,7 +80,7 @@ class ToolchainHelpersMixin(ToolchainContextBase):
                     self._platform.platform,
                 )
 
-    def _install_git_tool(self, tool: object, *, dry_run: bool) -> bool:
+    def install_git_tool(self, tool: object, *, dry_run: bool) -> bool:
         commands = git_install_commands(
             tool,
             tools_dir=self._paths.tools_dir,
@@ -88,7 +104,7 @@ class ToolchainHelpersMixin(ToolchainContextBase):
 
         return True
 
-    def _ensure_platformio(self, version: str, *, dry_run: bool) -> bool:
+    def ensure_platformio(self, version: str, *, dry_run: bool) -> bool:
         venv_dir = self._paths.tools_dir / "platformio" / "venv"
         pio = self._platformio_bin(venv_dir)
 
@@ -107,8 +123,13 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             wrapper2 = WrapperSpec(name="platformio", target=pio, env=env)
             WrapperGenerator(self._paths.bin_dir).generate(wrapper2, self._platform.platform)
 
-        if pio.exists() and self._is_installed_at_version("platformio", version):
-            return True
+        if pio.exists():
+            installed = self.is_installed_at_version("platformio", version)
+            if isinstance(installed, Err):
+                self._console.print(f"platformio: {installed.error.message}", Style.ERROR)
+                return False
+            if installed.value:
+                return True
 
         self._console.print(f"install platformio {version} (venv)", Style.DIM)
         if dry_run:
@@ -154,7 +175,7 @@ class ToolchainHelpersMixin(ToolchainContextBase):
             return False
         return True
 
-    def _install_jdk(
+    def install_jdk(
         self,
         *,
         http: RealHttpClient,

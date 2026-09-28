@@ -1,6 +1,6 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 et E4.3 Build/Repos qualifiés localement ; Toolchains et E4.4 restants — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 et E4.3 Build/Repos/Toolchains qualifiés localement ; E4.4 restant — **Base initiale** : `75ec6eb` (main, 2026-09-26)
 **Created** : 2026-09-26 — **Updated** : 2026-09-28
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
@@ -120,6 +120,15 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### E4.3 — Toolchains par composition (2026-09-28)
+
+- Base locale `152b52f` (Repos). `ms/services/toolchains/service.py` possède les sélections DEV/tests et l'assemblage ; `sync.py` expose `ToolchainSync` (synchronisation des outils sélectionnés, agrégation des erreurs, activation) ; `helpers.py` expose `ToolchainInstaller` (installations particulières, état de version, checksums et wrappers).
+- Les dépendances sont fournies aux constructeurs : le composant d'installation n'a ni registre implicite ni configuration complète. Les deux mixins et `_context.py` sont supprimés. Le générateur de wrappers inutilisé passé en argument est retiré. Les tests checksum ciblent désormais leur composant propriétaire.
+- Bug confirmé par tests rouges avant correction : PlatformIO utilisait `Result[bool, StateError]` directement comme condition. `Ok(False)` et `Err(...)` étaient donc vrais, entraînant la réutilisation d'une version obsolète ou d'un état illisible. Le résultat est désormais déballé explicitement : erreur affichée et remontée, version conforme réutilisée, autre version installée.
+- `ms/test/services/test_toolchains_sync.py` couvre les trois états via l'API publique, avec stockage réel dans `custom-tools` et commandes pip simulées. Vérifications de la version persistée, absence de processus en cas d'erreur/conformité, absence d'écriture dans le chemin par défaut. Aucun outil réel installé.
+- Qualification : tests Toolchains **8/8** ; `pytest ms/test -q` → **1272 passés, 14 skippés, 6 désélectionnés, 42,46 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright et `git diff --check` verts.
+- **E4.3 terminé localement** pour les trois services prévus. Prochain lot : **E4.4**, décomposer `ms/services/unit_tests.py`, puis `ms/services/ux_workflows.py` selon leurs responsabilités. Pour chaque lot : tests ciblés, suite complète, architecture, Ruff, Pyright, diff propre. Publication distante et qualification CI restent à traiter pour la pile Python.
 
 ### E4.3 — Repos par composition (2026-09-28)
 
