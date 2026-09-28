@@ -6,7 +6,9 @@ from pathlib import Path
 
 from ms.core.app import resolve
 from ms.core.result import Err, Ok, Result
-from ms.output.console import Style
+from ms.core.workspace import Workspace
+from ms.output.console import ConsoleProtocol, Style
+from ms.platform.detection import PlatformInfo
 from ms.platform.process import run_silent
 from ms.platform.resources import parallel_jobs_warning, resolve_parallel_jobs
 from ms.services.build_errors import (
@@ -18,14 +20,37 @@ from ms.services.build_errors import (
     PrereqMissing,
     SdlAppNotFound,
 )
+from ms.services.toolchain_env import base_env
+from ms.tools.registry import ToolRegistry
 
-from .helpers import BuildHelpersMixin
+from .helpers import BuildPrerequisites
 
 _CONFIGURE_TIMEOUT_SECONDS = 20 * 60.0
 _COMPILE_TIMEOUT_SECONDS = 30 * 60.0
 
 
-class BuildTargetsMixin(BuildHelpersMixin):
+class BuildTargets:
+    """Configure and compile targets using an explicit prerequisite owner."""
+
+    def __init__(
+        self,
+        *,
+        workspace: Workspace,
+        platform: PlatformInfo,
+        console: ConsoleProtocol,
+        registry: ToolRegistry,
+    ) -> None:
+        self._workspace = workspace
+        self._platform = platform
+        self._console = console
+        self._registry = registry
+        self._prerequisites = BuildPrerequisites(
+            workspace=workspace,
+            platform=platform,
+            console=console,
+            registry=registry,
+        )
+
     def build_core_file_tool(self, *, dry_run: bool = False) -> Result[Path, BuildError]:
         core_dir = self._workspace.midi_studio_dir / "core"
         prerequisites = (
@@ -37,25 +62,25 @@ class BuildTargetsMixin(BuildHelpersMixin):
             if not path.is_dir():
                 return Err(PrereqMissing(name=name, hint="Run: uv run ms sync --repos"))
 
-        cmake = self._get_tool_path("cmake")
+        cmake = self._prerequisites.get_tool_path("cmake")
         if isinstance(cmake, Err):
             return cmake
-        ninja = self._get_tool_path("ninja")
+        ninja = self._prerequisites.get_tool_path("ninja")
         if isinstance(ninja, Err):
             return ninja
 
         if self._platform.platform.is_windows:
-            win_prereq = self._check_windows_native_prereqs(require_sdl2=False)
+            win_prereq = self._prerequisites.check_windows_native_prereqs(require_sdl2=False)
             if isinstance(win_prereq, Err):
                 return win_prereq
         if self._platform.platform.is_unix:
-            unix_prereq = self._check_unix_native_prereqs()
+            unix_prereq = self._prerequisites.check_unix_native_prereqs()
             if isinstance(unix_prereq, Err):
                 return unix_prereq
 
         build_dir = core_dir / "build" / "core-native"
         build_dir.mkdir(parents=True, exist_ok=True)
-        env = self._base_env()
+        env = base_env(registry=self._registry, workspace=self._workspace)
         configure_args = [
             str(cmake.value),
             "-G",
@@ -71,7 +96,7 @@ class BuildTargetsMixin(BuildHelpersMixin):
             f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
         ]
         if self._platform.platform.is_windows:
-            configure_args += self._windows_zig_cmake_args()
+            configure_args += self._prerequisites.windows_zig_cmake_args()
             configure_args = [arg for arg in configure_args if arg]
 
         build_args = [str(ninja.value), "-C", str(build_dir), "ms-core-file-tool"]
@@ -131,36 +156,36 @@ class BuildTargetsMixin(BuildHelpersMixin):
         if cb.sdl_path is None:
             return Err(SdlAppNotFound(app_name=app_name))
 
-        app_cfg_result = self._read_app_config(cb.sdl_path)
+        app_cfg_result = self._prerequisites.read_app_config(cb.sdl_path)
         if isinstance(app_cfg_result, Err):
             return app_cfg_result
         app_cfg = app_cfg_result.value
 
-        prereq_result = self._check_build_prereqs(dry_run=dry_run)
+        prereq_result = self._prerequisites.check_build_prereqs(dry_run=dry_run)
         if isinstance(prereq_result, Err):
             return prereq_result
 
-        cmake = self._get_tool_path("cmake")
+        cmake = self._prerequisites.get_tool_path("cmake")
         if isinstance(cmake, Err):
             return cmake
-        ninja = self._get_tool_path("ninja")
+        ninja = self._prerequisites.get_tool_path("ninja")
         if isinstance(ninja, Err):
             return ninja
 
         if self._platform.platform.is_windows:
-            win_prereq = self._check_windows_native_prereqs()
+            win_prereq = self._prerequisites.check_windows_native_prereqs()
             if isinstance(win_prereq, Err):
                 return win_prereq
 
         if self._platform.platform.is_unix:
-            unix_prereq = self._check_unix_native_prereqs()
+            unix_prereq = self._prerequisites.check_unix_native_prereqs()
             if isinstance(unix_prereq, Err):
                 return unix_prereq
 
-        sdl_src = self._core_sdl_dir()
+        sdl_src = self._workspace.midi_studio_dir / "core" / "sdl"
         build_dir = self._workspace.build_dir / app_cfg.app_id / "native"
         build_dir.mkdir(parents=True, exist_ok=True)
-        env = self._base_env()
+        env = base_env(registry=self._registry, workspace=self._workspace)
 
         configure_args = [
             str(cmake.value),
@@ -176,10 +201,10 @@ class BuildTargetsMixin(BuildHelpersMixin):
             f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
             "-DCMAKE_INSTALL_LIBDIR=lib",
         ]
-        configure_args += self._sdl_dependency_cmake_args()
+        configure_args += self._prerequisites.sdl_dependency_cmake_args()
 
         if self._platform.platform.is_windows:
-            configure_args += self._windows_zig_cmake_args()
+            configure_args += self._prerequisites.windows_zig_cmake_args()
             configure_args = [arg for arg in configure_args if arg]
 
         build_args = [str(ninja.value), "-C", str(build_dir)]
@@ -249,30 +274,30 @@ class BuildTargetsMixin(BuildHelpersMixin):
         if cb.sdl_path is None:
             return Err(SdlAppNotFound(app_name=app_name))
 
-        app_cfg_result = self._read_app_config(cb.sdl_path)
+        app_cfg_result = self._prerequisites.read_app_config(cb.sdl_path)
         if isinstance(app_cfg_result, Err):
             return app_cfg_result
         app_cfg = app_cfg_result.value
 
-        prereq_result = self._check_build_prereqs(dry_run=dry_run)
+        prereq_result = self._prerequisites.check_build_prereqs(dry_run=dry_run)
         if isinstance(prereq_result, Err):
             return prereq_result
 
-        cmake = self._get_tool_path("cmake")
+        cmake = self._prerequisites.get_tool_path("cmake")
         if isinstance(cmake, Err):
             return cmake
-        ninja = self._get_tool_path("ninja")
+        ninja = self._prerequisites.get_tool_path("ninja")
         if isinstance(ninja, Err):
             return ninja
-        emcmake = self._get_emcmake_path()
+        emcmake = self._prerequisites.get_emcmake_path()
         if isinstance(emcmake, Err):
             return emcmake
 
-        sdl_src = self._core_sdl_dir()
+        sdl_src = self._workspace.midi_studio_dir / "core" / "sdl"
         build_dir = self._workspace.build_dir / app_cfg.app_id / "wasm"
         build_dir.mkdir(parents=True, exist_ok=True)
 
-        env = self._base_env()
+        env = base_env(registry=self._registry, workspace=self._workspace)
         em_config = self._registry.get_em_config()
         if em_config is not None:
             env["EM_CONFIG"] = str(em_config)
@@ -293,7 +318,7 @@ class BuildTargetsMixin(BuildHelpersMixin):
             "-DCMAKE_BUILD_TYPE=Release",
             f"-DCMAKE_MAKE_PROGRAM={ninja.value}",
         ]
-        configure_args += self._sdl_dependency_cmake_args()
+        configure_args += self._prerequisites.sdl_dependency_cmake_args()
 
         self._console.print(" ".join(str(x) for x in configure_args), Style.DIM)
         if not dry_run:

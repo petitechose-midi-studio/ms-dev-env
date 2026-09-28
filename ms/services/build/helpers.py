@@ -5,8 +5,9 @@ from pathlib import Path
 
 from ms.core.platformio_runtime import resolve_platformio_runtime
 from ms.core.result import Err, Ok, Result
-from ms.output.console import Style
-from ms.output.errors import build_error_exit_code, print_build_error
+from ms.core.workspace import Workspace
+from ms.output.console import ConsoleProtocol, Style
+from ms.platform.detection import PlatformInfo
 from ms.platform.process import run_silent
 from ms.services.build_errors import (
     AppConfigInvalid,
@@ -16,21 +17,36 @@ from ms.services.build_errors import (
 )
 from ms.services.checkers.common import get_platform_key, load_hints
 from ms.services.toolchain_env import base_env
+from ms.tools.registry import ToolRegistry
 
-from ._context import BuildContextBase
 from .models import AppConfig, extract_cmake_var
 
 _PLATFORMIO_DEPS_TIMEOUT_SECONDS = 15 * 60.0
 
 
-class BuildHelpersMixin(BuildContextBase):
+class BuildPrerequisites:
+    """Resolve toolchain inputs and prepare dependencies before configuring CMake."""
+
+    def __init__(
+        self,
+        *,
+        workspace: Workspace,
+        platform: PlatformInfo,
+        console: ConsoleProtocol,
+        registry: ToolRegistry,
+    ) -> None:
+        self._workspace = workspace
+        self._platform = platform
+        self._console = console
+        self._registry = registry
+
     def _core_sdl_dir(self) -> Path:
         return self._workspace.midi_studio_dir / "core" / "sdl"
 
     def _sdl_lvgl_dir(self) -> Path:
         return self._workspace.midi_studio_dir / "core" / ".pio" / "libdeps" / "dev" / "lvgl"
 
-    def _sdl_dependency_cmake_args(self) -> list[str]:
+    def sdl_dependency_cmake_args(self) -> list[str]:
         open_control = self._workspace.open_control_dir
         midi_studio = self._workspace.midi_studio_dir
         roots = (
@@ -61,7 +77,7 @@ class BuildHelpersMixin(BuildContextBase):
             return None
         return runtime.value.command()
 
-    def _read_app_config(self, app_path: Path) -> Result[AppConfig, BuildError]:
+    def read_app_config(self, app_path: Path) -> Result[AppConfig, BuildError]:
         app_cmake = app_path / "app.cmake"
         if not app_cmake.exists():
             return Err(AppConfigInvalid(path=app_cmake, reason="file not found"))
@@ -73,7 +89,7 @@ class BuildHelpersMixin(BuildContextBase):
             return Err(AppConfigInvalid(path=app_cmake, reason="missing APP_ID or APP_EXE_NAME"))
         return Ok(AppConfig(app_id=app_id, exe_name=exe_name))
 
-    def _check_build_prereqs(self, *, dry_run: bool) -> Result[None, BuildError]:
+    def check_build_prereqs(self, *, dry_run: bool) -> Result[None, BuildError]:
         if not (self._workspace.midi_studio_dir / "core").is_dir():
             return Err(PrereqMissing(name="midi-studio/core", hint="Run: uv run ms sync --repos"))
         device_support_version = (
@@ -127,13 +143,13 @@ class BuildHelpersMixin(BuildContextBase):
             )
         return Ok(None)
 
-    def _get_tool_path(self, tool_id: str) -> Result[Path, BuildError]:
+    def get_tool_path(self, tool_id: str) -> Result[Path, BuildError]:
         path = self._registry.resolve_executable(tool_id)
         if path is not None:
             return Ok(path)
         return Err(ToolMissing(tool_id=tool_id))
 
-    def _check_windows_native_prereqs(
+    def check_windows_native_prereqs(
         self, *, require_sdl2: bool = True
     ) -> Result[None, BuildError]:
         if require_sdl2:
@@ -154,7 +170,7 @@ class BuildHelpersMixin(BuildContextBase):
 
         return Ok(None)
 
-    def _windows_zig_cmake_args(self) -> list[str]:
+    def windows_zig_cmake_args(self) -> list[str]:
         zig_ranlib = self._registry.get_zig_wrapper("zig-ranlib")
         zig_rc = self._registry.get_zig_wrapper("zig-rc")
         return [
@@ -166,7 +182,7 @@ class BuildHelpersMixin(BuildContextBase):
             f"-DCMAKE_RC_COMPILER:FILEPATH={zig_rc}" if zig_rc else "",
         ]
 
-    def _check_unix_native_prereqs(self) -> Result[None, BuildError]:
+    def check_unix_native_prereqs(self) -> Result[None, BuildError]:
         if shutil.which("c++") or shutil.which("g++") or shutil.which("clang++"):
             return Ok(None)
 
@@ -175,14 +191,8 @@ class BuildHelpersMixin(BuildContextBase):
         hint = hints.get_tool_hint("g++", platform_key) or "Install a C++ compiler (g++/clang++)."
         return Err(PrereqMissing(name="C++ compiler", hint=hint))
 
-    def _get_emcmake_path(self) -> Result[Path, BuildError]:
+    def get_emcmake_path(self) -> Result[Path, BuildError]:
         emcmake = self._registry.get_emcmake()
         if emcmake is not None and emcmake.exists():
             return Ok(emcmake)
         return Err(ToolMissing(tool_id="emscripten", hint="emcmake not found"))
-
-    def _print_build_error(self, error: BuildError) -> None:
-        print_build_error(error, self._console)
-
-    def _error_to_exit_code(self, error: BuildError) -> int:
-        return build_error_exit_code(error)

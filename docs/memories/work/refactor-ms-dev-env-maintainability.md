@@ -1,7 +1,7 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 qualifié localement ; E4.3–E4.4 restants — **Base initiale** : `75ec6eb` (main, 2026-09-26)
-**Created** : 2026-09-26 — **Updated** : 2026-09-27
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 et E4.3 Build qualifiés localement ; Repos/Toolchains et E4.4 restants — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Created** : 2026-09-26 — **Updated** : 2026-09-28
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
 
@@ -120,6 +120,15 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### E4.3 — Build par composition (2026-09-28)
+
+- Base locale `1b48e2e` (E4.2), lot Build uniquement. Les mixins Repos et Toolchains restent à migrer dans leurs propres lots.
+- `ms/services/build/service.py` compose `BuildTargets` et `BuildRuntime` ; `targets.py` utilise explicitement `BuildPrerequisites` dans `helpers.py`. Le registre d'outils est partagé, la configuration normalisée par `BaseService` est transmise au runtime.
+- Responsabilités : prérequis/outils/dépendances dans `helpers.py`, CMake et compilation dans `targets.py`, cycle de vie bridge/processus dans `runtime.py`, assemblage et API publique dans `service.py`. Les trois mixins et le contexte implicite `_context.py` sont supprimés.
+- Les huit tests existants sont adaptés au propriétaire des prérequis. `ms/test/services/test_build_runtime.py` ajoute sept cas : fermeture du contexte bridge après erreur processus ou interruption en native/WASM, absence de lancement après échec de build, conflit HTTP/WebSocket.
+- Qualification : `pytest ms/test -q` → **1268 passés, 14 skippés, 6 désélectionnés, 41,41 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff et Pyright verts. Validation Python avec frontières processus simulées, sans nouvelle compilation produit réelle.
+- Suite ordonnée : Repos, puis Toolchains (composition explicite et tests existants), puis E4.4 (`unit_tests.py`, `ux_workflows.py`). Rejouer pour chaque lot la suite complète, architecture, Ruff, Pyright et `git diff --check`. Publication de la pile locale et qualification CI toujours à traiter.
 
 ### E4.2 — Dépendances des étapes et réduction `_Deps` (2026-09-27)
 
