@@ -1,6 +1,6 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2, E4.3 et E4.4 Unit tests qualifiés localement ; UX workflows restant — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2–E4.4 qualifiés localement ; intégration distante/CI restantes — **Base initiale** : `75ec6eb` (main, 2026-09-26)
 **Created** : 2026-09-26 — **Updated** : 2026-09-28
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
@@ -120,6 +120,15 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### E4.4 — Décomposition de UX workflows (2026-09-28)
+
+- Base locale `1736c4d` (Unit tests). `ms/services/ux_workflows.py` conserve la découverte des apps/scénarios, le build/lancement, le nettoyage des sorties et la coordination des écritures.
+- `ms/services/ux_workflow/models.py` possède données/erreurs ; `selection.py` possède navigation, résolution et déduplication sans dépendre du service ; `verification.py` possède captures, traces et attentes sémantiques ; `provenance.py` possède les manifestes et leur validation ; `presentation.py` possède arbre, diagnostics et Markdown du rapport.
+- CLI et tests migrés vers les propriétaires des modèles/sélections/présentation ; doubles de navigation devenus inutiles supprimés. Aucune couche de compatibilité, aucun changement intentionnel des seuils visuels, schémas sémantiques, format de manifeste ou règles de provenance.
+- Les 21 tests UX/CLI existants passent. Deux scénarios supplémentaires couvrent les sélections recouvrantes/ambiguës et l'arrêt sur erreur processus : même avec des traces/captures complètes, le code d'échec est conservé, le manifeste est marqué faux, le rapport affiche `failed` et le scénario suivant ne démarre pas.
+- Qualification : `pytest ms/test -q` → **1279 passés, 14 skippés, 6 désélectionnés, 41,80 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright verts. Tests d'artefacts sur fichiers temporaires avec exécutable simulé, sans nouvelle qualification visuelle produit.
+- **E4.4 terminé localement** pour les deux modules prévus. Suite : (1) revoir l'ensemble de la pile locale et son écart au distant ; (2) préparer/publier les PR en préservant l'historique et les travaux produit ; (3) qualifier la CI sur les têtes exactes avant intégration ; (4) reprendre les familles de contrats Core encore statiques et la qualification Bitwig/Teensy. Le nettoyage legacy global n'est pas déclaré terminé.
 
 ### E4.4 — Décomposition de Unit tests (2026-09-28)
 

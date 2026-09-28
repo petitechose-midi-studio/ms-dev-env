@@ -14,11 +14,10 @@ from ms.core.result import Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import detect
-from ms.services.ux_workflows import (
+from ms.services.ux_workflow.models import (
     UxWorkflow,
     UxWorkflowApp,
     UxWorkflowCatalog,
-    UxWorkflowGroup,
 )
 
 
@@ -181,28 +180,6 @@ def test_workflow_tree_run_shortcut_uses_highlighted_folder(
         def catalog(self, app_name: str) -> Ok[UxWorkflowCatalog]:
             assert app_name == "core"
             return Ok(catalog)
-
-        def count_selection(self, catalog: UxWorkflowCatalog, selection: str) -> int:
-            del catalog
-            return 2 if selection in {".", "sequencer"} else 1
-
-        def groups(
-            self, catalog: UxWorkflowCatalog, parent: str = ""
-        ) -> tuple[UxWorkflowGroup, ...]:
-            del catalog
-            if parent:
-                return ()
-            return (UxWorkflowGroup(path="sequencer", workflow_count=1),)
-
-        def workflows_in(
-            self, catalog: UxWorkflowCatalog, parent: str = ""
-        ) -> tuple[UxWorkflow, ...]:
-            return tuple(
-                workflow
-                for workflow in catalog.workflows
-                if (not parent and "/" not in workflow.relative_path)
-                or workflow.relative_path.startswith(f"{parent}/")
-            )
 
         def run(
             self,
