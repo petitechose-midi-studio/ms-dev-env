@@ -5,22 +5,21 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
-import ms.services.unit_tests as unit_tests
 from ms.core.result import Err, Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo, detect
-from ms.services.unit_tests import UnitTestDependencyError, UnitTestRunner, UnitTestService
+from ms.services.unit_testing import catalog, dependencies, execution
+from ms.services.unit_testing.models import (
+    UnitTestDependencyError,
+    UnitTestRunner,
+    UnitTestSelectionInvalid,
+)
+from ms.services.unit_tests import UnitTestService
 
 
 def test_target_catalog_is_stable(tmp_path: Path) -> None:
-    service = UnitTestService(
-        workspace=Workspace(root=tmp_path),
-        platform=detect(),
-        config=None,
-        console=MockConsole(),
-    )
-    targets = service._target_map()  # pyright: ignore[reportPrivateUsage]
+    targets = catalog.target_map(Workspace(root=tmp_path), detect().platform)
 
     assert {"ms-dev-env", "open-control-framework", "core", "plugin-bitwig"} <= set(targets)
     assert targets["ms-dev-env"].runner is UnitTestRunner.PYTEST
@@ -48,7 +47,7 @@ def test_windows_compiler_paths_are_safe_for_cmake_cache(
         return path
 
     monkeypatch.setattr(service._registry, "get_zig_wrapper", wrapper)  # pyright: ignore[reportPrivateUsage]
-    result = service._compiler_args()  # pyright: ignore[reportPrivateUsage]
+    result = service._executor._compiler_args()  # pyright: ignore[reportPrivateUsage]
     assert isinstance(result, Ok)
     assert len(result.value) == 5
     assert all(":FILEPATH=" in arg and "\\" not in arg for arg in result.value)
@@ -70,9 +69,9 @@ strip_components = 1
 """.lstrip(),
         encoding="utf-8",
     )
-    monkeypatch.setattr(unit_tests, "_TEST_DEPENDENCIES_PATH", manifest)
+    monkeypatch.setattr(dependencies, "_TEST_DEPENDENCIES_PATH", manifest)
 
-    result = unit_tests.load_test_dependency_pin("unity")
+    result = dependencies.load_test_dependency_pin("unity")
 
     assert not isinstance(result, Err)
     assert result.value.version == "2.6.1"
@@ -96,9 +95,9 @@ strip_components = 1
 """.lstrip(),
         encoding="utf-8",
     )
-    monkeypatch.setattr(unit_tests, "_TEST_DEPENDENCIES_PATH", manifest)
+    monkeypatch.setattr(dependencies, "_TEST_DEPENDENCIES_PATH", manifest)
 
-    result = unit_tests.load_test_dependency_pin("unity")
+    result = dependencies.load_test_dependency_pin("unity")
 
     assert isinstance(result, Err)
     assert isinstance(result.error, UnitTestDependencyError)
@@ -159,7 +158,7 @@ def test_ms_dev_env_target_enables_strict_architecture_checks(
     def fake_which(name: str) -> str | None:
         return name if name == "uv" else None
 
-    monkeypatch.setattr(unit_tests.shutil, "which", fake_which)
+    monkeypatch.setattr(execution.shutil, "which", fake_which)
 
     def fake_run(
         _cmd: list[str],
@@ -173,7 +172,7 @@ def test_ms_dev_env_target_enables_strict_architecture_checks(
             captured_env.update(env)
         return Ok("============================== 6 passed in 1.23s ==============================")
 
-    monkeypatch.setattr(unit_tests, "run", fake_run)
+    monkeypatch.setattr(execution, "run", fake_run)
 
     result = service.run(target="ms-dev-env")
 
@@ -186,13 +185,13 @@ def test_ctest_path_filter_removes_workspace_venv(tmp_path: Path) -> None:
     other = tmp_path / "tools" / "bin"
     value = os.pathsep.join((str(venv_scripts), str(other)))
 
-    filtered = unit_tests.remove_env_path_entry(value, venv_scripts)
+    filtered = execution.remove_env_path_entry(value, venv_scripts)
 
     assert filtered == str(other)
 
 
 def test_cmake_test_selection_normalizes_prefix_and_deduplicates() -> None:
-    normalized = unit_tests.normalize_cmake_test_targets(
+    normalized = catalog.normalize_cmake_test_targets(
         (
             "RealtimeMidiQueue",
             "test_RealtimeMidiProducerEnvelope",
@@ -217,5 +216,5 @@ def test_cmake_test_selection_rejects_groups(tmp_path: Path) -> None:
     result = service.run(target="firmware", tests=("RealtimeMidiQueue",), dry_run=True)
 
     assert isinstance(result, Err)
-    assert isinstance(result.error, unit_tests.UnitTestSelectionInvalid)
+    assert isinstance(result.error, UnitTestSelectionInvalid)
     assert "not a group" in result.error.message

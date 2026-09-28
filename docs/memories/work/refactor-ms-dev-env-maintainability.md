@@ -1,6 +1,6 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2 et E4.3 Build/Repos/Toolchains qualifiés localement ; E4.4 restant — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2, E4.3 et E4.4 Unit tests qualifiés localement ; UX workflows restant — **Base initiale** : `75ec6eb` (main, 2026-09-26)
 **Created** : 2026-09-26 — **Updated** : 2026-09-28
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
@@ -120,6 +120,15 @@ Format : `date | lot | état | fichiers | preuve | note`
 - 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
 
 ## Reprise sans friction
+
+### E4.4 — Décomposition de Unit tests (2026-09-28)
+
+- Base locale `1b5121a` (Toolchains). `ms/services/unit_tests.py` possède uniquement l'assemblage, la validation de sélection et l'ordonnancement des cibles/groupes.
+- `ms/services/unit_testing/catalog.py` : cibles, groupes, ordre topologique, normalisation `--test`, identité de build ; `models.py` : données et erreurs ; `dependencies.py` : manifeste, cache Unity, téléchargement/checksum/installation ; `execution.py` : commandes des runners, superbuild CMake, environnement et mesures ; `output.py` : lecture des résumés, diagnostics et codes de sortie.
+- `TestExecutor` reçoit explicitement workspace, plateforme, console et registre. Aucune chaîne de mixins ni ancien module de compatibilité ; la CLI et les tests importent les modèles et la présentation depuis leurs propriétaires.
+- Les commandes, arguments et règles de sélection sont conservés. `ms/test/services/test_unit_test_execution.py` ajoute cinq scénarios via le service public et la frontière processus : noms CMake normalisés/dédupliqués et filtre regex exact ; arrêt et diagnostics pour les trois phases configure/build/test ; ordre du groupe `all`, un seul superbuild CMake et temps de configuration/compilation imputés une seule fois.
+- Qualification : ciblée **18/18** ; `pytest ms/test -q` → **1277 passés, 14 skippés, 6 désélectionnés, 50,64 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright verts. Les nouveaux scénarios utilisent un cache Unity local et des processus simulés, sans compilation produit réelle.
+- Prochain lot : **E4.4 UX workflows**, décomposer `ms/services/ux_workflows.py` après lecture des tests comportementaux/CLI ; conserver les contrats d'artefacts, captures et erreurs. Validation : tests ciblés, suite complète, architecture, Ruff, Pyright, diff propre. E4.4 n'est pas encore entièrement clos ; publication distante et CI de la pile Python restent à traiter.
 
 ### E4.3 — Toolchains par composition (2026-09-28)
 
