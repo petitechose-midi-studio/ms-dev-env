@@ -1,6 +1,6 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2–E4.4 et retrait des compatibilités legacy qualifiés localement ; publication suspendue — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2–E4.4 et retrait des compatibilités legacy qualifiés localement ; push autorisé le 2026-09-29, intégration/CI restantes — **Base initiale** : `75ec6eb` (main, 2026-09-26)
 **Created** : 2026-09-26 — **Updated** : 2026-09-28
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
@@ -122,6 +122,8 @@ Format : `date | lot | état | fichiers | preuve | note`
 ## Reprise sans friction
 
 ### Retrait legacy avant publication (2026-09-28)
+
+- 2026-09-29 : autorisation utilisateur explicite de commit/push après le lot Core. Retrait Python committé en `333e38d`, publication de la pile sur `codex/guided-step-dependencies` ; qualification distante et traitement du check Fedora requis restent à faire avant fusion.
 
 - Sur demande utilisateur, publication suspendue avant tout push/PR. Revue distante : `origin/main` est ancêtre de la pile (17 commits locaux à la base `b960d46`), aucune PR ouverte. Attention pour l'intégration : `test (fedora)` est requis par la protection de main mais le workflow actuel le saute sur PR ; qualifier réellement Fedora avant fusion, sans contourner les protections.
 - Emscripten Windows : suppression des replis `emcc.bat`/`emcmake.bat` dans résolution et wrappers. Seuls les lanceurs `.exe` actuels sont reconnus ; une ancienne installation devra passer par `ms sync --tools`. Le script officiel d'installation `emsdk.bat` reste le point d'entrée Windows du SDK.

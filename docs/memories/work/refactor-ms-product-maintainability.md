@@ -9,6 +9,13 @@
 
 ## 1. Cap et résultat attendu
 
+### Lot local qualifié et poussé — 2026-09-29
+
+- Core `533eeb44`, branche `codex/core-autosave-legacy-cleanup`, issue de `origin/main` (`9cb245ba`) : retrait de la liste noire des anciens symboles de politique Autosave et du contrôle textuel du menu. Le test `ProjectMenuModel` vérifie désormais les six libellés et types d'actions Storage. Les contrôles du câblage always-on firmware/SDL et de l'historique restent nécessaires.
+- Mutation : remplacer « Save project » par « Autosave » fait échouer l'assertion comportementale ; mutation annulée avant qualification.
+- Bench `.tmp/settlement-contract-bench` : `ms test core` **206/206**, architecture **OK**, build Teensy `dev` **OK** (88 s ; RAM1 358/512 Ko, RAM2 183/512 Ko, PSRAM 1194/8192 Ko). Aucun essai matériel réalisé dans ce lot.
+- Commit poussé sur la branche distante ; intégration main et qualification CI encore ouvertes. Ce lot retire uniquement les contrôles hérités décrits ci-dessus ; les autres familles de contrats Core restent à migrer.
+
 **Réduire le nombre de responsabilités, de fichiers et de dépendances qu'un développeur doit comprendre pour changer un comportement, tout en conservant les garanties du produit.**
 
 La première livraison doit aligner les limites des tests avec celles du firmware. La deuxième doit protéger les comportements Bitwig aujourd'hui peu testés. Les simplifications architecturales viennent ensuite, sur un parcours Core borné et mesurable.
