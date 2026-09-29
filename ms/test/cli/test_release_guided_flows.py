@@ -45,6 +45,24 @@ from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.github.workflows import WorkflowRun
 
 
+@pytest.fixture(autouse=True)
+def isolate_guided_flows(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    import ms.release.infra.github.workflows as workflows
+
+    def fake_distribution_head(*, workspace_root: Path, repo: str, ref: str) -> Ok[str]:
+        assert repo == "petitechose-midi-studio/distribution"
+        assert ref == "main"
+        return Ok("d" * 40)
+
+    def unexpected_process(*args: object, **kwargs: object) -> None:
+        pytest.fail(f"unmocked process in guided flow test: {args!r}")
+
+    monkeypatch.setattr(workflows, "get_ref_head_sha", fake_distribution_head)
+    monkeypatch.setattr(subprocess, "Popen", unexpected_process)
+
+
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:
     return SelectorResult(action="select", value=value, index=index)
 
