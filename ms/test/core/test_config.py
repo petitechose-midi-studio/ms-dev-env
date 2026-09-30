@@ -219,6 +219,56 @@ hardware = 7777  # inline comment
         assert result.value.ports.hardware == 7777
 
 
+class TestPortValidation:
+    """Port values: absence -> default, invalid -> Err, range 1..65535."""
+
+    def _load(self, tmp_path: Path, body: str):
+        config_file = tmp_path / "config.toml"
+        config_file.write_text(body)
+        return load_config(config_file)
+
+    def test_invalid_type_rejected(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, '[ports]\nhardware = "oops"\n')
+        assert isinstance(result, Err)
+        assert "hardware" in result.error.message
+
+    def test_bool_rejected(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, "[ports]\nnative = true\n")
+        assert isinstance(result, Err)
+        assert "native" in result.error.message
+
+    def test_zero_rejected(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, "[ports]\nwasm = 0\n")
+        assert isinstance(result, Err)
+        assert "wasm" in result.error.message
+
+    def test_negative_rejected(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, "[ports]\nnative = -1\n")
+        assert isinstance(result, Err)
+        assert "native" in result.error.message
+
+    def test_too_large_rejected(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, "[ports]\nnative = 70000\n")
+        assert isinstance(result, Err)
+        assert "native" in result.error.message
+
+    def test_controller_port_validated(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, "[ports.controller]\ncore_wasm = 70000\n")
+        assert isinstance(result, Err)
+        assert "core_wasm" in result.error.message
+
+    def test_numeric_string_accepted(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, '[ports]\nnative = "9500"\n')
+        assert isinstance(result, Ok)
+        assert result.value.ports.native == 9500
+
+    def test_boundaries_accepted(self, tmp_path: Path) -> None:
+        result = self._load(tmp_path, "[ports]\nhardware = 1\nwasm = 65535\n")
+        assert isinstance(result, Ok)
+        assert result.value.ports.hardware == 1
+        assert result.value.ports.wasm == 65535
+
+
 class TestConfigError:
     """Test ConfigError dataclass."""
 

@@ -11,6 +11,7 @@ from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
 from ms.platform.process import ProcessError
+from ms.services.build.helpers import BuildPrerequisites
 from ms.services.build.service import BuildService
 from ms.services.build_errors import BuildError, PrereqMissing
 
@@ -71,14 +72,14 @@ def test_build_core_file_tool_configures_and_builds_only_its_target(
     cmake = tmp_path / "cmake"
     ninja = tmp_path / "ninja"
 
-    def fake_tool_path(_self: BuildService, tool_id: str) -> Result[Path, BuildError]:
+    def fake_tool_path(_self: BuildPrerequisites, tool_id: str) -> Result[Path, BuildError]:
         return Ok(cmake if tool_id == "cmake" else ninja)
 
-    def fake_unix_prereqs(_self: BuildService) -> Result[None, BuildError]:
+    def fake_unix_prereqs(_self: BuildPrerequisites) -> Result[None, BuildError]:
         return Ok(None)
 
-    monkeypatch.setattr(BuildService, "_get_tool_path", fake_tool_path)
-    monkeypatch.setattr(BuildService, "_check_unix_native_prereqs", fake_unix_prereqs)
+    monkeypatch.setattr(BuildPrerequisites, "get_tool_path", fake_tool_path)
+    monkeypatch.setattr(BuildPrerequisites, "check_unix_native_prereqs", fake_unix_prereqs)
 
     result = service.build_core_file_tool(dry_run=True)
     output = core_dir / "build" / "core-native" / "ms-core-file-tool"
@@ -93,7 +94,7 @@ def test_build_core_file_tool_configures_and_builds_only_its_target(
 def test_sdl_dependency_cmake_args_are_explicit_workspace_roots(tmp_path: Path) -> None:
     service = _service(tmp_path)
 
-    assert service._sdl_dependency_cmake_args() == [
+    assert service._targets._prerequisites.sdl_dependency_cmake_args() == [
         f"-DOPEN_CONTROL_FRAMEWORK_DIR={tmp_path / 'open-control' / 'framework'}",
         f"-DOPEN_CONTROL_UI_LVGL_DIR={tmp_path / 'open-control' / 'ui-lvgl'}",
         (f"-DOPEN_CONTROL_UI_COMPONENTS_DIR={tmp_path / 'open-control' / 'ui-lvgl-components'}"),
@@ -119,7 +120,7 @@ def test_windows_zig_cmake_args_include_resource_compiler(
 
     assert (
         f"-DCMAKE_RC_COMPILER:FILEPATH={fake_zig_wrapper('zig-rc')}"
-        in service._windows_zig_cmake_args()
+        in service._targets._prerequisites.windows_zig_cmake_args()
     )
 
 
@@ -137,7 +138,7 @@ def test_windows_native_prereqs_require_zig_resource_compiler(
 
     monkeypatch.setattr(service._registry, "get_zig_wrapper", fake_zig_wrapper)
 
-    result = service._check_windows_native_prereqs(require_sdl2=False)
+    result = service._targets._prerequisites.check_windows_native_prereqs(require_sdl2=False)
 
     assert isinstance(result, Err)
     assert isinstance(result.error, PrereqMissing)
@@ -158,7 +159,7 @@ def test_build_prereqs_require_device_support_checkout(tmp_path: Path) -> None:
     )
     device_support_version.unlink()
 
-    result = _service(tmp_path)._check_build_prereqs(dry_run=True)
+    result = _service(tmp_path)._targets._prerequisites.check_build_prereqs(dry_run=True)
 
     assert isinstance(result, Err)
     assert isinstance(result.error, PrereqMissing)
@@ -175,12 +176,12 @@ def test_build_prereqs_reuse_existing_dev_lvgl(
     lvgl_cmake.touch()
     service = _service(tmp_path)
 
-    def unexpected_platformio(_self: BuildService) -> list[str] | None:
+    def unexpected_platformio(_self: BuildPrerequisites) -> list[str] | None:
         raise AssertionError("PlatformIO must not run when the dev LVGL checkout exists")
 
-    monkeypatch.setattr(BuildService, "_platformio_cmd", unexpected_platformio)
+    monkeypatch.setattr(BuildPrerequisites, "_platformio_cmd", unexpected_platformio)
 
-    assert isinstance(service._check_build_prereqs(dry_run=False), Ok)
+    assert isinstance(service._targets._prerequisites.check_build_prereqs(dry_run=False), Ok)
 
 
 def test_build_prereqs_install_platformio_dev_dependencies(
@@ -190,7 +191,7 @@ def test_build_prereqs_install_platformio_dev_dependencies(
     service = _service(tmp_path)
     seen: dict[str, object] = {}
 
-    def fake_platformio(_self: BuildService) -> list[str] | None:
+    def fake_platformio(_self: BuildPrerequisites) -> list[str] | None:
         return ["pio"]
 
     def fake_run_silent(
@@ -206,10 +207,10 @@ def test_build_prereqs_install_platformio_dev_dependencies(
         lvgl_cmake.touch()
         return Ok(None)
 
-    monkeypatch.setattr(BuildService, "_platformio_cmd", fake_platformio)
+    monkeypatch.setattr(BuildPrerequisites, "_platformio_cmd", fake_platformio)
     monkeypatch.setattr("ms.services.build.helpers.run_silent", fake_run_silent)
 
-    assert isinstance(service._check_build_prereqs(dry_run=False), Ok)
+    assert isinstance(service._targets._prerequisites.check_build_prereqs(dry_run=False), Ok)
     assert seen["cmd"] == ["pio", "pkg", "install", "-e", "dev"]
     assert seen["cwd"] == core_dir
     assert seen["timeout"] == 15 * 60.0
@@ -224,7 +225,7 @@ def test_build_prereqs_fail_when_install_does_not_supply_lvgl(
     _prepare_sdl_workspace(tmp_path)
     service = _service(tmp_path)
 
-    def fake_platformio(_self: BuildService) -> list[str] | None:
+    def fake_platformio(_self: BuildPrerequisites) -> list[str] | None:
         return ["pio"]
 
     def fake_run_silent(
@@ -237,10 +238,10 @@ def test_build_prereqs_fail_when_install_does_not_supply_lvgl(
         del cmd, cwd, env, timeout
         return Ok(None)
 
-    monkeypatch.setattr(BuildService, "_platformio_cmd", fake_platformio)
+    monkeypatch.setattr(BuildPrerequisites, "_platformio_cmd", fake_platformio)
     monkeypatch.setattr("ms.services.build.helpers.run_silent", fake_run_silent)
 
-    result = service._check_build_prereqs(dry_run=False)
+    result = service._targets._prerequisites.check_build_prereqs(dry_run=False)
 
     assert isinstance(result, Err)
     assert isinstance(result.error, PrereqMissing)

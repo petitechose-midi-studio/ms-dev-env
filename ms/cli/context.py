@@ -16,7 +16,7 @@ from ms.platform.detection import PlatformInfo, detect
 class CLIContext:
     workspace: Workspace
     platform: PlatformInfo
-    config: Config | None
+    config: Config
     console: ConsoleProtocol
 
 
@@ -29,11 +29,13 @@ def build_context() -> CLIContext:
     workspace = workspace_result.value
     platform = detect()
 
-    config: Config | None = None
+    config: Config = Config()
     if workspace.config_path.exists():
         config_result = load_config(workspace.config_path)
-        if not isinstance(config_result, Err):
-            config = config_result.value
+        if isinstance(config_result, Err):
+            typer.echo(f"error: {config_result.error.message}", err=True)
+            raise typer.Exit(code=int(ErrorCode.USER_ERROR))
+        config = config_result.value
 
     return CLIContext(
         workspace=workspace,

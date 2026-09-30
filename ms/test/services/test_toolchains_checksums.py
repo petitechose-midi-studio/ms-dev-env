@@ -5,11 +5,14 @@ from pathlib import Path
 
 import pytest
 
+from ms.core.config import Config
 from ms.core.result import Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import Arch, LinuxDistro, Platform, PlatformInfo
 from ms.services.toolchains import ToolchainService
+from ms.services.toolchains.helpers import ToolchainInstaller
+from ms.services.toolchains.models import ToolchainPaths
 from ms.tools.pins import ToolPins
 
 
@@ -24,7 +27,7 @@ def _service(tmp_path: Path, console: MockConsole) -> ToolchainService:
 
 def test_verify_download_checksum_accepts_exact_match(tmp_path: Path) -> None:
     console = MockConsole()
-    service = _service(tmp_path, console)
+    service = _installer(tmp_path, console)
     archive = tmp_path / "tool.zip"
     archive.write_bytes(b"hello")
     digest = hashlib.sha256(b"hello").hexdigest()
@@ -46,7 +49,7 @@ def test_verify_download_checksum_accepts_exact_match(tmp_path: Path) -> None:
 
 def test_verify_download_checksum_rejects_mismatch(tmp_path: Path) -> None:
     console = MockConsole()
-    service = _service(tmp_path, console)
+    service = _installer(tmp_path, console)
     archive = tmp_path / "tool.zip"
     archive.write_bytes(b"actual")
     pins = ToolPins(
@@ -63,6 +66,16 @@ def test_verify_download_checksum_rejects_mismatch(tmp_path: Path) -> None:
     )
     assert ok is False
     assert "cmake: checksum verification failed" in console.text
+
+
+def _installer(tmp_path: Path, console: MockConsole) -> ToolchainInstaller:
+    workspace = Workspace(root=tmp_path)
+    return ToolchainInstaller(
+        workspace=workspace,
+        platform=PlatformInfo(platform=Platform.LINUX, arch=Arch.X64, distro=LinuxDistro.UNKNOWN),
+        paths=ToolchainPaths.from_workspace(workspace, Config()),
+        console=console,
+    )
 
 
 def test_toolpins_checksum_for_wildcard_fallback() -> None:

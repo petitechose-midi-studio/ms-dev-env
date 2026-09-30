@@ -8,7 +8,7 @@ from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 
 from .content_bom_step import assess_content_bom
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import ContentSummaryDependencies
 from .content_repo_pins import sha_map
 from .fsm import StepOutcome, advance
 from .menu_option import MenuOption
@@ -17,7 +17,7 @@ from .sessions import ContentReleaseSession
 
 def step_content_summary(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentSummaryDependencies,
     workspace_root: Path,
     session: ContentReleaseSession,
     release_repos: tuple[ReleaseRepo, ...],
@@ -68,7 +68,7 @@ def step_content_summary(
         title="Content Release Summary",
         subtitle="Select an item to edit, or start release",
         options=options,
-        initial_index=session.idx_summary,
+        initial_index=session.cursor.summary,
         allow_back=True,
     )
     if choice.action == "cancel":
@@ -84,8 +84,9 @@ def step_content_summary(
                 replace(
                     session,
                     step="channel",
-                    idx_summary=choice.index,
-                    return_to_summary=True,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=True
+                    ),
                 )
             )
         )
@@ -95,8 +96,9 @@ def step_content_summary(
                 replace(
                     session,
                     step="bump",
-                    idx_summary=choice.index,
-                    return_to_summary=True,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=True
+                    ),
                 )
             )
         )
@@ -108,8 +110,9 @@ def step_content_summary(
                     session,
                     step="repo",
                     repo_cursor=max(0, min(idx, len(release_repos) - 1)),
-                    idx_summary=choice.index,
-                    return_to_summary=True,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=True
+                    ),
                 )
             )
         )
@@ -119,8 +122,9 @@ def step_content_summary(
                 replace(
                     session,
                     step="tag",
-                    idx_summary=choice.index,
-                    return_to_summary=True,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=True
+                    ),
                 )
             )
         )
@@ -130,8 +134,9 @@ def step_content_summary(
                 replace(
                     session,
                     step="bom",
-                    idx_summary=choice.index,
-                    return_to_summary=True,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=True
+                    ),
                 )
             )
         )
@@ -141,8 +146,9 @@ def step_content_summary(
                 replace(
                     session,
                     step="notes",
-                    idx_summary=choice.index,
-                    return_to_summary=True,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=True
+                    ),
                 )
             )
         )
@@ -152,8 +158,9 @@ def step_content_summary(
                 replace(
                     session,
                     step="candidates",
-                    idx_summary=choice.index,
-                    return_to_summary=False,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=False
+                    ),
                 )
             )
         )
@@ -164,8 +171,9 @@ def step_content_summary(
                     replace(
                         session,
                         step="tag",
-                        idx_summary=choice.index,
-                        return_to_summary=True,
+                        cursor=replace(
+                            session.cursor, summary=choice.index, return_to_summary=True
+                        ),
                     )
                 )
             )
@@ -174,8 +182,9 @@ def step_content_summary(
                 replace(
                     session,
                     step="candidates",
-                    idx_summary=choice.index,
-                    return_to_summary=False,
+                    cursor=replace(
+                        session.cursor, summary=choice.index, return_to_summary=False
+                    ),
                 )
             )
         )

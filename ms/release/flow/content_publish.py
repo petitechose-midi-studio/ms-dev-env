@@ -20,6 +20,7 @@ def publish_distribution_release(
     watch: bool,
     dry_run: bool,
     remote_coherence_checked: bool = False,
+    request_id: str | None = None,
 ) -> Result[str, ReleaseError]:
     if not remote_coherence_checked:
         coherence = assert_release_remote_coherence(
@@ -40,6 +41,7 @@ def publish_distribution_release(
         tooling_sha=plan.tooling.sha,
         console=console,
         dry_run=dry_run,
+        request_id=request_id,
     )
     if isinstance(run, Err):
         return run

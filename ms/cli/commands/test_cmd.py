@@ -7,12 +7,12 @@ import typer
 from ms.cli.context import build_context
 from ms.core.result import Err, Ok
 from ms.output.console import ConsoleProtocol, Style
-from ms.services.unit_tests import (
-    UnitTestRun,
-    UnitTestService,
+from ms.services.unit_testing.models import UnitTestRun
+from ms.services.unit_testing.output import (
     print_unit_test_error,
     unit_test_error_exit_code,
 )
+from ms.services.unit_tests import UnitTestService
 
 
 def test(

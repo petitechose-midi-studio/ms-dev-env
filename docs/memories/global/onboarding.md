@@ -46,14 +46,14 @@ Useful commands: `docs/memories/global/commands.md`
 - Architecture: Handlers -> State -> Views (reactive signals).
 - Overlays: owned/managed via OverlayManager + scope/authority.
 
-Core authoritative docs:
+Core authoritative docs (index : `midi-studio/core/docs/README.md`) :
 
-- `midi-studio/core/docs/INVARIANTS.md`
-- `midi-studio/core/docs/HOW_TO_ADD_HANDLER.md`
-- `midi-studio/core/docs/HOW_TO_ADD_VIEW.md`
-- `midi-studio/core/docs/HOW_TO_ADD_OVERLAY.md`
+- `midi-studio/core/docs/CORE_ARCHITECTURE.md`
+- `midi-studio/core/docs/ARCHITECTURE_REVIEW_RULES.md`
+- `midi-studio/core/docs/INPUT_BINDINGS.md`
+- `midi-studio/core/docs/CONTEXT_PRESENTATION.md`
 
-Code style reference: `docs/memories/global/code-style.md`
+Code style reference: `midi-studio/core/docs/CODE_STYLE.md`
 
 ## 5) Hardware + navigation conventions
 

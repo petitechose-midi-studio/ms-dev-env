@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ms.core.result import Result
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -46,7 +46,6 @@ class EmscriptenTool(Tool):
     spec = ToolSpec(
         id="emscripten",
         name="Emscripten SDK",
-        required_for=frozenset({Mode.DEV}),
     )
 
     # Git repository URL
@@ -83,12 +82,7 @@ class EmscriptenTool(Tool):
         if not platform.is_windows:
             return emscripten_dir / "emcc"
 
-        # Recent emsdk releases ship native Windows launchers, while older
-        # installations used batch files. Prefer the current layout but keep
-        # accepting existing legacy installations.
-        exe = emscripten_dir / "emcc.exe"
-        bat = emscripten_dir / "emcc.bat"
-        return exe if exe.exists() or not bat.exists() else bat
+        return emscripten_dir / "emcc.exe"
 
     def emcmake_path(self, tools_dir: Path) -> Path:
         """Get path to emcmake wrapper.

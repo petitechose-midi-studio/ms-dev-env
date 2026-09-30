@@ -170,10 +170,11 @@ def _git_head_sha(*, repo_root: Path) -> str | None:
     return sha
 
 
-def _git_is_dirty(*, repo_root: Path) -> bool:
+def _git_is_dirty(*, repo_root: Path) -> bool | None:
+    """Return True/False when git answered, None when inspection failed."""
     r = run_process(["git", "status", "--porcelain"], cwd=repo_root, timeout=GIT_TIMEOUT_SECONDS)
     if isinstance(r, Err):
-        return False
+        return None
     return r.value.strip() != ""
 
 

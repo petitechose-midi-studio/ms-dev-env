@@ -10,7 +10,6 @@ from ms.cli.commands.bridge import bridge_app
 from ms.cli.commands.build_cmd import build
 from ms.cli.commands.check import check
 from ms.cli.commands.clean import clean
-from ms.cli.commands.dist import dist_app
 from ms.cli.commands.list_cmd import list_apps
 from ms.cli.commands.monitor_cmd import monitor
 from ms.cli.commands.prereqs import prereqs
@@ -78,12 +77,6 @@ app.add_typer(
     name="self",
     help="Install or remove the ms CLI.",
     rich_help_panel=MAINTENANCE_PANEL,
-)
-app.add_typer(
-    dist_app,
-    name="dist",
-    help="Distribution packaging utilities.",
-    rich_help_panel=RELEASE_PANEL,
 )
 app.add_typer(
     release_app,

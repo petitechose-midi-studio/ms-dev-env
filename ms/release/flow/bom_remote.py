@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
@@ -9,9 +8,8 @@ from ms.release.domain.open_control_models import (
     OpenControlRepoState,
 )
 from ms.release.errors import ReleaseError
-from ms.release.infra.github.client import get_ref_head_sha
+from ms.release.infra.github.ref_resolver import RefResolver, github_ref_resolver
 
-RefResolver = Callable[[str, str], Result[str, ReleaseError]]
 GITHUB_BOM_REF = "main"
 
 
@@ -38,10 +36,3 @@ def collect_github_bom_state(
             )
         )
     return Ok(tuple(states))
-
-
-def github_ref_resolver(*, workspace_root: Path) -> RefResolver:
-    def resolve(repo: str, ref: str) -> Result[str, ReleaseError]:
-        return get_ref_head_sha(workspace_root=workspace_root, repo=repo, ref=ref)
-
-    return resolve

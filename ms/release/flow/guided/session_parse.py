@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ms.core.structured import as_obj_list
 from ms.release.domain.models import ReleaseBump, ReleaseChannel
 
 from .session_models import ContentSessionStep, SessionStep
@@ -70,3 +71,19 @@ def parse_content_step(value: str | None) -> ContentSessionStep | None:
 def get_int(record: dict[str, object], *, name: str, default: int) -> int:
     value = record.get(name)
     return value if isinstance(value, int) else default
+
+
+def parse_pending_inputs(value: object) -> tuple[tuple[str, str], ...] | None:
+    rows = as_obj_list(value)
+    if rows is None:
+        return None
+    parsed: list[tuple[str, str]] = []
+    for row in rows:
+        pair = as_obj_list(row)
+        if pair is None or len(pair) != 2:
+            return None
+        key, item = pair
+        if not isinstance(key, str) or not isinstance(item, str):
+            return None
+        parsed.append((key, item))
+    return tuple(parsed)

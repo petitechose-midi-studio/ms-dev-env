@@ -7,15 +7,20 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain.models import PinnedRepo, ReleasePlan
 from ms.release.errors import ReleaseError
+from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
-from .content_contracts import ContentGuidedDependencies
+from .content_contracts import (
+    ContentBomInspectionDependencies,
+    ContentPreparationDependencies,
+    ContentPublicationDependencies,
+)
 from .sessions import ContentReleaseSession
 
 
 def ensure_open_control_clean(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentBomInspectionDependencies,
     workspace_root: Path,
     pinned: tuple[PinnedRepo, ...],
 ) -> Result[None, ReleaseError]:
@@ -52,17 +57,16 @@ def validate_content_confirm_inputs(
     return Ok((session.channel, session.bump, session.tag))
 
 
-def dispatch_content_release(
+def prepare_content_release(
     *,
-    deps: ContentGuidedDependencies,
+    deps: ContentPreparationDependencies,
     workspace_root: Path,
     console: ConsoleProtocol,
-    watch: bool,
     dry_run: bool,
     session: ContentReleaseSession,
     plan: ReleasePlan,
     remote_coherence_checked: bool = False,
-) -> Result[None, ReleaseError]:
+) -> Result[PrMergeOutcome, ReleaseError]:
     deps.print_notes_status(
         console=console,
         notes_markdown=session.notes_markdown,
@@ -103,7 +107,19 @@ def dispatch_content_release(
         return pr
 
     console.success(f"PR merged: {pr.value}")
+    return Ok(pr.value)
 
+
+def publish_prepared_content_release(
+    *,
+    deps: ContentPublicationDependencies,
+    workspace_root: Path,
+    console: ConsoleProtocol,
+    watch: bool,
+    dry_run: bool,
+    plan: ReleasePlan,
+    request_id: str | None = None,
+) -> Result[None, ReleaseError]:
     run = deps.publish_distribution_release(
         workspace_root=workspace_root,
         console=console,
@@ -111,6 +127,7 @@ def dispatch_content_release(
         watch=watch,
         dry_run=dry_run,
         remote_coherence_checked=True,
+        request_id=request_id,
     )
     if isinstance(run, Err):
         return run

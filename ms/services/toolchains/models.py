@@ -55,8 +55,8 @@ class ToolchainPaths:
     cache_downloads: Path
 
     @classmethod
-    def from_workspace(cls, workspace: Workspace, config: Config | None) -> ToolchainPaths:
-        tools_dir = workspace.root / (config.paths.tools if config else "tools")
+    def from_workspace(cls, workspace: Workspace, config: Config) -> ToolchainPaths:
+        tools_dir = workspace.root / config.paths.tools
         return cls(
             tools_dir=tools_dir,
             bin_dir=tools_dir / "bin",

@@ -9,14 +9,17 @@ from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import detect
 from ms.platform.process import ProcessError
-from ms.services.ux_workflows import (
+from ms.services.ux_workflow import selection
+from ms.services.ux_workflow.models import (
+    UxReportFailed,
     UxRunFailed,
     UxWorkflowError,
     UxWorkflowNotFound,
     UxWorkflowRun,
-    UxWorkflowService,
-    workflow_tree_lines,
+    UxWorkflowSelectionAmbiguous,
 )
+from ms.services.ux_workflow.presentation import workflow_tree_lines
+from ms.services.ux_workflows import UxWorkflowService
 
 
 def _service(tmp_path: Path) -> UxWorkflowService:
@@ -38,6 +41,22 @@ def _write_workflow(root: Path, rel: str, body: str = "") -> Path:
 def _ok[T, E](value: Ok[T] | Err[E]) -> T:
     assert isinstance(value, Ok)
     return value.value
+
+
+def test_available_apps_tracks_workflow_directory(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+
+    assert service.available_apps() == ()
+
+    workflow_dir = tmp_path / "midi-studio" / "core" / "sdl" / "integration" / "workflows"
+    workflow_dir.mkdir(parents=True)
+    apps = service.available_apps()
+
+    assert [app.name for app in apps] == ["core"]
+    assert apps[0].workflow_dir == workflow_dir
+    assert apps[0].output_root == (
+        tmp_path / "midi-studio" / "core" / ".captures" / "ux" / "workflows"
+    )
 
 
 def test_unknown_expectations_fail_with_valid_trace_and_captures(tmp_path: Path) -> None:
@@ -99,8 +118,8 @@ def test_catalog_discovers_nested_workflows_and_prints_tree(tmp_path: Path) -> N
         "sequencer/undo/quick-controls.ux",
         "sequencer/undo/step-toggle.ux",
     ]
-    assert [group.path for group in service.groups(catalog)] == ["sequencer"]
-    assert service.count_selection(catalog, "sequencer/undo") == 2
+    assert [group.path for group in selection.groups(catalog)] == ["sequencer"]
+    assert selection.count_selection(catalog, "sequencer/undo") == 2
     assert workflow_tree_lines(catalog) == (
         "core (3 workflows)",
         "|-- sequencer/ (2)",
@@ -118,9 +137,9 @@ def test_resolve_selection_accepts_folder_file_and_unique_basename(tmp_path: Pat
     service = _service(tmp_path)
     catalog = _ok(service.catalog("core"))
 
-    folder = _ok(service.resolve_selection(catalog, "sequencer/undo"))
-    exact = _ok(service.resolve_selection(catalog, "sequencer/undo/step-toggle"))
-    basename = _ok(service.resolve_selection(catalog, "quick-controls"))
+    folder = _ok(selection.resolve_selection(catalog, "sequencer/undo"))
+    exact = _ok(selection.resolve_selection(catalog, "sequencer/undo/step-toggle"))
+    basename = _ok(selection.resolve_selection(catalog, "quick-controls"))
 
     assert [workflow.relative_path for workflow in folder] == [
         "sequencer/undo/quick-controls.ux",
@@ -135,7 +154,7 @@ def test_resolve_selection_reports_missing_workflow(tmp_path: Path) -> None:
 
     service = _service(tmp_path)
     catalog = _ok(service.catalog("core"))
-    result = service.resolve_selection(catalog, "missing")
+    result = selection.resolve_selection(catalog, "missing")
 
     assert isinstance(result, Err)
     assert isinstance(result.error, UxWorkflowNotFound)
@@ -689,7 +708,7 @@ def test_run_all_removes_stale_workflow_outputs(tmp_path: Path) -> None:
     assert not report.exists()
 
 
-def test_write_report_uses_existing_capture_outputs(tmp_path: Path) -> None:
+def test_write_report_rejects_capture_outputs_without_manifest(tmp_path: Path) -> None:
     _write_workflow(tmp_path, "overlay-exclusivity.ux", "10 capture screen first\n")
     output = tmp_path / "midi-studio" / "core" / ".captures" / "ux" / "workflows"
     out_dir = output / "overlay-exclusivity"
@@ -698,16 +717,76 @@ def test_write_report_uses_existing_capture_outputs(tmp_path: Path) -> None:
     (out_dir / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
     (out_dir / "001_first_screen.bmp").write_bytes(b"bmp")
 
-    report = _ok(
-        _service(tmp_path).write_report(
-            app_name="core",
-            selections=(),
-            all_workflows=True,
-        )
+    result = _service(tmp_path).write_report(
+        app_name="core",
+        selections=(),
+        all_workflows=True,
+    )
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxReportFailed)
+    assert "missing or invalid UX run manifest" in result.error.message
+    assert not (output / "report.md").exists()
+    assert (out_dir / "001_first_screen.bmp").read_bytes() == b"bmp"
+
+
+def test_overlapping_selections_are_deduplicated_and_ambiguous_names_rejected(
+    tmp_path: Path,
+) -> None:
+    _write_workflow(tmp_path, "first/shared.ux")
+    _write_workflow(tmp_path, "second/shared.ux")
+    catalog = _ok(_service(tmp_path).catalog("core"))
+    ambiguous = selection.resolve_selection(catalog, "shared")
+    assert isinstance(ambiguous, Err)
+    assert isinstance(ambiguous.error, UxWorkflowSelectionAmbiguous)
+    assert ambiguous.error.matches == ("first/shared.ux", "second/shared.ux")
+
+    selected = _ok(selection.selected_workflows(
+        catalog=catalog,
+        selections=("second", "first/shared", "first", "second/shared.ux"),
+        all_workflows=False,
+    ))
+    assert tuple(item.relative_path for item in selected) == (
+        "first/shared.ux", "second/shared.ux",
     )
 
-    text = report.read_text(encoding="utf-8")
-    assert "overlay-exclusivity.ux" in text
-    assert "001_first_screen.bmp" in text
-    assert "| overlay-exclusivity.ux | missing |" in text
-    assert "Provenance: unavailable (capture predates run manifests)" in text
+
+def test_process_failure_persists_failed_provenance_and_stops_following_workflows(
+    tmp_path: Path,
+) -> None:
+    _write_workflow(tmp_path, "first.ux")
+    _write_workflow(tmp_path, "second.ux")
+    exe = tmp_path / "core.exe"
+    exe.write_bytes(b"binary")
+    calls: list[str] = []
+
+    def runner(cmd: list[str], cwd: Path, timeout: float | None) -> Err[ProcessError]:
+        calls.append(Path(cmd[cmd.index("--ux-script") + 1]).name)
+        output = Path(cmd[cmd.index("--ux-output") + 1])
+        # Even complete traces and captures cannot override a failed process.
+        (output / "trace.ndjson").write_text('{"event":"run_end"}\n', encoding="utf-8")
+        (output / "binding-trace.ndjson").write_text('{"stage":"dispatch"}\n', encoding="utf-8")
+        (output / "001_first_screen.bmp").write_bytes(b"capture")
+        return Err(ProcessError(command=tuple(cmd), returncode=17, stdout="", stderr="failed"))
+
+    service = UxWorkflowService(
+        workspace=Workspace(root=tmp_path), platform=detect(), config=None,
+        console=MockConsole(), runner=runner,
+    )
+    result = service.run(
+        app_name="core", selections=(), all_workflows=True, skip_build=True, executable=exe,
+    )
+    assert isinstance(result, Err)
+    assert isinstance(result.error, UxRunFailed)
+    assert result.error.process_error is not None
+    assert result.error.process_error.returncode == 17
+    run = result.error.run
+    assert run is not None and not run.ok
+    assert run.run_ended and run.has_dispatch and run.capture_count == 1
+    assert calls == ["first.ux"]
+    manifest = json.loads((run.output_dir / "run-manifest.json").read_text(encoding="utf-8"))
+    assert manifest["exit_code"] == 17
+    assert manifest["verified"] is False
+    report = _ok(service.write_report(
+        app_name="core", selections=("first",), all_workflows=False,
+    ))
+    assert "| first.ux | failed |" in report.read_text(encoding="utf-8")

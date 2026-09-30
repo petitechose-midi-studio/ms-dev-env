@@ -45,6 +45,24 @@ from ms.release.flow.pr_outcome import PrMergeOutcome
 from ms.release.infra.github.workflows import WorkflowRun
 
 
+@pytest.fixture(autouse=True)
+def isolate_guided_flows(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    import ms.release.infra.github.workflows as workflows
+
+    def fake_distribution_head(*, workspace_root: Path, repo: str, ref: str) -> Ok[str]:
+        assert repo == "petitechose-midi-studio/distribution"
+        assert ref == "main"
+        return Ok("d" * 40)
+
+    def unexpected_process(*args: object, **kwargs: object) -> None:
+        pytest.fail(f"unmocked process in guided flow test: {args!r}")
+
+    monkeypatch.setattr(workflows, "get_ref_head_sha", fake_distribution_head)
+    monkeypatch.setattr(subprocess, "Popen", unexpected_process)
+
+
 def _sel(value: str, index: int = 0) -> SelectorResult[str]:
     return SelectorResult(action="select", value=value, index=index)
 
@@ -222,7 +240,7 @@ def test_guided_app_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
     monkeypatch.setattr(app, "plan_app_release", fake_plan)
     monkeypatch.setattr(selectors, "select_one", fake_select_one)
     monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(app, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(app, "prepare_app_pr", fake_prepare)
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
@@ -351,7 +369,7 @@ def test_guided_app_summary_edit_recomputes_tag(
     monkeypatch.setattr(app, "plan_app_release", fake_plan)
     monkeypatch.setattr(selectors, "select_one", fake_select_one)
     monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(app, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(app, "prepare_app_pr", fake_prepare)
     monkeypatch.setattr(app, "publish_app_release", fake_publish)
     monkeypatch.setattr(app, "clear_app_session", fake_clear)
@@ -486,7 +504,7 @@ def test_guided_content_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
     monkeypatch.setattr(content, "plan_release", fake_plan)
     monkeypatch.setattr(selectors, "select_one", fake_select_one)
     monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
@@ -679,7 +697,7 @@ def test_guided_content_bom_promotion_updates_core_sha(
     monkeypatch.setattr(content, "plan_release", fake_plan)
     monkeypatch.setattr(selectors, "select_one", fake_select_one)
     monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)
@@ -846,7 +864,7 @@ def test_guided_content_candidates_step_builds_missing(
     monkeypatch.setattr(content, "plan_release", fake_plan)
     monkeypatch.setattr(selectors, "select_one", fake_select_one)
     monkeypatch.setattr(selectors, "confirm_yn", fake_confirm)
-    monkeypatch.setattr(selectors, "ensure_ci_green", fake_ci_green)
+    monkeypatch.setattr(content, "ensure_ci_green", fake_ci_green)
     monkeypatch.setattr(content, "assess_content_candidates", fake_assess_content_candidates)
     monkeypatch.setattr(content, "ensure_content_candidates", fake_ensure_content_candidates)
     monkeypatch.setattr(content, "preflight_open_control", fake_open_control)

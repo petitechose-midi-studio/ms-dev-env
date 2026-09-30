@@ -60,7 +60,7 @@ class SetupService:
     ) -> None:
         self._workspace = workspace
         self._platform = platform
-        self._config = config
+        self._config: Config = config if config is not None else Config()
         self._console = console
         self._confirm = confirm
 

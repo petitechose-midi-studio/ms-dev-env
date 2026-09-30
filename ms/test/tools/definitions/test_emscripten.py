@@ -4,7 +4,6 @@ from pathlib import Path
 
 from ms.core.result import Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.emscripten import EmscriptenTool
 from ms.tools.http import MockHttpClient
 
@@ -18,7 +17,6 @@ class TestEmscriptenTool:
 
         assert tool.spec.id == "emscripten"
         assert tool.spec.name == "Emscripten SDK"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
 
     def test_repo(self) -> None:
         """EmscriptenTool uses correct GitHub repo."""
@@ -93,15 +91,14 @@ class TestEmscriptenToolBinPath:
 
         assert path == Path("/tools/emsdk/upstream/emscripten/emcc.exe")
 
-    def test_windows_uses_legacy_bat_when_present(self, tmp_path: Path) -> None:
-        """Binary path still supports older emsdk installations."""
+    def test_windows_does_not_select_old_bat_launcher(self, tmp_path: Path) -> None:
         emcc_dir = tmp_path / "emsdk" / "upstream" / "emscripten"
         emcc_dir.mkdir(parents=True)
         (emcc_dir / "emcc.bat").touch()
 
         path = EmscriptenTool().bin_path(tmp_path, Platform.WINDOWS)
 
-        assert path == emcc_dir / "emcc.bat"
+        assert path == emcc_dir / "emcc.exe"
 
 
 class TestEmscriptenToolPaths:
@@ -180,15 +177,14 @@ class TestEmscriptenToolIsInstalled:
 
         assert tool.is_installed(tmp_path, Platform.WINDOWS) is True
 
-    def test_windows_checks_legacy_bat(self, tmp_path: Path) -> None:
-        """is_installed continues to recognize legacy .bat launchers."""
+    def test_windows_requires_current_launcher(self, tmp_path: Path) -> None:
         tool = EmscriptenTool()
 
         emcc_dir = tmp_path / "emsdk" / "upstream" / "emscripten"
         emcc_dir.mkdir(parents=True)
         (emcc_dir / "emcc.bat").touch()
 
-        assert tool.is_installed(tmp_path, Platform.WINDOWS) is True
+        assert tool.is_installed(tmp_path, Platform.WINDOWS) is False
 
 
 class TestEmscriptenToolIsCloned:

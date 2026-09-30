@@ -15,13 +15,11 @@ memories/
 └── work/                # Travaux en cours
 ```
 
-## Archivage (hors repo)
+## Archivage
 
-Pour garder ce repo leger et eviter de versionner des plans historiques, les documents devenus obsoletes / termines sont archives **en dehors du repo**.
-
-Emplacement recommande (local): `~/Desktop/legacy memories/ms-dev-env/`
-
-Note: le contenu qui etait dans `docs/memories/_OLD/` et certains plans termines de `docs/memories/work/` ont ete archives dans ce dossier (2026-02-11).
+- Décisions durables → dépôt de docs propriétaire (`petitechose-audio-docs`).
+- Plans terminés → historique Git : supprimer le fichier de ce repo.
+- Pas d'archive locale (`~/Desktop/...`) : inaccessible aux autres contributeurs.
 
 ## Conventions
 
@@ -69,13 +67,10 @@ work/feature-ms-sequencer/
 └── phase-2-midi.md
 ```
 
-### Archivage (hors repo)
+### Archivage
 
-Quand termine, deplacer vers le dossier Desktop, avec prefixe date si besoin.
-Exemple:
-```text
-~/Desktop/legacy memories/ms-dev-env/docs/memories/2026-01-17-refactor-oc-naming.md
-```
+Quand termine : supprimer le fichier (l'historique Git le conserve). Ne pas déplacer
+vers un dossier local (Desktop ou autre), inaccessible aux autres contributeurs.
 
 ## Index des fichiers
 

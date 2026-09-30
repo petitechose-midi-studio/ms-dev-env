@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from ms.core.result import Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.sdl2 import Sdl2Tool
 from ms.tools.http import MockHttpClient
 
@@ -19,7 +18,6 @@ class TestSdl2Tool:
 
         assert tool.spec.id == "sdl2"
         assert tool.spec.name == "SDL2"
-        assert tool.spec.required_for == frozenset({Mode.DEV})
         assert tool.spec.version_args == ()  # No version check for libraries
 
     def test_repo(self) -> None:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ms.tools.base import Mode, ToolSpec
+from ms.tools.base import ToolSpec
 from ms.tools.github import GitHubTool
 
 if TYPE_CHECKING:
@@ -29,7 +29,6 @@ class NinjaTool(GitHubTool):
     spec = ToolSpec(
         id="ninja",
         name="Ninja",
-        required_for=frozenset({Mode.DEV}),
     )
     repo = "ninja-build/ninja"
 

@@ -1,0 +1,210 @@
+# Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
+
+**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2–E4.4 et retrait des compatibilités legacy qualifiés localement ; push autorisé le 2026-09-29, intégration/CI restantes — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Created** : 2026-09-26 — **Updated** : 2026-09-28
+**Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
+**Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
+
+## Contexte vérifié (une ligne par fait)
+
+- Config : `ms/cli/context.py:32` avale `Err` ; `get_int(...) or défaut` avale aussi `0` ; aucune plage ni type strict (`ms/core/config.py`).
+- PlatformIO : `ms/core/platformio_runtime.py:74` code en dur `tools/platformio/venv` ; installation et check respectent `config.paths.tools`.
+- États : `ms/tools/state.py` ne couvre ni `[]` (`AttributeError`) ni `OSError`/`UnicodeDecodeError` ; `session_store.py:35` ne couvre pas `UnicodeDecodeError`.
+- Git : `ms/services/repos/git_ops.py:20` et `ms/release/infra/open_control.py:173` retournent « propre » sur erreur ; consommateur `repos/sync.py:105`.
+- Résolution d'outils : `ms/tools/resolver.py` n'est importé que par ses tests ; build/tests passent par `ToolRegistry.get_bin_path` + `shutil.which`.
+- Vestiges : `ms/cli/release_fsm.py` (seul son test l'importe) ; `Mode.ENDUSER` (aucun appel opérationnel) ; `ms dist` (schéma 1, aucun appelant trouvé).
+- Structure : chaîne `BuildService → Runtime → Targets → Helpers → ContextBase` ; `unit_tests.py` 1210 l., `ux_workflows.py` 1002 l. ; adaptateur `_Deps` (`release_guided_app.py:32`) ; doublons `_base_env`/`_get_tool_path`/`_candidate_metadata_complete`/resolvers GitHub.
+- Release ~53,6 % des lignes non vides (périmètre = `ms/release` + `ms/cli/*release*`, hors tests) ; sessions guidées mêlent données métier et curseurs UI (`idx_*`, `return_to_summary`).
+- Tests release guidée : 95 `monkeypatch.setattr` dans `ms/test/cli/test_release_guided_flows.py`.
+- Docs : `builds.yml` supprimé par `c78ef88` ; `INVARIANTS.md`/`HOW_TO_*` absents de `midi-studio/core/docs` ; archivage Desktop prescrit ; `code-style.md` se dit référence officielle.
+- CI : contrôle de contrat sur `ms-manager@main` + dernière prerelease `distribution`, appelé par `ci.yml` et `integration.yml` sur PR ; `MS_ARCH_STRICT` transmis mais jamais lu (`MS_ARCH_CHECKS` est le verrou ; `_gate.py:15`).
+
+## Décisions verrouillées (aucune question ouverte)
+
+| Sujet | Décision | Règle de repli |
+| --- | --- | --- |
+| Ports | entier (rejeter bool) ou chaîne décimale ; plage **1–65535** ; `0` rejeté ; absent → défaut ; invalide → `ValueError` → `ConfigError` | `USER_ERROR` (1) au niveau CLI |
+| Config CLI | fichier présent mais invalide/illisible → message + exit `USER_ERROR` ; absent → `None` en 1a, `Config()` en 1b | ne jamais retomber silencieusement sur un défaut |
+| `load_state` | `Result[dict, StateError]` : absent/corrompu → `Ok({})` ; `OSError`/`UnicodeDecodeError` → `Err` ; consommateurs propagent `Err` (abandon + message), jamais traités comme « non installé » | `get_installed_version` → `Result[str|None, StateError]` |
+| Session release | erreurs lecture/encodage/forme → `Err` ; schéma passe à **4** à l'ajout de `pending_op` ; schéma 3 → `Err` explicite | sessions courtes, pas de migration |
+| Git dirty | `bool \| None` (`None` = inspection échouée) ; `sync` skip + warning ; `open_control` → blocage release | jamais d'opération sur état inconnu |
+| PlatformIO | `resolve_platformio_runtime(start, *, tools_dir=None)` ; consommateurs qui ont la config passent `tools_dir` résolu ; défaut = `start`/workspace + `tools` | oc_cli/hardware gardent le défaut |
+| `MS_ARCH_STRICT` | suppression (CI + `unit_tests.py` + test) | `MS_ARCH_CHECKS` conservé |
+| `Mode.ENDUSER` | `gh search code` sur l'org ; 0 résultat → suppression ; sinon dépréciation | vérifier aussi `ms sync --tools --mode` |
+| `ms dist` | `gh search code "ms dist"` + workflows `distribution` ; 0 → suppression commande+service+tests ; sinon `package` conservé, `manifest` schéma 1 retiré | décision consignée au journal |
+| Resolver | migrer les tests vers `ToolRegistry.resolve_executable` puis supprimer `resolver.py` | interdiction de supprimer avant migration |
+| CI contrat | PR = épinglé (commit `ms-manager` + tag `distribution`) dans `ci.yml` ; « dernière publication » = job planifié dans `integration.yml` ; doublon retiré ensuite | comparaison événements/permissions avant retrait |
+| Docs | `builds.yml` → décrire `ci.yml` + `integration.yml` + workflows produit ; `INVARIANTS` → `CORE_ARCHITECTURE.md`/`ARCHITECTURE_REVIEW_RULES.md` ; `HOW_TO_*` → `INPUT_BINDINGS.md`/`CONTEXT_PRESENTATION.md`/`CC_LANE_FEATURE.md` ; `STATE_MANAGEMENT` → `CORE_ARCHITECTURE.md` ; Desktop → clôture Git/repo propriétaire | relire la cible avant substitution |
+
+## Lots d'exécution (ordre imposé)
+
+### E0 — Base (fait)
+
+HEAD `75ec6eb`, `docs/README.md` modifié hors périmètre, passations non suivies.
+Validation : `uv run pytest ms/test -q --ignore=ms/test/e2e` → **1216 passés, 14 skippés, 6 désélectionnés, 45,5 s**. Arch skippés par gate. Ruff/Pyright non rejoués.
+
+### E1a — Fail-loud + régressions + docs rapides (1 PR, ~5 commits)
+
+1. Config : `_port()` dans `ms/core/config.py` (absence/type/plage) ; `ms/cli/context.py` propage `Err` (`USER_ERROR`).
+2. PlatformIO : paramètre `tools_dir` ; `build/helpers.py`, `checkers/tools.py` passent le répertoire résolu ; défaut inchangé ailleurs.
+3. États : `load_state`/`get_installed_version` en `Result` (`state.py`, `helpers.py`, `sync.py`, `cli/commands/tools.py`) ; `read_session` → `except (OSError, ValueError)`.
+4. Git : `_is_dirty` → `bool | None` dans `git_ops.py` + `open_control.py` ; `sync.py` skip fail-closed ; `bom.py`/`open_control_models.py` traitent `None` comme blocage.
+5. Docs rapides : appliquer la table « Docs » ci-dessus.
+
+Tests (rouges d'abord) : `test_config.py` (type, 0, -1, 70000, chaîne numérique, bool) ; **`ms/test/cli/test_context.py`** (invalide → exit 1 ; valide → config chargée ; absent → `None`) ; `test_state.py` (`[]`, non-UTF-8, `OSError` injecté, absent) ; tests session (`[]`, non-UTF-8, schéma inconnu) ; `test_repos_service.py` (git en échec → skip) ; `test_bom.py` (`dirty=None` → blocage).
+
+Acceptation : cas d'erreur couverts, plus aucune continuation silencieuse, liens corrigés, suite complète verte.
+Commandes : `uv run pytest ms/test/core ms/test/tools ms/test/release ms/test/cli ms/test/services -q` puis suite complète.
+
+### E1b — Config canonique (1 PR)
+
+`Config` non optionnel dans les services ; suppression des 7+ fallbacks (`base.py:38`, `prereqs.py:129`, `toolchains/models.py:59`, `check.py:86`, `checkers/workspace.py:150-162`, `bridge.py:301`, `bitwig.py:164`) ; absent → `Config()`.
+Tests : contexte absent/valide ; un service représentatif avec `paths.*` personnalisés.
+
+### E2 — Convergence des outils (1 PR)
+
+`ToolRegistry.resolve_executable` (bundled puis PATH) ; `build/helpers._get_tool_path` et `unit_tests._get_tool_path` l'utilisent (erreurs propres à chaque service conservées) ; `toolchain_env.base_env(registry, workspace)` ; tests de `test_resolver.py` migrés vers le chemin réel ; suppression `resolver.py` + `release_fsm.py` (import du test redirigé vers `ms/release/flow/guided/fsm.py`) ; `MS_ARCH_STRICT` supprimé ; ENDUSER/`ms dist` traités selon la table de décisions (petites PR séparées si suppression).
+Diff préalable obligatoire des deux resolvers GitHub ; mutualiser seulement si règles d'erreur identiques.
+
+### E3 — Filet comportemental release + reprise (1 PR dédiée, avant E4)
+
+Doubles : terminal (selectors/console), Git/GitHub (runner `gh`), stockage (session). Scénarios : happy, annulation/retour, échec PR, **reprise** (a) succès distant + échec `save_state`, (b) dispatch accepté + timeout client, (c) workflow en cours, (d) échec distant confirmé, (e) `main` a bougé entre dispatch et reprise. Assertions sur décisions/effets observables.
+
+Correctif reprise : `pending_op` persisté **avant** dispatch (`request_id`, `repo`, `workflow`, `tag`, `source_sha`, `tooling_sha`, `at`) via `_dispatch_request_id` existant ; réconciliation à 4 états — `completed` (`release_exists_by_tag` + concordance), `in_flight` (run `pending/in_progress`), `failed` (conclusion `failure`), `undetermined` (attente bornée du marqueur `dispatch-<request_id>`, sinon erreur dédiée, **jamais** de rejeu ni de conversion en succès). Un `Err` ne devient un succès que si le résultat attendu est prouvé.
+Fichiers : `guided/app_steps.py`, `app_confirm_step.py`, `app_release_dispatch.py`, `session_models.py`, `session_app_store.py`, `session_store.py` (+ contenu symétrique).
+
+### E4 — Structure (après E3 pour tout parcours touché)
+
+Plan métier immuable vs curseurs UI (`idx_*`/`return_to_summary` dérivés ou sous-objet) ; orchestrateur unique guidé/explicite ; réduction `_Deps` selon frontières réelles ; mixins build/repos/toolchains en composants explicites ; découpage `unit_tests.py`/`ux_workflows.py`. Un refactoring = une PR ; tests E3 inchangés (câblage des doubles libre).
+
+### E5 — CI/doc (parallélisable dès E1a)
+
+Contrôle épinglé PR / réel planifié (table décisions) ; suppression doublon après comparaison ; clôture documentaire (autorités uniques, plus d'archivage Desktop).
+
+## Validation locale (matrice performante)
+
+| Boucle | Commande | Attendu |
+| --- | --- | --- |
+| Ciblée (par commit) | `uv run pytest <fichiers> -q` | < 10 s |
+| Lot E1 | `uv run pytest ms/test/core ms/test/tools ms/test/release ms/test/cli ms/test/services -q` | ~30 s |
+| Complète hors e2e | `uv run pytest ms/test -q --ignore=ms/test/e2e` | ~45 s (baseline 1216 p.) |
+| E2E local | `uv run pytest ms/test/e2e -q` | sans réseau |
+| Arch (Windows) | `$env:MS_ARCH_CHECKS="1"; uv run pytest ms/test/architecture -q` | 4 tests actuels |
+| Lint / types | `uv run ruff check ms` ; `uv run pyright` | 0 erreur |
+
+Règles : aucun réseau dans les boucles ciblée/complète (tests `network` désélectionnés par défaut) ; matériel jamais requis ; réseau uniquement à la demande (`-m network`, 3 tests). Suite complète avant clôture de PR.
+
+## Journal d'avancement (1 ligne par étape, jamais réécrite)
+
+Format : `date | lot | état | fichiers | preuve | note`
+
+- 2026-09-26 | E0 | fait | — | pytest 1216p/14s/45,5s sur 75ec6eb | `docs/README.md` déjà modifié (hors périmètre)
+- 2026-09-26 | E1a.1 | fait | `ms/core/config.py`, `ms/cli/context.py`, `ms/test/core/test_config.py`, `ms/test/cli/test_context.py` | 33 p. ciblés, ruff OK | ports 1–65535, `0` rejeté ; config invalide → exit USER_ERROR
+- 2026-09-26 | E1a.2 | fait | `ms/core/platformio_runtime.py`, `build/helpers.py`, `checkers/tools.py`, `test_platformio_runtime.py` | 4 p., ruff OK | `tools_dir` explicite ; défaut `root/tools` inchangé
+- 2026-09-26 | E1a.3b | fait | `session_store.py`, `test_guided_session_store.py` | 5 p. + 11 p. voisins, ruff OK | `except (OSError, ValueError)` ; encodage → `Err`
+- 2026-09-26 | E1a.3a | fait | `state.py`, `toolchains/helpers.py`, `toolchains/sync.py`, `cli/commands/tools.py`, `test_state.py`, `test_integration_phase2.py` | 21 p. ciblés, ruff/pyright OK | API `Result` : corrompu → `Ok({})`, illisible → `Err` ; appelants propagent
+- 2026-09-26 | E1a.4 | fait | `git_ops.py`, `repos/sync.py`, `open_control.py`, `open_control_models.py`, `bom.py`, `test_bom.py`, `test_repos_service.py` | 86 p. ciblés, pyright OK | `bool \| None` ; sync skip+warning ; `None` bloque le BOM
+- 2026-09-26 | E1a.5 | fait | 7 docs (setup-architecture, onboarding, code-style, hw-navigation, tech-spec-modular, memories/README, implementation-plan) | grep résiduel = passation seulement | références mortes remplacées
+- 2026-09-26 | E1a | fait | 16 fichiers source + 9 tests (+29 tests) | suite 1245p/14s/40s ; e2e 1p ; arch 6p ; ruff 0 ; pyright 0 | **non committé**
+- 2026-09-26 | E1b | fait | 12 services + `cli/context.py` + 6 tests CLI | suite verte, ruff/pyright 0 | config normalisé en un point ; plus aucun fallback `config if ... else` ; `Config \| None` toléré uniquement en entrée de constructeur
+- 2026-09-26 | E2 | fait | supprimés : `tools/resolver.py`, `cli/release_fsm.py`, `services/dist.py`, `commands/dist.py`, `Mode`/`ENDUSER`, `MS_ARCH_STRICT` ; ajoutés : `services/toolchain_env.py`, `release/flow/candidate_metadata.py`, `release/infra/github/ref_resolver.py` | suite 1225p/14s/55s ; e2e 1p ; arch 6p ; ruff 0 ; pyright 0 | `gh search` org : 0 usage externe ; -20 tests legacy retirés avec le code
+- 2026-09-26 | E3 | fait (contrat renforcé) | idem + `test_release_resume.py` (20 tests) | scénario réel : dispatch → crash → rechargement disque → reprise sans re-dispatch ; suite verte | `completed` exige `request_id`+run (jamais la seule release) ; valeurs persistées utilisées ; recherche marqueur bornée injectable ; contenu symétrique ; préparation séparée du dispatch (aucun pending si préparation échoue/annulation)
+- 2026-09-26 | E4.1 | fait (round-trip corrigé) | `session_app_store.py`, `session_content_store.py` : lecture du curseur imbriqué | app+contenu : sauvegarde→rechargement préserve curseur et `pending_op` | régression signalée en revue corrigée avec tests dédiés
+- 2026-09-26 | E5 | fait | `integration.yml` : `schedule` hebdo ajouté | — | sur PR : seul le contrôle épinglé tourne ; setup/build integration restent exécutés sur PR ; contrôle « dernière publication » = main/planifié/dispatch
+- 2026-09-26 | E4.0 | fait | caractérisation : catalogue unit-tests, découverte UX (`test_unit_tests.py`, `test_ux_workflows.py`) | — | prérequis posé avant extraction
+- 2026-09-26 | E4.1 | fait | `session_models.py` (`SessionCursor`), stores app/content, `app_steps.py`, `content_steps.py`, `content_summary_step.py`, `content_candidates_step.py`, `content_confirm_step.py`, `notes_transition.py`, `test_guided_notes_transition.py` | suite 1239p/14s/44s ; e2e 1p ; arch 6p ; ruff 0 ; pyright 0 | sessions = plan + `step` + `pending_op` + `cursor` ; assertions E3 inchangées
+- 2026-09-26 | E4.2 (étape 1) | fait | `contracts.py` (nouveau, `TerminalDependencies`), `app_contracts.py`, `content_contracts.py` : protocoles scindés terminal / stockage / opérations release, composés | pyright 0 ; 202 p. ciblés ; suite 1259+1 e2e ; arch 6p | `_Deps` inchangé (conformité structurelle) ; étape 2 : signatures d'étapes resserrées + réduction `_Deps`
+- 2026-09-26 | E4.2 (étape 2)–E4.4 | restant | narrowing par étape, `_Deps` ; mixins build/repos/toolchains ; découpage `unit_tests.py`/`ux_workflows.py` | — | par PR séparée ; caractérisation en place
+- 2026-09-26 | git | checkpoint | commit `2dd7d94` (travail en cours clairement identifié) | seul `docs/README.md` reste non suivi (préexistant) | suites post-revue : reprise 21 tests, round-trip app+contenu, scénario disque réel
+
+- 2026-09-26 | E3 correction de revue | fait | identité/dispatch app, réconciliation, clôture app+contenu, stores, tests | 1260p/14s/6 désélectionnés ; arch 6p ; Ruff/Pyright 0 ; 32 tests reprise | commit `1e36135` ; prochaine étape : E4.2
+
+## Reprise sans friction
+
+### Retrait legacy avant publication (2026-09-28)
+
+- 2026-09-29 : autorisation utilisateur explicite de commit/push après le lot Core. Retrait Python committé en `333e38d`, publication de la pile sur `codex/guided-step-dependencies` ; qualification distante et traitement du check Fedora requis restent à faire avant fusion.
+
+- Sur demande utilisateur, publication suspendue avant tout push/PR. Revue distante : `origin/main` est ancêtre de la pile (17 commits locaux à la base `b960d46`), aucune PR ouverte. Attention pour l'intégration : `test (fedora)` est requis par la protection de main mais le workflow actuel le saute sur PR ; qualifier réellement Fedora avant fusion, sans contourner les protections.
+- Emscripten Windows : suppression des replis `emcc.bat`/`emcmake.bat` dans résolution et wrappers. Seuls les lanceurs `.exe` actuels sont reconnus ; une ancienne installation devra passer par `ms sync --tools`. Le script officiel d'installation `emsdk.bat` reste le point d'entrée Windows du SDK.
+- Release : suppression du lecteur de spec v1 (v2 uniquement). Le spec distant `distribution/release-specs/v0.1.0-beta.6.json` a été vérifié en v2. Retrait de `app_release_request_id`, sans appelant depuis le calcul de l'identité après préparation du candidat.
+- Sessions : les stores App/Content exigent `cursor` et `pending_inputs` valides, sans reconstruire silencieusement un ancien format. Six cas couvrent absence/malformation et préservation des fichiers rejetés ; les 32 tests de reprise restent verts. Ceci remplace la tolérance historique consignée plus bas pour les sessions sans inputs.
+- UX : retrait du rapport de compatibilité pour captures sans manifeste. Un manifeste absent/invalide retourne `UxReportFailed` et demande une nouvelle exécution ; aucune capture existante n'est effacée par le rapport. Les statuts `failed` et `stale` restent des diagnostics du format courant.
+- Architecture : retrait des deux interdictions d'import visant `ms.services.release`, module inexistant ; Pyright contrôle les imports résolus. Les quatre contrôles actuels (services/CLI, couches release, Rich, subprocess) sont conservés.
+- Qualification : `pytest ms/test -q` → **1285 passés, 12 skippés, 6 désélectionnés, 41,47 s** ; architecture **4/4** ; Ruff/Pyright verts après correction du type `Err` du rapport. Aucun dispatch de release, aucune publication distante. Le nettoyage produit/Core reste un périmètre distinct ; ce lot retire les compatibilités Python identifiées.
+
+### E4.4 — Décomposition de UX workflows (2026-09-28)
+
+- Base locale `1736c4d` (Unit tests). `ms/services/ux_workflows.py` conserve la découverte des apps/scénarios, le build/lancement, le nettoyage des sorties et la coordination des écritures.
+- `ms/services/ux_workflow/models.py` possède données/erreurs ; `selection.py` possède navigation, résolution et déduplication sans dépendre du service ; `verification.py` possède captures, traces et attentes sémantiques ; `provenance.py` possède les manifestes et leur validation ; `presentation.py` possède arbre, diagnostics et Markdown du rapport.
+- CLI et tests migrés vers les propriétaires des modèles/sélections/présentation ; doubles de navigation devenus inutiles supprimés. Aucune couche de compatibilité, aucun changement intentionnel des seuils visuels, schémas sémantiques, format de manifeste ou règles de provenance.
+- Les 21 tests UX/CLI existants passent. Deux scénarios supplémentaires couvrent les sélections recouvrantes/ambiguës et l'arrêt sur erreur processus : même avec des traces/captures complètes, le code d'échec est conservé, le manifeste est marqué faux, le rapport affiche `failed` et le scénario suivant ne démarre pas.
+- Qualification : `pytest ms/test -q` → **1279 passés, 14 skippés, 6 désélectionnés, 41,80 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright verts. Tests d'artefacts sur fichiers temporaires avec exécutable simulé, sans nouvelle qualification visuelle produit.
+- **E4.4 terminé localement** pour les deux modules prévus. Suite : (1) revoir l'ensemble de la pile locale et son écart au distant ; (2) préparer/publier les PR en préservant l'historique et les travaux produit ; (3) qualifier la CI sur les têtes exactes avant intégration ; (4) reprendre les familles de contrats Core encore statiques et la qualification Bitwig/Teensy. Le nettoyage legacy global n'est pas déclaré terminé.
+
+### E4.4 — Décomposition de Unit tests (2026-09-28)
+
+- Base locale `1b5121a` (Toolchains). `ms/services/unit_tests.py` possède uniquement l'assemblage, la validation de sélection et l'ordonnancement des cibles/groupes.
+- `ms/services/unit_testing/catalog.py` : cibles, groupes, ordre topologique, normalisation `--test`, identité de build ; `models.py` : données et erreurs ; `dependencies.py` : manifeste, cache Unity, téléchargement/checksum/installation ; `execution.py` : commandes des runners, superbuild CMake, environnement et mesures ; `output.py` : lecture des résumés, diagnostics et codes de sortie.
+- `TestExecutor` reçoit explicitement workspace, plateforme, console et registre. Aucune chaîne de mixins ni ancien module de compatibilité ; la CLI et les tests importent les modèles et la présentation depuis leurs propriétaires.
+- Les commandes, arguments et règles de sélection sont conservés. `ms/test/services/test_unit_test_execution.py` ajoute cinq scénarios via le service public et la frontière processus : noms CMake normalisés/dédupliqués et filtre regex exact ; arrêt et diagnostics pour les trois phases configure/build/test ; ordre du groupe `all`, un seul superbuild CMake et temps de configuration/compilation imputés une seule fois.
+- Qualification : ciblée **18/18** ; `pytest ms/test -q` → **1277 passés, 14 skippés, 6 désélectionnés, 50,64 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright verts. Les nouveaux scénarios utilisent un cache Unity local et des processus simulés, sans compilation produit réelle.
+- Prochain lot : **E4.4 UX workflows**, décomposer `ms/services/ux_workflows.py` après lecture des tests comportementaux/CLI ; conserver les contrats d'artefacts, captures et erreurs. Validation : tests ciblés, suite complète, architecture, Ruff, Pyright, diff propre. E4.4 n'est pas encore entièrement clos ; publication distante et CI de la pile Python restent à traiter.
+
+### E4.3 — Toolchains par composition (2026-09-28)
+
+- Base locale `152b52f` (Repos). `ms/services/toolchains/service.py` possède les sélections DEV/tests et l'assemblage ; `sync.py` expose `ToolchainSync` (synchronisation des outils sélectionnés, agrégation des erreurs, activation) ; `helpers.py` expose `ToolchainInstaller` (installations particulières, état de version, checksums et wrappers).
+- Les dépendances sont fournies aux constructeurs : le composant d'installation n'a ni registre implicite ni configuration complète. Les deux mixins et `_context.py` sont supprimés. Le générateur de wrappers inutilisé passé en argument est retiré. Les tests checksum ciblent désormais leur composant propriétaire.
+- Bug confirmé par tests rouges avant correction : PlatformIO utilisait `Result[bool, StateError]` directement comme condition. `Ok(False)` et `Err(...)` étaient donc vrais, entraînant la réutilisation d'une version obsolète ou d'un état illisible. Le résultat est désormais déballé explicitement : erreur affichée et remontée, version conforme réutilisée, autre version installée.
+- `ms/test/services/test_toolchains_sync.py` couvre les trois états via l'API publique, avec stockage réel dans `custom-tools` et commandes pip simulées. Vérifications de la version persistée, absence de processus en cas d'erreur/conformité, absence d'écriture dans le chemin par défaut. Aucun outil réel installé.
+- Qualification : tests Toolchains **8/8** ; `pytest ms/test -q` → **1272 passés, 14 skippés, 6 désélectionnés, 42,46 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright et `git diff --check` verts.
+- **E4.3 terminé localement** pour les trois services prévus. Prochain lot : **E4.4**, décomposer `ms/services/unit_tests.py`, puis `ms/services/ux_workflows.py` selon leurs responsabilités. Pour chaque lot : tests ciblés, suite complète, architecture, Ruff, Pyright, diff propre. Publication distante et qualification CI restent à traiter pour la pile Python.
+
+### E4.3 — Repos par composition (2026-09-28)
+
+- Base locale `032c9f3` (Build). `RepoService` dans `ms/services/repos/service.py` possède le chargement des manifestes, l'agrégation des résultats, l'inventaire `.ms/repos.lock.json` et la génération des artefacts ms-manager.
+- `sync.py` expose `RepoSync`, construit avec workspace/console, responsable d'un seul checkout. `git_ops.py` expose des fonctions sans état pour les commandes Git et les inspections. Les deux mixins et `_context.py` sont supprimés ; aucune couche de compatibilité.
+- Garanties conservées : dépôts modifiés ou sur une autre branche préservés, statut Git inconnu → abandon de la mise à jour, pull fast-forward uniquement, délais locaux/réseau distincts, dry-run sans écriture.
+- `ms/test/services/test_repos_service.py` : test d'échec du statut déplacé à la frontière processus (une seule commande, pas de fetch/pull, SHA inconnu dans l'inventaire) ; assertions dry-run renforcées ; nouveau test avec dépôts Git locaux prouvant la poursuite après échec de clonage, l'erreur agrégée et l'inventaire des seuls succès.
+- Qualification : tests Repos/manifestes/artefacts **13/13** ; `pytest ms/test -q` → **1269 passés, 14 skippés, 6 désélectionnés, 38,92 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright et `git diff --check` verts. Aucun dépôt produit synchronisé pour cette validation.
+- Prochain lot : **Toolchains**, puis **E4.4** (`unit_tests.py`, `ux_workflows.py`), avec la même matrice de validation. Publication distante et qualification CI de la pile Python toujours restantes.
+
+### E4.3 — Build par composition (2026-09-28)
+
+- Base locale `1b48e2e` (E4.2), lot Build uniquement. Les mixins Repos et Toolchains restent à migrer dans leurs propres lots.
+- `ms/services/build/service.py` compose `BuildTargets` et `BuildRuntime` ; `targets.py` utilise explicitement `BuildPrerequisites` dans `helpers.py`. Le registre d'outils est partagé, la configuration normalisée par `BaseService` est transmise au runtime.
+- Responsabilités : prérequis/outils/dépendances dans `helpers.py`, CMake et compilation dans `targets.py`, cycle de vie bridge/processus dans `runtime.py`, assemblage et API publique dans `service.py`. Les trois mixins et le contexte implicite `_context.py` sont supprimés.
+- Les huit tests existants sont adaptés au propriétaire des prérequis. `ms/test/services/test_build_runtime.py` ajoute sept cas : fermeture du contexte bridge après erreur processus ou interruption en native/WASM, absence de lancement après échec de build, conflit HTTP/WebSocket.
+- Qualification : `pytest ms/test -q` → **1268 passés, 14 skippés, 6 désélectionnés, 41,41 s** ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff et Pyright verts. Validation Python avec frontières processus simulées, sans nouvelle compilation produit réelle.
+- Suite ordonnée : Repos, puis Toolchains (composition explicite et tests existants), puis E4.4 (`unit_tests.py`, `ux_workflows.py`). Rejouer pour chaque lot la suite complète, architecture, Ruff, Pyright et `git diff --check`. Publication de la pile locale et qualification CI toujours à traiter.
+
+### E4.2 — Dépendances des étapes et réduction `_Deps` (2026-09-27)
+
+- Branche `codex/guided-step-dependencies`, base locale `5aeb44f`. La publication distante de la pile Python antérieure reste à traiter séparément ; ce lot n'a pas poussé ces commits.
+- `contracts.py`, `app_contracts.py`, `content_contracts.py` déclarent chaque signature d'effet une seule fois et composent les besoins des étapes. Les contrats complets `AppGuidedDependencies`/`ContentGuidedDependencies` ne sont utilisés que par les deux orchestrateurs `*_steps.py`.
+- Notes → menu uniquement ; résumé Content → menu + inspection BOM ; BOM → inspection/présentation/promotion ; candidats → plan/inspection/préparation ; préparation → candidat/PR/présentation ; publication → dispatch/clôture. Confirmation conserve les effets requis pour persister l'intention, publier et réconcilier, sans bootstrap ni menus de configuration.
+- `ms/cli/release_guided_app.py` et `release_guided_content.py` lient directement les fonctions métier via `staticmethod` et le contexte de session via `partial`, au moment de l'appel. Les wrappers de transmission d'arguments sont supprimés ; l'adaptateur de promotion garde son contrôle de permission effectif. `GuidedCliTerminal` remplace `GuidedCliDependencies` et n'expose plus le contrôle CI.
+- Câblage des doubles CLI déplacé au propriétaire du contrôle CI ; assertions des parcours de reprise inchangées. Sonde temporaire Pyright : refus des trois effets hors contrat (Notes→clear, Résumé→promotion BOM, Publication→bootstrap), puis sonde supprimée.
+- Régression trouvée : Start depuis le résumé Content sans tag transmettait encore `idx_summary`/`return_to_summary` à la session et levait `TypeError`. `test_guided_content_summary.py` rouge avant correction, vert après migration vers `session.cursor`.
+- Qualification : `pytest ms/test -q` → **1261 passés, 14 skippés, 6 désélectionnés, 38,75 s**, E2E local inclus ; `MS_ARCH_CHECKS=1 pytest ms/test/architecture -q` → **6/6** ; Ruff/Pyright **0 erreur** ; `git diff --check` propre. Aucun dispatch de release réelle.
+- Suite ordonnée : **E4.3**, remplacer les mixins build/repos/toolchains par composants explicites après lecture de leurs tests de caractérisation ; **E4.4**, extraire les responsabilités de `unit_tests.py` et `ux_workflows.py`. Un lot par changement, même matrice de validation ; pas de refactoring dicté par un nombre de lignes.
+
+### Relecture de l'historique local (2026-09-27)
+
+- `0733c06177bd1f5434ce7ea72ff8a609a90195a8` relu : extraction des protocoles terminal/stockage/opérations et composition des contrats App/Content. Il réalise E4.2 étape 1 ; les signatures des étapes et `_Deps` restent à resserrer. Cette relecture n'est pas une nouvelle qualification d'exécution.
+- Dans l'historique présent, le correctif reprise est `54e2c5f` ; les mentions historiques de `1e36135` ci-dessous ne sont pas le SHA à utiliser pour reprendre. La racine contient plusieurs commits locaux non publiés ; ne pas les pousser comme simple accompagnement des promotions produit.
+- Revalidation ciblée après relecture : `pytest ms/test/cli/test_release_guided_flows.py ms/test/release/test_release_resume.py -q` → **38 passés en 1,44 s**. Aucun changement Python dans cette continuation produit.
+
+### Correction de revue — reprise release (2026-09-26, après `2dd7d94`)
+
+- **Identité effective** : le dispatcher app calcule l'identité avec le SHA issu de la préparation/fusion et les inputs réellement envoyés. Il appelle `before_dispatch` pour persister l'intention après le traitement du candidat (et son attente si demandée), avant le dispatch release. Un échec du candidat ou de cette écriture ne déclenche pas la release.
+- **Preuve de reprise** : les sessions app/contenu conservent `pending_inputs`. La réconciliation vérifie la cohérence tag/source/tooling, le type d'événement, le chemin du workflow et le hash de requête recalculé sur le `head_sha` du run historique. Elle exige ensuite succès du run et présence de la release. Elle ne recalcule pas l'identité à partir du `main` courant. Cette preuve s'appuie sur le contrat du workflow producteur ; elle ne remplace pas la vérification cryptographique des artefacts.
+- **Compatibilité** : une ancienne intention de schéma 4 sans `pending_inputs` reste lisible mais ne permet pas de déclarer la publication terminée ; réconciliation `undetermined`, sans rejeu automatique.
+- **Clôture durable** : les deux parcours suppriment la session après réconciliation `completed`. Une erreur de suppression est propagée ; l'intention reste disponible pour une nouvelle tentative de clôture.
+- **Preuves locales nouvelles** : SHA fusionné différent du SHA de départ ; vrai dispatch interrompu après acceptation distante ; timeout après acceptation ; échec de suppression après succès ; rechargement disque puis vraie réconciliation avec `main` déplacé ; identités source/tooling/head/workflow discordantes ; candidat en échec sans intention release ; persistance refusée sans dispatch release ; clôture contenu sur disque ; marqueur retardé avec attente simulée.
+- **Validation exécutée** : `pytest ms/test` → **1260 passés, 14 skippés, 6 désélectionnés en 47,47 s**, E2E local inclus ; architecture activée → **6 passés** ; Ruff/Pyright → **0 erreur** ; `git diff --check` sans erreur. Tests reprise → **32 passés en 0,44 s**, sans réseau réel ni délai d'attente réel de réconciliation. Aucun workflow distant n'a été lancé pour cette validation.
+- **État de livraison** : correctif intégré au commit `1e36135`. Hors commit : `docs/README.md` (préexistant, périmètre utilisateur) et la passation produit `refactor-ms-product-maintainability.md` (autre périmètre). Checkpoints : `2dd7d94` puis `1e36135`.
+
+1. Lire le **Journal** (dernière ligne = point de départ) et la table **Décisions**.
+2. Lancer la commande de la **matrice** correspondant au lot en cours.
+3. Ne modifier que la ligne du journal concernée ; garder 1 ligne par étape ; consigner blocage plutôt qu'improviser.

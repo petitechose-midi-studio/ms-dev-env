@@ -4,11 +4,11 @@ from dataclasses import asdict
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
-from ms.core.structured import get_str
+from ms.core.structured import get_str, get_table
 from ms.release.errors import ReleaseError
 
-from .session_models import AppReleaseSession
-from .session_parse import get_int, parse_app_step, parse_bump, parse_channel
+from .session_models import AppReleaseSession, SessionCursor
+from .session_parse import get_int, parse_app_step, parse_bump, parse_channel, parse_pending_inputs
 from .session_paths import app_session_path
 from .session_store import clear_session, read_session, write_session
 
@@ -31,6 +31,9 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
         return Ok(None)
     data = loaded.value
 
+    cursor_data = get_table(data, "cursor")
+    pending_inputs = parse_pending_inputs(data.get("pending_inputs"))
+
     release_id = get_str(data, "release_id")
     created_at = get_str(data, "created_at")
     created_by = get_str(data, "created_by")
@@ -45,6 +48,8 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
         or step is None
         or product != "app"
         or repo_ref is None
+        or cursor_data is None
+        or pending_inputs is None
     ):
         return Err(
             ReleaseError(
@@ -56,7 +61,7 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
 
     return Ok(
         AppReleaseSession(
-            schema=3,
+            schema=4,
             release_id=release_id,
             created_at=created_at,
             created_by=created_by,
@@ -72,11 +77,22 @@ def load_app_session(*, workspace_root: Path) -> Result[AppReleaseSession | None
             notes_path=get_str(data, "notes_path"),
             notes_markdown=get_str(data, "notes_markdown"),
             notes_sha256=get_str(data, "notes_sha256"),
-            idx_channel=get_int(data, name="idx_channel", default=0),
-            idx_bump=get_int(data, name="idx_bump", default=0),
-            idx_sha=get_int(data, name="idx_sha", default=0),
-            idx_summary=get_int(data, name="idx_summary", default=0),
-            return_to_summary=bool(data.get("return_to_summary", False)),
+            cursor=SessionCursor(
+                channel=get_int(cursor_data, name="channel", default=0),
+                bump=get_int(cursor_data, name="bump", default=0),
+                sha=get_int(cursor_data, name="sha", default=0),
+                summary=get_int(cursor_data, name="summary", default=0),
+                return_to_summary=bool(cursor_data.get("return_to_summary", False)),
+            ),
+            pending_kind=get_str(data, "pending_kind"),
+            pending_request_id=get_str(data, "pending_request_id"),
+            pending_repo=get_str(data, "pending_repo"),
+            pending_workflow=get_str(data, "pending_workflow"),
+            pending_tag=get_str(data, "pending_tag"),
+            pending_source_sha=get_str(data, "pending_source_sha"),
+            pending_tooling_sha=get_str(data, "pending_tooling_sha"),
+            pending_at=get_str(data, "pending_at"),
+            pending_inputs=pending_inputs,
         )
     )
 

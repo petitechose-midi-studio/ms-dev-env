@@ -12,11 +12,12 @@ The registry only exposes operations needed by build and toolchain services.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ms.tools.base import Mode, Tool
-from ms.tools.definitions import ALL_TOOLS, get_tool, get_tools_by_mode
+from ms.tools.base import Tool
+from ms.tools.definitions import ALL_TOOLS, get_tool
 
 if TYPE_CHECKING:
     from ms.platform.detection import Platform
@@ -67,17 +68,9 @@ class ToolRegistry:
         """
         return get_tool(tool_id)
 
-    def tools_for_mode(self, mode: Mode | str) -> list[Tool]:
-        """Get tools required for a specific mode.
-
-        Args:
-            mode: Mode enum or string ("dev" or "enduser")
-
-        Returns:
-            List of tools required for that mode
-        """
-        mode_str = ("dev" if mode == Mode.DEV else "enduser") if isinstance(mode, Mode) else mode
-        return get_tools_by_mode(mode_str)
+    def tools(self) -> list[Tool]:
+        """List all bundled tools."""
+        return list(ALL_TOOLS)
 
     def is_installed(self, tool: Tool | str) -> bool:
         """Check if a tool is installed.
@@ -114,6 +107,15 @@ class ToolRegistry:
             return None
 
         return tool.bin_path(self._tools_dir, self._platform)
+
+    def resolve_executable(self, tool_id: str) -> Path | None:
+        """Resolve a runnable binary: bundled tool first, then system PATH."""
+        path = self.get_bin_path(tool_id)
+        if path is not None and path.exists():
+            return path
+
+        found = shutil.which(tool_id)
+        return Path(found) if found else None
 
     def get_env_vars(self) -> dict[str, str]:
         """Get environment variables for all installed tools.

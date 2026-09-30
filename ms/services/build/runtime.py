@@ -5,20 +5,40 @@ import sys
 from ms.core.config import CONTROLLER_CORE_NATIVE_PORT, Config
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
-from ms.output.console import Style
+from ms.core.workspace import Workspace
+from ms.output.console import ConsoleProtocol, Style
+from ms.output.errors import build_error_exit_code, print_build_error
+from ms.platform.detection import PlatformInfo
 from ms.platform.process import run_silent
 from ms.services.bridge_headless import spec_for, start_headless_bridge
 
-from .targets import BuildTargetsMixin
+from .targets import BuildTargets
 
 
-class BuildRuntimeMixin(BuildTargetsMixin):
+class BuildRuntime:
+    """Own the bridge/process lifecycle after a target has been built."""
+
+    def __init__(
+        self,
+        *,
+        targets: BuildTargets,
+        workspace: Workspace,
+        platform: PlatformInfo,
+        config: Config,
+        console: ConsoleProtocol,
+    ) -> None:
+        self._targets = targets
+        self._workspace = workspace
+        self._platform = platform
+        self._config = config
+        self._console = console
+
     def run_native(self, *, app_name: str) -> int:
-        result = self.build_native(app_name=app_name)
+        result = self._targets.build_native(app_name=app_name)
 
         match result:
             case Ok(exe_path):
-                cfg = self._config or Config()
+                cfg = self._config
                 bridge = start_headless_bridge(
                     workspace=self._workspace,
                     platform=self._platform,
@@ -52,17 +72,17 @@ class BuildRuntimeMixin(BuildTargetsMixin):
                         case Err(e):
                             return e.returncode
             case Err(error):
-                self._print_build_error(error)
-                return self._error_to_exit_code(error)
+                print_build_error(error, self._console)
+                return build_error_exit_code(error)
 
         return 1
 
     def serve_wasm(self, *, app_name: str, port: int = CONTROLLER_CORE_NATIVE_PORT) -> int:
-        result = self.build_wasm(app_name=app_name)
+        result = self._targets.build_wasm(app_name=app_name)
 
         match result:
             case Ok(html_path):
-                cfg = self._config or Config()
+                cfg = self._config
                 expected_ws_port = spec_for(cfg, app_name=app_name, mode="wasm").controller_port
                 if int(port) == int(expected_ws_port):
                     self._console.error(
@@ -104,7 +124,7 @@ class BuildRuntimeMixin(BuildTargetsMixin):
                         case Err(e):
                             return e.returncode
             case Err(error):
-                self._print_build_error(error)
-                return self._error_to_exit_code(error)
+                print_build_error(error, self._console)
+                return build_error_exit_code(error)
 
         return 1

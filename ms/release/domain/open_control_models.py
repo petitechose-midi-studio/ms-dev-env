@@ -57,7 +57,7 @@ class OpenControlRepoState:
     path: Path
     exists: bool
     head_sha: str | None
-    dirty: bool
+    dirty: bool | None
 
 
 @dataclass(frozen=True, slots=True)

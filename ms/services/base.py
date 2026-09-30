@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ms.core.config import Config
 from ms.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
-    from ms.core.config import Config
     from ms.core.workspace import Workspace
     from ms.output.console import ConsoleProtocol
     from ms.platform.detection import PlatformInfo
@@ -32,10 +32,10 @@ class BaseService:
     ) -> None:
         self._workspace = workspace
         self._platform = platform
-        self._config = config
+        self._config: Config = config if config is not None else Config()
         self._console = console
 
-        tools_dir = workspace.root / (config.paths.tools if config else "tools")
+        tools_dir = workspace.root / self._config.paths.tools
         self._registry = ToolRegistry(
             tools_dir=tools_dir,
             platform=platform.platform,

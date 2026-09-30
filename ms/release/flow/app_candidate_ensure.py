@@ -10,6 +10,7 @@ from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
 from ms.release.domain import CandidateInputRepo, config, resolve_trusted_candidate_producer
 from ms.release.errors import ReleaseError
+from ms.release.flow.candidate_metadata import candidate_metadata_complete
 from ms.release.flow.candidate_types import CandidateVerifyRequest
 from ms.release.flow.candidate_verify import inspect_candidate_metadata
 from ms.release.infra.github.releases import download_release_assets, release_exists_by_tag
@@ -143,7 +144,7 @@ def _probe_app_candidate(
                 return Ok(AppCandidateState.MISSING)
             return downloaded
 
-        if not _candidate_metadata_complete(metadata_dir):
+        if not candidate_metadata_complete(metadata_dir):
             return Ok(AppCandidateState.INCOMPLETE)
 
         inspected = inspect_candidate_metadata(
@@ -226,12 +227,3 @@ def app_candidate_input_repos(
             sha=tooling_sha,
         ),
     )
-
-
-def _candidate_metadata_complete(metadata_dir: Path) -> bool:
-    required = (
-        metadata_dir / "candidate.json",
-        metadata_dir / "checksums.txt",
-        metadata_dir / "candidate.json.sig",
-    )
-    return all(path.is_file() for path in required)

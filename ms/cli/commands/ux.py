@@ -12,15 +12,18 @@ from ms.cli.selector import SelectorOption, is_interactive_terminal, select_one,
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
 from ms.output.console import ConsoleProtocol, Style
-from ms.services.ux_workflows import (
+from ms.services.ux_workflow import selection
+from ms.services.ux_workflow.models import (
     UxWorkflowCatalog,
     UxWorkflowError,
     UxWorkflowRun,
-    UxWorkflowService,
+)
+from ms.services.ux_workflow.presentation import (
     ux_error_kind,
     ux_error_message,
     workflow_tree_lines,
 )
+from ms.services.ux_workflows import UxWorkflowService
 
 ux_app = typer.Typer(
     add_completion=False,
@@ -294,9 +297,9 @@ def _select_workflow_tree(
 ) -> str | None:
     current = ""
     while True:
-        count = service.count_selection(catalog, current or ".")
-        groups = service.groups(catalog, current)
-        files = service.workflows_in(catalog, current)
+        count = selection.count_selection(catalog, current or ".")
+        groups = selection.groups(catalog, current)
+        files = selection.workflows_in(catalog, current)
         options = [
             SelectorOption(
                 value=_TreeChoice(kind="current", path=current or "."),

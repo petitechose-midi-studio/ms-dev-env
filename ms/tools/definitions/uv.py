@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ms.core.result import Err, Result
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -33,7 +33,6 @@ class UvTool(Tool):
     spec = ToolSpec(
         id="uv",
         name="UV",
-        required_for=frozenset({Mode.DEV}),
     )
 
     install_hint: str = "Install uv: https://docs.astral.sh/uv/"

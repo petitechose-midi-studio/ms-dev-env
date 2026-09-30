@@ -6,12 +6,13 @@ import pytest
 import typer
 
 from ms.cli.context import CLIContext
+from ms.core.config import Config
 from ms.core.errors import ErrorCode
 from ms.core.result import Err, Ok
 from ms.core.workspace import Workspace
 from ms.output.console import MockConsole
 from ms.platform.detection import detect
-from ms.services.unit_tests import UnitTestTargetNotFound
+from ms.services.unit_testing.models import UnitTestTargetNotFound
 
 
 def _ctx(tmp_path: Path) -> CLIContext:
@@ -19,7 +20,7 @@ def _ctx(tmp_path: Path) -> CLIContext:
     return CLIContext(
         workspace=Workspace(root=tmp_path),
         platform=detect(),
-        config=None,
+        config=Config(),
         console=MockConsole(),
     )
 

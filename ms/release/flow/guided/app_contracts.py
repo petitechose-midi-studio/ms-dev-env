@@ -1,3 +1,5 @@
+"""App guided-release dependency contracts, split by boundary."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,9 +11,15 @@ from ms.release.domain.models import AppReleasePlan, PinnedRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.app_publish import AppPublishResult
 from ms.release.flow.pr_outcome import PrMergeOutcome
+from ms.release.infra.github.workflows import BeforeDispatch
 
-from .menu_option import MenuOption
-from .selection import Selection
+from .contracts import (
+    CiDependencies,
+    ConfirmationDependencies,
+    NotesStatusDependencies,
+    SessionCleanupDependencies,
+    TerminalDependencies,
+)
 from .sessions import AppReleaseSession
 
 
@@ -23,61 +31,19 @@ class AppPrepareResultLike(Protocol):
     def source_sha(self) -> str: ...
 
 
-class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
-    def preflight(self) -> Result[str, ReleaseError]: ...
-
-    def bootstrap_session(
-        self, *, created_by: str, notes_file: Path | None
-    ) -> Result[AppReleaseSession, ReleaseError]: ...
-
+class AppSessionDependencies(SessionCleanupDependencies, Protocol):
     def save_state(
         self, *, session: AppReleaseSession
     ) -> Result[AppReleaseSession, ReleaseError]: ...
 
-    def clear_session(self) -> Result[None, ReleaseError]: ...
 
-    def select_channel(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["stable", "beta"]]: ...
+class AppStorageDependencies(AppSessionDependencies, Protocol):
+    def bootstrap_session(
+        self, *, created_by: str, notes_file: Path | None
+    ) -> Result[AppReleaseSession, ReleaseError]: ...
 
-    def select_bump(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["major", "minor", "patch"]]: ...
 
-    def select_green_commit(
-        self,
-        *,
-        workspace_root: Path,
-        repo_slug: str,
-        ref: str,
-        workflow_file: str | None,
-        title: str,
-        subtitle: str,
-        current_sha: str | None,
-        initial_index: int,
-        allow_back: bool,
-    ) -> Result[Selection[str], ReleaseError]: ...
-
-    def select_menu(
-        self,
-        *,
-        title: str,
-        subtitle: str,
-        options: list[MenuOption[str]],
-        initial_index: int,
-        allow_back: bool,
-    ) -> Selection[str]: ...
-
-    def confirm(self, *, prompt: str) -> bool: ...
-
-    def ensure_ci_green(
-        self,
-        *,
-        workspace_root: Path,
-        pinned: tuple[PinnedRepo, ...],
-        allow_non_green: bool,
-    ) -> Result[None, ReleaseError]: ...
-
+class AppPlanningDependencies(Protocol):
     def plan_app_release(
         self,
         *,
@@ -88,6 +54,8 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         pinned: tuple[PinnedRepo, ...],
     ) -> Result[AppReleasePlan, ReleaseError]: ...
 
+
+class AppPreparationDependencies[PrepareT: AppPrepareResultLike](NotesStatusDependencies, Protocol):
     def prepare_app_pr(
         self,
         *,
@@ -100,6 +68,8 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         dry_run: bool,
     ) -> Result[PrepareT, ReleaseError]: ...
 
+
+class AppPublicationDependencies(SessionCleanupDependencies, Protocol):
     def publish_app_release(
         self,
         *,
@@ -113,14 +83,29 @@ class AppGuidedDependencies[PrepareT: AppPrepareResultLike](Protocol):
         watch: bool,
         dry_run: bool,
         remote_coherence_checked: bool = False,
+        request_id: str | None = None,
+        before_dispatch: BeforeDispatch | None = None,
     ) -> Result[AppPublishResult, ReleaseError]: ...
 
-    def print_notes_status(
-        self,
-        *,
-        console: ConsoleProtocol,
-        notes_markdown: str | None,
-        notes_path: str | None,
-        notes_sha256: str | None,
-        auto_label: str,
-    ) -> None: ...
+
+class AppConfirmationDependencies[PrepareT: AppPrepareResultLike](
+    ConfirmationDependencies,
+    CiDependencies,
+    AppSessionDependencies,
+    AppPreparationDependencies[PrepareT],
+    AppPublicationDependencies,
+    Protocol,
+):
+    """Confirm, prepare, persist intent, publish, and reconcile."""
+
+
+class AppGuidedDependencies[PrepareT: AppPrepareResultLike](
+    AppConfirmationDependencies[PrepareT],
+    AppStorageDependencies,
+    AppPlanningDependencies,
+    TerminalDependencies,
+    Protocol,
+):
+    """Complete dependency surface, only for the top-level flow."""
+
+    def preflight(self) -> Result[str, ReleaseError]: ...

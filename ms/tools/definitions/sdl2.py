@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from ms.platform.files import remove_tree
-from ms.tools.base import Mode, ToolSpec
+from ms.tools.base import ToolSpec
 from ms.tools.github import GitHubTool
 
 if TYPE_CHECKING:
@@ -38,7 +38,6 @@ class Sdl2Tool(GitHubTool):
     spec = ToolSpec(
         id="sdl2",
         name="SDL2",
-        required_for=frozenset({Mode.DEV}),
         version_args=(),  # No version check - it's a library
     )
 

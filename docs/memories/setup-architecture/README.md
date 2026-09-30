@@ -69,16 +69,17 @@ Système (guidé par `ms prereqs` / `ms check`) :
 
 ## CI (actuel)
 
-Il y a 2 workflows distincts :
+Il y a 2 workflows distincts dans ce repo :
 
-- `.github/workflows/ci.yml` (push/PR): tests/typing + smoke CLI en dry-run
+- `.github/workflows/ci.yml` (push/PR) : tests/typing/lint
   - matrice runners: ubuntu / windows / macos
   - Fedora: job séparé en container (pas de runner fedora GitHub-hosted)
+  - job `architecture` (gate `MS_ARCH_CHECKS=1`)
+  - contrôle de contrat distribution (`.github/actions/validate-distribution-manager-contract`)
 
-- `.github/workflows/builds.yml` (schedule + manual): builds réels
-  - native: Windows/macOS/Linux
-  - wasm: Ubuntu uniquement
-  - Pages: déploie les artefacts WASM sous `/demo/<app>/latest/`
+- `.github/workflows/integration.yml` (push/PR + manuel) : release alignment
+  - setup workspace réel, `ms release verify-bom`, builds locaux (bitwig ; wasm en manuel)
+  - les builds/publish produit vivent dans les dépôts produit (`candidate.yml`, `release.yml`), pas ici
 
 ## Distribution (current direction)
 
@@ -125,5 +126,5 @@ plutôt que de dépendre uniquement des commandes `oc-bridge install/uninstall`.
 ## Source de vérité
 
 - CLI: `uv run ms --help`
-- CI: `.github/workflows/ci.yml`, `.github/workflows/builds.yml`
+- CI: `.github/workflows/ci.yml`, `.github/workflows/integration.yml`
 - Release operations (maintainers): `docs/memories/setup-architecture/release-operations.md`

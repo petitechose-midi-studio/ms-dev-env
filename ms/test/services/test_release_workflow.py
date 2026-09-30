@@ -28,7 +28,7 @@ def _no_sleep(seconds: float) -> None:
 def _fixed_new_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         workflow_mod,
-        "_dispatch_request_id",
+        "dispatch_request_id",
         lambda **_: "ms-123456781234",
     )
     monkeypatch.setattr(workflow_mod, "find_dispatched_run", lambda **_: Ok(None))
@@ -87,7 +87,7 @@ def test_dispatch_release_alignment_workflow_uses_ms_dev_env_workflow(
         request.update(kwargs)
         return "ms-123456781234"
 
-    monkeypatch.setattr(workflow_mod, "_dispatch_request_id", fake_request_id)
+    monkeypatch.setattr(workflow_mod, "dispatch_request_id", fake_request_id)
 
     calls: list[list[str]] = []
 
@@ -277,7 +277,7 @@ def test_dispatch_publish_workflow_reuses_matching_dispatch(
 ) -> None:
     monkeypatch.setattr(
         workflow_mod,
-        "_dispatch_request_id",
+        "dispatch_request_id",
         lambda **_: "ms-stable-request",
     )
     monkeypatch.setattr(workflow_mod, "get_ref_head_sha", lambda **_: Ok("a" * 40))

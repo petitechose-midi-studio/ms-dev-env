@@ -7,7 +7,6 @@ import pytest
 
 from ms.core.result import Err, Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode
 from ms.tools.definitions.maven import MavenTool
 from ms.tools.http import HttpError, MockHttpClient
 
@@ -42,7 +41,6 @@ class TestMavenTool:
 
         assert tool.spec.id == "maven"
         assert tool.spec.name == "Apache Maven"
-        assert tool.spec.required_for == frozenset({Mode.DEV, Mode.ENDUSER})
 
     def test_install_dir_name(self) -> None:
         """MavenTool installs to 'maven' directory."""

@@ -35,11 +35,15 @@ jobs:
       - name: Sync Python deps
         run: uv sync --frozen --extra dev
 
+      # Pinned references: update deliberately (reproducible PR gate).
+      # Latest-published compatibility is covered by integration.yml on main/dispatch.
       - name: Validate latest beta manifest with MS Manager
         if: matrix.os == 'ubuntu-latest'
         uses: ./.github/actions/validate-distribution-manager-contract
         with:
           token: ${{ github.token }}
+          manager-ref: f94bf213b82235984b653c5a2241551c66b5749a
+          distribution-tag: v0.1.0-beta.6
 
       - name: Type check
         run: uv run pyright
@@ -79,12 +83,10 @@ jobs:
       - name: Architecture tests
         env:
           MS_ARCH_CHECKS: "1"
-          MS_ARCH_STRICT: "1"
         run: uv run pytest ms/test/architecture -q
 
   test_fedora:
     name: test (fedora)
-    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     container:
       image: fedora:41

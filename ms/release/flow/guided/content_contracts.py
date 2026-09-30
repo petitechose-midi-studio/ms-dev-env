@@ -1,3 +1,5 @@
+"""Content guided-release dependency contracts, split by boundary."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,66 +17,30 @@ from ms.release.flow.content_candidates import (
 )
 from ms.release.flow.pr_outcome import PrMergeOutcome
 
-from .menu_option import MenuOption
-from .selection import Selection
+from .contracts import (
+    CiDependencies,
+    ConfirmationDependencies,
+    MenuDependencies,
+    NotesStatusDependencies,
+    SessionCleanupDependencies,
+    TerminalDependencies,
+)
 from .sessions import ContentReleaseSession
 
 
-class ContentGuidedDependencies(Protocol):
-    def preflight(self) -> Result[str, ReleaseError]: ...
-
-    def bootstrap_session(
-        self, *, created_by: str, notes_file: Path | None
-    ) -> Result[ContentReleaseSession, ReleaseError]: ...
-
+class ContentSessionDependencies(SessionCleanupDependencies, Protocol):
     def save_state(
         self, *, session: ContentReleaseSession
     ) -> Result[ContentReleaseSession, ReleaseError]: ...
 
-    def clear_session(self) -> Result[None, ReleaseError]: ...
 
-    def select_channel(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["stable", "beta"]]: ...
+class ContentStorageDependencies(ContentSessionDependencies, Protocol):
+    def bootstrap_session(
+        self, *, created_by: str, notes_file: Path | None
+    ) -> Result[ContentReleaseSession, ReleaseError]: ...
 
-    def select_bump(
-        self, *, title: str, subtitle: str, initial_index: int, allow_back: bool
-    ) -> Selection[Literal["major", "minor", "patch"]]: ...
 
-    def select_green_commit(
-        self,
-        *,
-        workspace_root: Path,
-        repo_slug: str,
-        ref: str,
-        workflow_file: str | None,
-        title: str,
-        subtitle: str,
-        current_sha: str | None,
-        initial_index: int,
-        allow_back: bool,
-    ) -> Result[Selection[str], ReleaseError]: ...
-
-    def select_menu(
-        self,
-        *,
-        title: str,
-        subtitle: str,
-        options: list[MenuOption[str]],
-        initial_index: int,
-        allow_back: bool,
-    ) -> Selection[str]: ...
-
-    def confirm(self, *, prompt: str) -> bool: ...
-
-    def ensure_ci_green(
-        self,
-        *,
-        workspace_root: Path,
-        pinned: tuple[PinnedRepo, ...],
-        allow_non_green: bool,
-    ) -> Result[None, ReleaseError]: ...
-
+class ContentCandidatePreparationDependencies(Protocol):
     def ensure_content_candidates(
         self,
         *,
@@ -84,13 +50,8 @@ class ContentGuidedDependencies(Protocol):
         dry_run: bool,
     ) -> Result[tuple[EnsuredContentCandidate, ...], ReleaseError]: ...
 
-    def assess_content_candidates(
-        self,
-        *,
-        workspace_root: Path,
-        plan: ReleasePlan,
-    ) -> Result[tuple[ContentCandidateAssessment, ...], ReleaseError]: ...
 
+class ContentBomInspectionDependencies(Protocol):
     def preflight_open_control(
         self,
         *,
@@ -98,6 +59,8 @@ class ContentGuidedDependencies(Protocol):
         core_sha: str,
     ) -> OpenControlPreflightReport: ...
 
+
+class ContentBomDependencies(MenuDependencies, ContentBomInspectionDependencies, Protocol):
     def print_open_control_preflight(
         self,
         *,
@@ -113,6 +76,8 @@ class ContentGuidedDependencies(Protocol):
         dry_run: bool,
     ) -> Result[BomPromotionResult, ReleaseError]: ...
 
+
+class ContentPlanningDependencies(Protocol):
     def plan_release(
         self,
         *,
@@ -123,6 +88,25 @@ class ContentGuidedDependencies(Protocol):
         pinned: tuple[PinnedRepo, ...],
     ) -> Result[ReleasePlan, ReleaseError]: ...
 
+
+class ContentCandidatesDependencies(
+    MenuDependencies, ContentPlanningDependencies, ContentCandidatePreparationDependencies, Protocol
+):
+    def assess_content_candidates(
+        self,
+        *,
+        workspace_root: Path,
+        plan: ReleasePlan,
+    ) -> Result[tuple[ContentCandidateAssessment, ...], ReleaseError]: ...
+
+
+class ContentSummaryDependencies(MenuDependencies, ContentBomInspectionDependencies, Protocol):
+    """Summary can inspect the BOM, but cannot promote or publish."""
+
+
+class ContentPreparationDependencies(
+    NotesStatusDependencies, ContentCandidatePreparationDependencies, Protocol
+):
     def prepare_distribution_pr(
         self,
         *,
@@ -134,6 +118,8 @@ class ContentGuidedDependencies(Protocol):
         dry_run: bool,
     ) -> Result[PrMergeOutcome, ReleaseError]: ...
 
+
+class ContentPublicationDependencies(SessionCleanupDependencies, Protocol):
     def publish_distribution_release(
         self,
         *,
@@ -143,14 +129,31 @@ class ContentGuidedDependencies(Protocol):
         watch: bool,
         dry_run: bool,
         remote_coherence_checked: bool = False,
+        request_id: str | None = None,
     ) -> Result[str, ReleaseError]: ...
 
-    def print_notes_status(
-        self,
-        *,
-        console: ConsoleProtocol,
-        notes_markdown: str | None,
-        notes_path: str | None,
-        notes_sha256: str | None,
-        auto_label: str,
-    ) -> None: ...
+
+class ContentConfirmationDependencies(
+    ConfirmationDependencies,
+    CiDependencies,
+    ContentSessionDependencies,
+    ContentPlanningDependencies,
+    ContentBomInspectionDependencies,
+    ContentPreparationDependencies,
+    ContentPublicationDependencies,
+    Protocol,
+):
+    """Confirm, prepare, persist intent, publish, and reconcile."""
+
+
+class ContentGuidedDependencies(
+    ContentConfirmationDependencies,
+    ContentStorageDependencies,
+    ContentCandidatesDependencies,
+    ContentBomDependencies,
+    TerminalDependencies,
+    Protocol,
+):
+    """Complete dependency surface, only for the top-level flow."""
+
+    def preflight(self) -> Result[str, ReleaseError]: ...

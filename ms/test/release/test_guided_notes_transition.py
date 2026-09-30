@@ -9,13 +9,14 @@ from ms.release.flow.guided.session_models import new_app_session, new_content_s
 
 
 def test_clear_notes_returns_to_summary() -> None:
+    base = new_app_session(created_by="test", notes_path=None)
     session = replace(
-        new_app_session(created_by="test", notes_path=None),
+        base,
         step="notes",
         notes_path="notes.md",
         notes_markdown="notes",
         notes_sha256="a" * 64,
-        return_to_summary=True,
+        cursor=replace(base.cursor, return_to_summary=True),
     )
 
     result = apply_notes_selection(
@@ -28,7 +29,7 @@ def test_clear_notes_returns_to_summary() -> None:
     assert result.value.notes_path is None
     assert result.value.notes_markdown is None
     assert result.value.notes_sha256 is None
-    assert result.value.return_to_summary is False
+    assert result.value.cursor.return_to_summary is False
 
 
 def test_keep_notes_preserves_content_notes() -> None:

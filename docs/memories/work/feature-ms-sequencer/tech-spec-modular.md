@@ -542,8 +542,8 @@ struct INoteFX {
 | `open-control/framework/src/oc/core/input/ButtonBuilder.hpp` | Fluent API pour bindings |
 | `midi-studio/core/src/state/CoreState.hpp` | Structure etat existante |
 | `midi-studio/core/src/ui/macro/MacroEditOverlay.hpp` | Pattern overlay existant |
-| `midi-studio/core/docs/HOW_TO_ADD_HANDLER.md` | Guide creation handler |
-| `midi-studio/core/docs/HOW_TO_ADD_OVERLAY.md` | Guide creation overlay |
+| `midi-studio/core/docs/INPUT_BINDINGS.md` | Guide creation handler |
+| `midi-studio/core/docs/CONTEXT_PRESENTATION.md` | Guide creation overlay |
 | `open-control/hal-teensy/src/oc/teensy/UsbMidi.hpp` | Interface USB MIDI existante |
 | `midi-studio/plugin-bitwig/src/handler/input/ViewSwitcherInputHandler.cpp` | Pattern switch mode avec overlay |
 | `midi-studio/plugin-bitwig/src/state/ViewManager.hpp` | Pattern ViewManager multi-vues |

@@ -7,7 +7,7 @@ import pytest
 
 from ms.core.result import Err, Ok
 from ms.platform.detection import Arch, Platform
-from ms.tools.base import Mode, ToolSpec
+from ms.tools.base import ToolSpec
 from ms.tools.github import GitHubTool
 from ms.tools.http import HttpError, MockHttpClient
 
@@ -22,7 +22,6 @@ class SampleTool(GitHubTool):
     spec = ToolSpec(
         id="sampletool",
         name="Sample Tool",
-        required_for=frozenset({Mode.DEV}),
     )
     repo = "test-org/sample-tool"
 
@@ -47,7 +46,6 @@ class SampleNestedTool(GitHubTool):
     spec = ToolSpec(
         id="nested",
         name="Nested Tool",
-        required_for=frozenset({Mode.DEV}),
     )
     repo = "test-org/nested-tool"
 
@@ -247,7 +245,6 @@ class TestGitHubTool:
 
         assert tool.spec.id == "sampletool"
         assert tool.spec.name == "Sample Tool"
-        assert Mode.DEV in tool.spec.required_for
 
 
 class TestGitHubToolAPIUsage:

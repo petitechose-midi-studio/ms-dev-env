@@ -226,6 +226,45 @@ def test_plan_bom_promotion_bumps_patch_and_includes_note() -> None:
     assert note_item.changed is True
 
 
+def test_compare_bom_state_blocks_on_unknown_workspace_state() -> None:
+    lock = _lock("0.1.2", "a")
+    repos = list(_workspace_repos(lock))
+    pins = lock.pins_by_repo()
+    repos[1] = OpenControlRepoState(
+        repo="note",
+        path=Path("/tmp/note"),
+        exists=True,
+        head_sha=pins["note"],
+        dirty=None,
+    )
+
+    comparison = compare_bom_state(
+        bom_lock=lock,
+        workspace_repos=tuple(repos),
+        derived_lock=_derived_from_lock(lock),
+    )
+
+    assert comparison.status == "blocked"
+    assert "workspace repo state unknown: open-control/note" in comparison.blockers
+
+
+def test_plan_bom_promotion_refuses_unknown_workspace_state() -> None:
+    lock = _lock("0.1.2", "a")
+    repos = list(_workspace_repos(lock))
+    pins = lock.pins_by_repo()
+    repos[1] = OpenControlRepoState(
+        repo="note",
+        path=Path("/tmp/note"),
+        exists=True,
+        head_sha=pins["note"],
+        dirty=None,
+    )
+
+    plan = plan_bom_promotion(current_lock=lock, workspace_repos=tuple(repos))
+
+    assert isinstance(plan, Err)
+
+
 def test_plan_bom_promotion_refuses_dirty_workspace_repo() -> None:
     lock = _lock("0.1.2", "a")
     plan = plan_bom_promotion(

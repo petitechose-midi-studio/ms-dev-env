@@ -1,24 +1,28 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 from ms.core.result import Err, Ok, Result
 from ms.output.console import ConsoleProtocol, Style
+from ms.release.domain import config
 from ms.release.domain.models import ReleaseRepo
 from ms.release.errors import ReleaseError
 from ms.release.flow.release_tooling import resolve_release_tooling
 from ms.release.flow.remote_coherence import assert_release_remote_coherence
 
-from .app_contracts import AppGuidedDependencies, AppPrepareResultLike
+from .app_contracts import AppConfirmationDependencies, AppPrepareResultLike
 from .app_pins import pinned_app_repo
 from .app_release_dispatch import (
     app_session_tooling,
-    dispatch_app_release,
+    prepare_app_release,
+    publish_prepared_app_release,
     validate_app_confirm_inputs,
 )
 from .fsm import FINISH, StepOutcome, advance
 from .menu_option import MenuOption
+from .pending_op import reconcile_pending_op
 from .sessions import AppReleaseSession
 
 
@@ -53,8 +57,13 @@ def run_app_confirm_step[PrepareT: AppPrepareResultLike](
     watch: bool,
     dry_run: bool,
     app_release_repo: ReleaseRepo,
-    deps: AppGuidedDependencies[PrepareT],
+    deps: AppConfirmationDependencies[PrepareT],
 ) -> Result[StepOutcome[AppReleaseSession], ReleaseError]:
+    if session.pending_kind is not None:
+        return _resume_pending(
+            session=session, workspace_root=workspace_root, deps=deps
+        )
+
     source = session.repo_sha[:12] if session.repo_sha else "unset"
     approved = deps.confirm(prompt=f"Publish {session.tag} from {source}")
     if not approved:
@@ -121,21 +130,106 @@ def run_app_confirm_step[PrepareT: AppPrepareResultLike](
             return Err(ReleaseError(kind="invalid_input", message="release watch cancelled"))
         effective_watch = watch_choice.value == "watch"
 
-    dispatched = dispatch_app_release(
+    prepared = prepare_app_release(
         deps=deps,
         workspace_root=workspace_root,
         console=console,
-        watch=effective_watch,
         dry_run=dry_run,
         session=session,
         pinned=pinned.value,
         tag=tag,
         version=version,
         repo_sha=repo_sha,
-        tooling_sha=tooling_sha,
         remote_coherence_checked=True,
+    )
+    if isinstance(prepared, Err):
+        return prepared
+
+    def persist_intent(
+        request_id: str, inputs: tuple[tuple[str, str], ...]
+    ) -> Result[None, ReleaseError]:
+        # Called by the release dispatcher after candidate preparation, using
+        # the exact identity and inputs that will be sent to GitHub.
+        marker = replace(
+            session,
+            pending_kind="app_release",
+            pending_request_id=request_id,
+            pending_repo=config.APP_REPO_SLUG,
+            pending_workflow=config.APP_RELEASE_WORKFLOW,
+            pending_tag=tag,
+            pending_source_sha=prepared.value.source_sha,
+            pending_tooling_sha=tooling_sha,
+            pending_inputs=inputs,
+            pending_at=datetime.now(tz=UTC).isoformat(),
+        )
+        saved = deps.save_state(session=marker)
+        if isinstance(saved, Err):
+            return saved
+        return Ok(None)
+
+    dispatched = publish_prepared_app_release(
+        deps=deps,
+        workspace_root=workspace_root,
+        console=console,
+        watch=effective_watch,
+        dry_run=dry_run,
+        session=session,
+        prepared=prepared.value,
+        tag=tag,
+        tooling_sha=tooling_sha,
+        before_dispatch=persist_intent,
     )
     if isinstance(dispatched, Err):
         return dispatched
 
     return Ok(FINISH)
+
+
+def _resume_pending[PrepareT: AppPrepareResultLike](
+    *,
+    session: AppReleaseSession,
+    workspace_root: Path,
+    deps: AppConfirmationDependencies[PrepareT],
+) -> Result[StepOutcome[AppReleaseSession], ReleaseError]:
+    reconciled = reconcile_pending_op(
+        workspace_root=workspace_root,
+        repo=session.pending_repo or config.APP_REPO_SLUG,
+        workflow_file=session.pending_workflow or config.APP_RELEASE_WORKFLOW,
+        tag=session.pending_tag or "",
+        request_id=session.pending_request_id,
+        source_sha=session.pending_source_sha,
+        tooling_sha=session.pending_tooling_sha,
+        inputs=session.pending_inputs,
+    )
+    if isinstance(reconciled, Err):
+        return reconciled
+
+    outcome = reconciled.value
+    if outcome.state == "completed":
+        saved = deps.clear_session()
+        if isinstance(saved, Err):
+            return saved
+        return Ok(FINISH)
+    if outcome.state == "in_flight":
+        return Err(
+            ReleaseError(
+                kind="workflow_failed",
+                message=f"release already dispatched and still running: {outcome.detail}",
+                hint=outcome.run_url or "Wait for the run to finish, then rerun.",
+            )
+        )
+    if outcome.state == "failed":
+        return Err(
+            ReleaseError(
+                kind="workflow_failed",
+                message=f"dispatched release workflow failed: {outcome.detail}",
+                hint=outcome.run_url or "Inspect the failed run before retrying.",
+            )
+        )
+    return Err(
+        ReleaseError(
+            kind="workflow_failed",
+            message="release state undetermined; not retrying automatically",
+            hint=outcome.detail,
+        )
+    )

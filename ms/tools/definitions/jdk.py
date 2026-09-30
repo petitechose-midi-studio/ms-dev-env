@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from ms.core.result import Err, Ok, Result
 from ms.platform.detection import Arch, Platform
 from ms.tools.api import adoptium_jdk_url
-from ms.tools.base import Mode, Tool, ToolSpec
+from ms.tools.base import Tool, ToolSpec
 from ms.tools.http import HttpError
 
 if TYPE_CHECKING:
@@ -57,7 +57,6 @@ class JdkTool(Tool):
     spec = ToolSpec(
         id="jdk",
         name="Eclipse Temurin JDK",
-        required_for=frozenset({Mode.ENDUSER, Mode.DEV}),
         version_args=("-version",),  # java -version
     )
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,6 +31,8 @@ from .gh_base import run_gh_process
 from .timeouts import GH_TIMEOUT_SECONDS
 from .workflow_dispatch_lookup import find_dispatched_run, resolve_dispatched_run
 
+type BeforeDispatch = Callable[[str, tuple[tuple[str, str], ...]], Result[None, ReleaseError]]
+
 
 @dataclass(frozen=True, slots=True)
 class WorkflowRun:
@@ -38,7 +41,7 @@ class WorkflowRun:
     request_id: str
 
 
-def _dispatch_request_id(
+def dispatch_request_id(
     *,
     repo_slug: str,
     workflow_file: str,
@@ -63,21 +66,24 @@ def _dispatch_workflow(
     identity: tuple[tuple[str, str], ...] = (),
     console: ConsoleProtocol,
     dry_run: bool,
+    request_id: str | None = None,
+    before_dispatch: BeforeDispatch | None = None,
 ) -> Result[WorkflowRun, ReleaseError]:
-    resolved_ref = ref
-    if not dry_run:
-        head = get_ref_head_sha(workspace_root=workspace_root, repo=repo_slug, ref=ref)
-        if isinstance(head, Err):
-            return head
-        resolved_ref = head.value
+    if request_id is None:
+        resolved_ref = ref
+        if not dry_run:
+            head = get_ref_head_sha(workspace_root=workspace_root, repo=repo_slug, ref=ref)
+            if isinstance(head, Err):
+                return head
+            resolved_ref = head.value
 
-    request_id = _dispatch_request_id(
-        repo_slug=repo_slug,
-        workflow_file=workflow_file,
-        ref=resolved_ref,
-        inputs=inputs,
-        identity=identity,
-    )
+        request_id = dispatch_request_id(
+            repo_slug=repo_slug,
+            workflow_file=workflow_file,
+            ref=resolved_ref,
+            inputs=inputs,
+            identity=identity,
+        )
     cmd = [
         "gh",
         "workflow",
@@ -96,6 +102,11 @@ def _dispatch_workflow(
     console.print(f"dispatch request_id: {request_id}", Style.DIM)
     if dry_run:
         return Ok(WorkflowRun(id=0, url="(dry-run)", request_id=request_id))
+
+    if before_dispatch is not None:
+        saved = before_dispatch(request_id, inputs)
+        if isinstance(saved, Err):
+            return saved
 
     existing = find_dispatched_run(
         workspace_root=workspace_root,
@@ -142,6 +153,35 @@ def _dispatch_workflow(
     )
 
 
+def dispatch_publish_request_id(
+    *,
+    workspace_root: Path,
+    channel: ReleaseChannel,
+    tag: str,
+    spec_path: str,
+    tooling_sha: str,
+) -> Result[str, ReleaseError]:
+    """Deterministic dispatch identity, computed before the dispatch itself."""
+    head = get_ref_head_sha(
+        workspace_root=workspace_root, repo=DIST_REPO_SLUG, ref=DIST_DEFAULT_BRANCH
+    )
+    if isinstance(head, Err):
+        return head
+    return Ok(
+        dispatch_request_id(
+            repo_slug=DIST_REPO_SLUG,
+            workflow_file=DIST_PUBLISH_WORKFLOW,
+            ref=head.value,
+            inputs=(
+                ("channel", channel),
+                ("tag", tag),
+                ("spec_path", spec_path),
+                ("tooling_sha", tooling_sha),
+            ),
+        )
+    )
+
+
 def dispatch_publish_workflow(
     *,
     workspace_root: Path,
@@ -151,6 +191,7 @@ def dispatch_publish_workflow(
     tooling_sha: str,
     console: ConsoleProtocol,
     dry_run: bool,
+    request_id: str | None = None,
 ) -> Result[WorkflowRun, ReleaseError]:
     return _dispatch_workflow(
         workspace_root=workspace_root,
@@ -165,6 +206,7 @@ def dispatch_publish_workflow(
         ),
         console=console,
         dry_run=dry_run,
+        request_id=request_id,
     )
 
 
@@ -189,6 +231,40 @@ def dispatch_candidate_workflow(
     )
 
 
+def app_release_inputs(
+    *,
+    tag: str,
+    source_sha: str,
+    tooling_sha: str,
+    notes_markdown: str | None,
+    notes_source_path: str | None,
+) -> Result[tuple[tuple[str, str], ...], ReleaseError]:
+    if notes_markdown is None:
+        return Ok((("tag", tag), ("source_sha", source_sha), ("tooling_sha", tooling_sha)))
+
+    notes_b64 = base64.b64encode(notes_markdown.encode("utf-8")).decode("ascii")
+    if len(notes_b64) > 60000:
+        return Err(
+            ReleaseError(
+                kind="invalid_input",
+                message="notes markdown is too large for workflow dispatch input",
+                hint="Use a shorter --notes-file (recommended < 45KB).",
+            )
+        )
+    notes_source = (notes_source_path or "").strip()
+    if len(notes_source) > 1024:
+        notes_source = notes_source[:1021] + "..."
+    return Ok(
+        (
+            ("tag", tag),
+            ("source_sha", source_sha),
+            ("tooling_sha", tooling_sha),
+            ("notes_b64", notes_b64),
+            ("notes_source", notes_source),
+        )
+    )
+
+
 def dispatch_app_release_workflow(
     *,
     workspace_root: Path,
@@ -199,44 +275,35 @@ def dispatch_app_release_workflow(
     notes_source_path: str | None,
     console: ConsoleProtocol,
     dry_run: bool,
+    request_id: str | None = None,
+    before_dispatch: BeforeDispatch | None = None,
 ) -> Result[WorkflowRun, ReleaseError]:
-    inputs: tuple[tuple[str, str], ...]
-    if notes_markdown is None:
-        inputs = (("tag", tag), ("source_sha", source_sha), ("tooling_sha", tooling_sha))
-    else:
-        notes_b64 = base64.b64encode(notes_markdown.encode("utf-8")).decode("ascii")
-        if len(notes_b64) > 60000:
-            return Err(
-                ReleaseError(
-                    kind="invalid_input",
-                    message="notes markdown is too large for workflow dispatch input",
-                    hint="Use a shorter --notes-file (recommended < 45KB).",
-                )
-            )
-        notes_source = (notes_source_path or "").strip()
-        if len(notes_source) > 1024:
-            notes_source = notes_source[:1021] + "..."
-
+    if notes_markdown is not None:
         console.print("app release input: notes_b64 attached", Style.DIM)
+        notes_source = (notes_source_path or "").strip()
         if notes_source:
             console.print(f"app release input: notes_source={notes_source}", Style.DIM)
 
-        inputs = (
-            ("tag", tag),
-            ("source_sha", source_sha),
-            ("tooling_sha", tooling_sha),
-            ("notes_b64", notes_b64),
-            ("notes_source", notes_source),
-        )
+    inputs = app_release_inputs(
+        tag=tag,
+        source_sha=source_sha,
+        tooling_sha=tooling_sha,
+        notes_markdown=notes_markdown,
+        notes_source_path=notes_source_path,
+    )
+    if isinstance(inputs, Err):
+        return inputs
 
     return _dispatch_workflow(
         workspace_root=workspace_root,
         repo_slug=APP_REPO_SLUG,
         workflow_file=APP_RELEASE_WORKFLOW,
         ref=APP_DEFAULT_BRANCH,
-        inputs=inputs,
+        inputs=inputs.value,
         console=console,
         dry_run=dry_run,
+        request_id=request_id,
+        before_dispatch=before_dispatch,
     )
 
 
