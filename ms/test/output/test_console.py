@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import io
+
+import pytest
+
 from ms.output.console import (
     ConsoleProtocol,
     MockConsole,
@@ -9,6 +13,18 @@ from ms.output.console import (
     RichConsole,
     Style,
 )
+
+
+def test_rich_console_preserves_colon_identifiers_on_cp1252(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = io.BytesIO()
+    output = io.TextIOWrapper(raw, encoding="cp1252")
+    monkeypatch.setattr("sys.stdout", output)
+    console = RichConsole()
+    console.print("semantic:lock:property=depth")
+    output.flush()
+    assert b"semantic:lock:property=depth" in raw.getvalue()
 
 
 class TestStyle:
