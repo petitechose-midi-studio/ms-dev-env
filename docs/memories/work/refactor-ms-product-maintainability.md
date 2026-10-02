@@ -4,7 +4,7 @@
 **Status** : Core jusqu'à #186 et Java Bitwig #31 intégrés et qualifiés ; migrations L6 restantes et qualification physique ouvertes
 
 **Created** : 2026-09-26  
-**Updated** : 2026-10-01
+**Updated** : 2026-10-02
 **Nature** : feuille de route d'exécution et passation. Le tableau de la section 5 fait autorité pour l'état courant ; les entrées du journal conservent les preuves historiques.
 
 ## 1. Cap et résultat attendu
@@ -16,7 +16,34 @@
 - Bench `.tmp/settlement-contract-bench` : `ms test core` **206/206**, architecture **OK**, build Teensy `dev` **OK** (88 s ; RAM1 358/512 Ko, RAM2 183/512 Ko, PSRAM 1194/8192 Ko). Aucun essai matériel réalisé dans ce lot.
 - [PR Core #186](https://github.com/petitechose-midi-studio/core/pull/186) fusionnée le 2026-09-30 : `ac74efb0381fd6a9483a3d798be981e8ae7801d8`. [CI post-fusion](https://github.com/petitechose-midi-studio/core/actions/runs/36655720063) verte : architecture/tests natifs, firmware release, SDL WASM, SDL natif sous AddressSanitizer et parcours UX de durée de vie. Ce lot retire uniquement les contrôles hérités décrits ci-dessus ; les autres familles de contrats Core restent à migrer.
 
-### Audit de reprise et prochain lot — 2026-10-01
+### Exécution autonome — 2026-10-02
+
+- [Core #187](https://github.com/petitechose-midi-studio/core/pull/187), tête `ca67f7bf` : scénarios Sync/Settings sur historique non vide et branche redo existante (`b51d869e`) ; trois mutations détectées sur assertions comportementales (mode remis à AUTO en undo, en redo, historique effacé lors du changement Sync), puis annulées. Deux inspections des chaînes exactes de traversée retirées. Aucun défaut du comportement produit actuel révélé par ces scénarios.
+- Suite native **206/206** (81,53 s au total ; exécution 48,69 s), architecture OK ; benchmark testé en Debug puis Release. Les durées de la suite ne mesurent pas la latence utilisateur.
+- Builds Teensy `dev` et `release` réussis : RAM1 libre **157024 B**, RAM2 libre **336192 B**, PSRAM libre **7165600 B**. Advisory Flash confirmé sur les deux profils : code dev **1221940 B > 1208320 B** (+13620 B), release **1221892 B** (+13572 B). Ce lot ne modifie pas le runtime produit ; seuils inchangés. Investiguer les contributeurs de taille avant de décider d'un travail de placement/taille.
+- Ajout d'un mode opt-in `test_ProjectModulationBenchmark --benchmark` et de son README : 64 frames de chauffe, 2048 mesurées, cinq essais indépendants par graphe maximal ; CSV, checksum et charge exacts publiés. Le test standard reste court.
+- Baseline **native Release `-O3 -DNDEBUG`**, Zig 0.15.2, Windows, AMD Ryzen Threadripper 3970X ; assertions du pilote conservées. Dépendances du bench `.tmp/settlement-contract-bench`, SHA-256 de l'exécutable `c01308d25503180ba369b9c268ede598be7446944cae7a542e42566bf051ec1a`. CSV brut local : `.tmp/core-modulation-release-baseline-20261002.csv` ; tableau durable ci-dessous. Les mesures Debug exploratoires ne servent pas de référence de performance.
+
+| Graphe maximal | Moyennes des cinq essais (µs/frame, entières) | Maxima des cinq essais (µs) | Checksum identique sur cinq essais | Tests de trigger/frame |
+| --- | --- | --- | --- | --- |
+| LFO 128×512 | 7, 7, 7, 7, 7 | 16, 14, 12, 13, 23 | 740321913 | 0 |
+| Recorded Shape 128×512 | 7, 6, 7, 7, 7 | 112, 16, 15, 15, 15 | 1329365945 | 0 |
+| DAHDSR réparti, 256 événements | 13, 13, 13, 13, 13 | 21, 18, 54, 22, 34 | 3879386565 | 2048 |
+| DAHDSR même piste | 69, 69, 69, 69, 69 | 172, 161, 133, 77, 173 | 3879386565 | 32768 |
+
+- Constat performance : le cas concentré coûte environ 5,3× le réparti sur cet hôte, pour 16× les tests de trigger. `ProjectControlRuntimeAdsr.cpp::routeProjectTriggerFrame` parcourt le bucket pour chaque événement. Candidat à mesurer sur Teensy avant optimisation ; toute réorganisation doit préserver l'ordre des événements, les accepted notes et le traitement des pertes. Aucun gain runtime revendiqué par ce lot.
+- Matériel : bridge port 8001 actif, `serial_open=true`, serial `18040250`, COM4. `ms ux hardware status --serial 18040250 --control-port 8001` échoue avec `controller rpc timeout`. Les essais physiques sont **bloqués par l'absence de HELLO benchmark compatible**, pas par l'absence de port USB. Aucun flash/reboot effectué ; suivre le workflow ciblé de `script/bench/README.md` pour provisionner le profil requis.
+- Parcours utilisateur : campagne des **154 workflows SDL** lancée avec captures et rapport sous `.tmp/core-ux-qualification-20261002` ; résultat à consigner à la fin. CI #187 également en cours ; ces deux validations ne sont pas encore déclarées vertes.
+
+**Étendue restante, fondée sur les preuves :**
+
+1. Terminer la campagne SDL et corriger chaque échec reproductible avant clôture UX.
+2. Obtenir le HELLO du firmware benchmark ciblé, puis trois répétitions idle/transitions/edit ; relever maxima de boucle/LVGL, pertes/retards, mémoire et erreurs. La fixture est RAM-only : prévoir une qualification SD distincte, puis capture MIDI externe pour le jitter bout-en-bout.
+3. Mesurer le graphe DAHDSR concentré sur matériel avant de choisir une optimisation du routage ; comparer avant/après à charge, checksum, firmware et fréquence identiques. Ne pas transformer le seuil MCU en seuil PC.
+4. Persistance : l'inventaire retrouve déjà des preuves de récupération coopérative (`test_AtomicProductFile`), leases obsolètes (`test_ProductFileService`), libération exacte (`test_ProductPersistenceJobCoordinator`), récupération backup (`test_ProjectFileStore`, `test_ProjectSessionStore`) et autosave sans allocation après admission (`test_ProjectSessionAutosaveService`). Ces tests passent dans les 206 entrées ; la prochaine migration doit démontrer par mutations quelles inspections ils remplacent, et non les réécrire en double.
+5. Conserver les invariants ABI/placement/ownership tant que leurs garanties équivalentes ne sont pas établies ; la suppression du legacy global n'est pas une condition mesurable de performance.
+
+### Audit de reprise et prochain lot — 2026-10-01 (historique)
 
 Revue de `script/dev/check-architecture-contracts.py` et des tests sur l'arbre Core `533eeb44`, intégré sans changement de contenu par #186. Cet audit choisit la prochaine migration ; il ne constitue pas une nouvelle qualification produit.
 
