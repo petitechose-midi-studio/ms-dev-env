@@ -1,11 +1,20 @@
 # Refactor : maintenabilité de ms-dev-env — feuille de route d'exécution
 
-**Scope** : dépôt Python `ms-dev-env` — **Status** : E4.2–E4.4 et retrait des compatibilités legacy qualifiés localement ; push autorisé le 2026-09-29, intégration/CI restantes — **Base initiale** : `75ec6eb` (main, 2026-09-26)
-**Created** : 2026-09-26 — **Updated** : 2026-09-28
+**Scope** : dépôt Python `ms-dev-env` — **Status** : pile Python et retrait legacy intégrés par #146 ; CI post-fusion verte — **Base initiale** : `75ec6eb` (main, 2026-09-26)
+**Created** : 2026-09-26 — **Updated** : 2026-10-01
 **Cap** : réduire le nombre d'endroits à comprendre/modifier pour changer un comportement. Corriger les contrats d'erreur avant de mutualiser ; sécuriser les parcours release avant de les restructurer.
 **Hors périmètre** : `midi-studio`, `open-control`, `distribution`, `ms-manager` (voir `refactor-ms-product-maintainability.md`).
 
-## Contexte vérifié (une ligne par fait)
+## Clôture d'intégration — 2026-10-01
+
+- [PR #146](https://github.com/petitechose-midi-studio/ms-dev-env/pull/146) fusionnée le 2026-09-30 par merge ordinaire, révision `457443c3375c9aa06d48295d06d7dc65076d9729` ; tête qualifiée `7d321991f04ae1f075fd29f333ef963c54b69da6`.
+- [CI post-fusion](https://github.com/petitechose-midi-studio/ms-dev-env/actions/runs/36655720285) verte : Ubuntu, Windows, macOS, Fedora, architecture, types, lint et E2E CLI. Fedora s'exécute désormais aussi sur PR, conformément au check requis.
+- [Release Alignment post-fusion](https://github.com/petitechose-midi-studio/ms-dev-env/actions/runs/36655720434) vert : setup réel, BOM/cibles de release, contrat MS Manager et build extension Bitwig. Les builds WASM optionnels de ce workflow n'ont pas été exécutés.
+- Deux écarts de qualification locale ont été corrigés avant fusion : dépendance `pytest-mock` non déclarée (`32a63c5`), puis lecture GitHub réelle dans deux tests guidés (`7d32199`). Ces scénarios simulent désormais le SHA distant et rejettent tout processus non simulé. L'ancienne affirmation d'absence de réseau dans ces tests n'était pas vérifiée ; l'authentification locale masquait ce défaut.
+- Preuve en environnement Python neuf : 1285 tests passés, 12 skippés, 6 désélectionnés, Ruff/Pyright verts ; après isolation, 38 tests guidés/reprise passent. Les CI multiplateformes ont ensuite validé la tête et le merge.
+- La qualification de cette pile est close. Les indications « publication suspendue », « CI restante » et « intégration ouverte » dans le journal ci-dessous décrivent leurs dates respectives. Le nettoyage produit et les essais physiques restent suivis dans la roadmap produit.
+
+## Contexte initial vérifié (historique de l'audit, une ligne par fait)
 
 - Config : `ms/cli/context.py:32` avale `Err` ; `get_int(...) or défaut` avale aussi `0` ; aucune plage ni type strict (`ms/core/config.py`).
 - PlatformIO : `ms/core/platformio_runtime.py:74` code en dur `tools/platformio/venv` ; installation et check respectent `config.paths.tools`.

@@ -1,20 +1,78 @@
 # Refactor : maintenabilité des produits MIDI Studio
 
 **Scope** : `midi-studio/core`, `midi-studio/plugin-bitwig`, `midi-studio/ui`, frontières avec `device-support` et OpenControl  
-**Status** : première intégration et incréments page/device→batch + allègement MIDI Sync intégrés et qualifiés ; suites Java et migrations L6 ouvertes
+**Status** : Core jusqu'à #186 et Java Bitwig #31 intégrés et qualifiés ; migrations L6 restantes et qualification physique ouvertes
 
 **Created** : 2026-09-26  
-**Updated** : 2026-09-26  
+**Updated** : 2026-10-02
 **Nature** : feuille de route d'exécution et passation. Le tableau de la section 5 fait autorité pour l'état courant ; les entrées du journal conservent les preuves historiques.
 
 ## 1. Cap et résultat attendu
 
-### Lot local qualifié et poussé — 2026-09-29
+### Lot Autosave intégré — clôture 2026-10-01
 
 - Core `533eeb44`, branche `codex/core-autosave-legacy-cleanup`, issue de `origin/main` (`9cb245ba`) : retrait de la liste noire des anciens symboles de politique Autosave et du contrôle textuel du menu. Le test `ProjectMenuModel` vérifie désormais les six libellés et types d'actions Storage. Les contrôles du câblage always-on firmware/SDL et de l'historique restent nécessaires.
 - Mutation : remplacer « Save project » par « Autosave » fait échouer l'assertion comportementale ; mutation annulée avant qualification.
 - Bench `.tmp/settlement-contract-bench` : `ms test core` **206/206**, architecture **OK**, build Teensy `dev` **OK** (88 s ; RAM1 358/512 Ko, RAM2 183/512 Ko, PSRAM 1194/8192 Ko). Aucun essai matériel réalisé dans ce lot.
-- Commit poussé sur la branche distante ; intégration main et qualification CI encore ouvertes. Ce lot retire uniquement les contrôles hérités décrits ci-dessus ; les autres familles de contrats Core restent à migrer.
+- [PR Core #186](https://github.com/petitechose-midi-studio/core/pull/186) fusionnée le 2026-09-30 : `ac74efb0381fd6a9483a3d798be981e8ae7801d8`. [CI post-fusion](https://github.com/petitechose-midi-studio/core/actions/runs/36655720063) verte : architecture/tests natifs, firmware release, SDL WASM, SDL natif sous AddressSanitizer et parcours UX de durée de vie. Ce lot retire uniquement les contrôles hérités décrits ci-dessus ; les autres familles de contrats Core restent à migrer.
+
+### Exécution autonome — 2026-10-02
+
+- [Core #187](https://github.com/petitechose-midi-studio/core/pull/187), tête `ca67f7bf` : scénarios Sync/Settings sur historique non vide et branche redo existante (`b51d869e`) ; trois mutations détectées sur assertions comportementales (mode remis à AUTO en undo, en redo, historique effacé lors du changement Sync), puis annulées. Deux inspections des chaînes exactes de traversée retirées. Aucun défaut du comportement produit actuel révélé par ces scénarios.
+- Suite native **206/206** (81,53 s au total ; exécution 48,69 s), architecture OK ; benchmark testé en Debug puis Release. Les durées de la suite ne mesurent pas la latence utilisateur.
+- Builds Teensy `dev` et `release` réussis : RAM1 libre **157024 B**, RAM2 libre **336192 B**, PSRAM libre **7165600 B**. Advisory Flash confirmé sur les deux profils : code dev **1221940 B > 1208320 B** (+13620 B), release **1221892 B** (+13572 B). Ce lot ne modifie pas le runtime produit ; seuils inchangés. Investiguer les contributeurs de taille avant de décider d'un travail de placement/taille.
+- Ajout d'un mode opt-in `test_ProjectModulationBenchmark --benchmark` et de son README : 64 frames de chauffe, 2048 mesurées, cinq essais indépendants par graphe maximal ; CSV, checksum et charge exacts publiés. Le test standard reste court.
+- Baseline **native Release `-O3 -DNDEBUG`**, Zig 0.15.2, Windows, AMD Ryzen Threadripper 3970X ; assertions du pilote conservées. Dépendances du bench `.tmp/settlement-contract-bench`, SHA-256 de l'exécutable `c01308d25503180ba369b9c268ede598be7446944cae7a542e42566bf051ec1a`. CSV brut local : `.tmp/core-modulation-release-baseline-20261002.csv` ; tableau durable ci-dessous. Les mesures Debug exploratoires ne servent pas de référence de performance.
+
+| Graphe maximal | Moyennes des cinq essais (µs/frame, entières) | Maxima des cinq essais (µs) | Checksum identique sur cinq essais | Tests de trigger/frame |
+| --- | --- | --- | --- | --- |
+| LFO 128×512 | 7, 7, 7, 7, 7 | 16, 14, 12, 13, 23 | 740321913 | 0 |
+| Recorded Shape 128×512 | 7, 6, 7, 7, 7 | 112, 16, 15, 15, 15 | 1329365945 | 0 |
+| DAHDSR réparti, 256 événements | 13, 13, 13, 13, 13 | 21, 18, 54, 22, 34 | 3879386565 | 2048 |
+| DAHDSR même piste | 69, 69, 69, 69, 69 | 172, 161, 133, 77, 173 | 3879386565 | 32768 |
+
+- Constat performance : le cas concentré coûte environ 5,3× le réparti sur cet hôte, pour 16× les tests de trigger. `ProjectControlRuntimeAdsr.cpp::routeProjectTriggerFrame` parcourt le bucket pour chaque événement. Candidat à mesurer sur Teensy avant optimisation ; toute réorganisation doit préserver l'ordre des événements, les accepted notes et le traitement des pertes. Aucun gain runtime revendiqué par ce lot.
+- Matériel : bridge port 8001 actif, `serial_open=true`, serial `18040250`, COM4. `ms ux hardware status --serial 18040250 --control-port 8001` échoue avec `controller rpc timeout`. Les essais physiques sont **bloqués par l'absence de HELLO benchmark compatible**, pas par l'absence de port USB. Aucun flash/reboot effectué ; suivre le workflow ciblé de `script/bench/README.md` pour provisionner le profil requis.
+- Parcours utilisateur : **154/154 workflows SDL vérifiés**, avec captures et manifestes sous `.tmp/core-ux-qualification-20261002`. La CLI a échoué après les replays dans le récapitulatif : Rich convertissait `:lock:` en emoji non encodable en cp1252. Correction : désactiver l'expansion emoji de `RichConsole`, test de régression sur sortie cp1252 ; 32 tests console/CLI UX, Ruff/Pyright verts. Rapport régénéré depuis les captures conservées : 154 lignes `verified`, aucune `failed`/`stale`. La campagne initiale a donc un code de sortie 1 malgré ses replays réussis ; aucune ambiguïté avec un succès bout-en-bout de cette commande.
+- [CI Core #187](https://github.com/petitechose-midi-studio/core/actions/runs/37056843594) entièrement verte sur `ca67f7bf` : firmware release, tests natifs/unitaires, SDL WASM et SDL natif.
+
+**Étendue restante, fondée sur les preuves :**
+
+1. Campagne SDL terminée ; intégrer le correctif console Windows et conserver les captures/rapport comme preuve de cette révision.
+2. Obtenir le HELLO du firmware benchmark ciblé, puis trois répétitions idle/transitions/edit ; relever maxima de boucle/LVGL, pertes/retards, mémoire et erreurs. La fixture est RAM-only : prévoir une qualification SD distincte, puis capture MIDI externe pour le jitter bout-en-bout.
+3. Mesurer le graphe DAHDSR concentré sur matériel avant de choisir une optimisation du routage ; comparer avant/après à charge, checksum, firmware et fréquence identiques. Ne pas transformer le seuil MCU en seuil PC.
+4. Persistance : l'inventaire retrouve déjà des preuves de récupération coopérative (`test_AtomicProductFile`), leases obsolètes (`test_ProductFileService`), libération exacte (`test_ProductPersistenceJobCoordinator`), récupération backup (`test_ProjectFileStore`, `test_ProjectSessionStore`) et autosave sans allocation après admission (`test_ProjectSessionAutosaveService`). Ces tests passent dans les 206 entrées ; la prochaine migration doit démontrer par mutations quelles inspections ils remplacent, et non les réécrire en double.
+5. Conserver les invariants ABI/placement/ownership tant que leurs garanties équivalentes ne sont pas établies ; la suppression du legacy global n'est pas une condition mesurable de performance.
+
+### Audit de reprise et prochain lot — 2026-10-01 (historique)
+
+Revue de `script/dev/check-architecture-contracts.py` et des tests sur l'arbre Core `533eeb44`, intégré sans changement de contenu par #186. Cet audit choisit la prochaine migration ; il ne constitue pas une nouvelle qualification produit.
+
+| Famille restante | Constat | Suite |
+| --- | --- | --- |
+| `midi_sync_command_contract_errors` | Mélange ownership/composition, inventaire des writers, tailles de snapshots et chaînes exactes d'appels undo/redo. Tests physiques Project déjà présents. | Priorité : isolation historique Project/Device ; sous-lot borné ci-dessous. |
+| `persistence_lease_contract_errors` | Mélange ABI ARM, capacités read/write, récupération et ordre des opérations ; plusieurs propriétaires et chemins RPC. | Découper ultérieurement par invariant ; ne pas supprimer en bloc. |
+| `step_draft_transition_contract_errors` | Inspections de fonctions/types et comptages transversaux ; les migrations settlement précédentes ne prouvent pas tous les invariants restants. | Cartographier chaque assertion vers une preuve avant retrait. |
+| Autosave, placement froid, PSRAM/extmem | Câblage runtime, placement et budgets ne sont pas remplacés par le test du menu Storage. | Conserver jusqu'à preuves ciblées de câblage/mémoire. |
+
+**Lot choisi : L6 suivant — isolation MIDI Sync / historique Project.**
+
+1. Renforcer `test/test_ProjectHandler/test_main.cpp` : créer une entrée réelle de tempo, changer Sync par entrée physique, puis undo et redo ; vérifier tempo restauré, mode Sync inchangé, aucune écriture Device supplémentaire et état relu du store identique. Couvrir aussi un changement Sync quand une branche redo Project existe, afin de prouver qu'elle reste disponible.
+2. Compléter si nécessaire `test/test_ProjectHistoryCoordinator/test_main.cpp` pour la traversée des entrées Settings. Le scénario `test_transport_sync_is_device_persisted_and_project_neutral` vérifie actuellement `!undoProjectHistory()` avec un historique vide ; le scénario tempo teste séparément undo/redo sans assertion Sync. Leur combinaison reste à prouver.
+3. Mutations à détecter indépendamment : remise à AUTO du mode lors d'undo ; idem lors de redo ; coupure du redo Project lors d'un changement Sync. Restaurer chaque mutation avant la suivante et conserver la preuve d'échec ciblé.
+4. Retirer seulement les inspections devenues redondantes dans `midi_sync_command_contract_errors` (chaînes de traversée Settings et dépendances historiques concernées). Préserver les `static_assert` de taille, les frontières de composition et les invariants d'ownership non couverts. Fichiers à examiner : `src/state/CoreStateProjectHistory.cpp`, `src/state/project/ProjectSettingsHistory.*`, `src/handler/project/ProjectHandlerValueEditing.cpp` et `src/state/project/ProjectHistoryCoordinator.cpp`.
+5. Acceptance : échecs des trois mutations sur assertions comportementales ; tests ciblés puis suite complète, architecture et build Teensy verts ; PR qualifiée sur son SHA exact avant merge. Aucun changement de modulation pré-batch dans ce lot.
+
+Commandes depuis `ms-dev-env`, après vérification du bench et de ses dépendances :
+
+```powershell
+ms --workspace .tmp/settlement-contract-bench test core --test ProjectHandler --test ProjectHistoryCoordinator --test DeviceSettingsDomainServices
+python .worktrees/core-settlement-contracts/script/dev/check-architecture-contracts.py
+ms --workspace .tmp/settlement-contract-bench test core
+ms --workspace .tmp/settlement-contract-bench build core --target teensy --env dev
+```
+
+La qualification physique Bitwig/Teensy et la décision sur la modulation pré-batch restent ouvertes. Un build firmware réussi ne les clôt pas.
 
 **Réduire le nombre de responsabilités, de fichiers et de dépendances qu'un développeur doit comprendre pour changer un comportement, tout en conservant les garanties du produit.**
 
@@ -106,7 +164,7 @@ Prendre comme références `core/docs/CORE_ARCHITECTURE.md`, `ARCHITECTURE_REVIE
 | L3 | Consolidation de `ListOverlay` | L2 recommandé avant refactoring Bitwig | UI #15 et Bitwig #29 mergées ; CI UI/Bitwig vertes ; captures avant/après identiques |
 | L4 | Parcours pilote de collage de page Core | L1 | #179 mergée ; revue, suite native et CI validées |
 | L5 | Dépendances ciblées sur ce parcours | L4 | #180 mergée ; revue, suite native et CI validées |
-| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181–185 mergées et qualifiées ; persistance/publication, acceptation/fermeture, ClipWorkspace, settlement et consommateurs de sélecteurs couverts ; inspections correspondantes et inventaire >800 lignes retirés |
+| L6 | Remplacement d'un groupe de contrôles textuels | L1 ; indépendant de L4/L5 | #181–186 mergées et qualifiées ; retrait Autosave/menu ajouté ; prochain sous-lot : isolation MIDI Sync/historique Project, preuves undo/redo non vide à compléter |
 | L7 | Onboarding et clôture documentaire | Changements concernés stabilisés | Première intégration clôturée : onboarding intégré, validations finales Core 206/206, Bitwig 2/2, UI 2/2, architecture et topologie OK |
 
 Ordre recommandé pour une reprise séquentielle : L0 → L1 → L2 → L3 → L4 → L5 → L6 → L7. Chaque lot doit rester relisible et validable séparément. Ne pas mélanger le déplacement massif de fichiers avec une modification de comportement.

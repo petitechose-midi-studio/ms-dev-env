@@ -87,7 +87,7 @@ class RichConsole:
         # Import Rich lazily to avoid import-time dependency
         from rich.console import Console
 
-        self._console = Console()
+        self._console = Console(emoji=False)
         self._style_map = {
             Style.DEFAULT: "",
             Style.SUCCESS: "green",
