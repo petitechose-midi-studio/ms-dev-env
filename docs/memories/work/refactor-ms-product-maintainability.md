@@ -4,7 +4,7 @@
 **Status** : Core jusqu'à #186 et Java Bitwig #31 intégrés et qualifiés ; migrations L6 restantes et qualification physique ouvertes
 
 **Created** : 2026-09-26  
-**Updated** : 2026-10-02
+**Updated** : 2026-10-03
 **Nature** : feuille de route d'exécution et passation. Le tableau de la section 5 fait autorité pour l'état courant ; les entrées du journal conservent les preuves historiques.
 
 ## 1. Cap et résultat attendu
@@ -15,6 +15,37 @@
 - Mutation : remplacer « Save project » par « Autosave » fait échouer l'assertion comportementale ; mutation annulée avant qualification.
 - Bench `.tmp/settlement-contract-bench` : `ms test core` **206/206**, architecture **OK**, build Teensy `dev` **OK** (88 s ; RAM1 358/512 Ko, RAM2 183/512 Ko, PSRAM 1194/8192 Ko). Aucun essai matériel réalisé dans ce lot.
 - [PR Core #186](https://github.com/petitechose-midi-studio/core/pull/186) fusionnée le 2026-09-30 : `ac74efb0381fd6a9483a3d798be981e8ae7801d8`. [CI post-fusion](https://github.com/petitechose-midi-studio/core/actions/runs/36655720063) verte : architecture/tests natifs, firmware release, SDL WASM, SDL natif sous AddressSanitizer et parcours UX de durée de vie. Ce lot retire uniquement les contrôles hérités décrits ci-dessus ; les autres familles de contrats Core restent à migrer.
+
+### Diagnostic Flash et matériel — 2026-10-03
+
+**État intégré** : Core #187 → `fc38d9888619e5eba9d99e6e39f68986abd7e5f5`, CI post-fusion `37059274358` verte ; outillage/docs #147 → `c5375d670abce60ff8cda483e7603b14dde15d45`, CI `37060158567` et Release Alignment `37060158627` verts.
+
+**Matériel** : le bridge port 8001 confirme toujours `serial_open=true`, serial `18040250`, instance `bitwig-hardware-18040250`, COM4. La lecture HELLO benchmark expire (`controller rpc timeout`). Cela ne permet pas de déterminer la version ni le profil du firmware actif. Aucun accès série concurrent, flash ou reboot effectué. Pour poursuivre : identifier/provisionner le profil `dev_hardware_benchmark` par le workflow MS Manager ciblant ce serial, puis exiger le HELLO compatible avant toute mesure. Le protocole benchmark ne fournit aucune identification lorsque ce HELLO ne répond pas.
+
+**ELF et attribution** : reconstruction release sur Core `ca67f7bf` (contenu intégré par #187), dépendances PlatformIO épinglées. Dépassement code reproduit : 1221892 B pour 1208320 B (+13572 B). ELF SHA-256 `2016ec41ae857b585641c60a5728b7ab573ab8a90e5e4152886b74cb9d946592`. Analyse `arm-none-eabi-nm --print-size --size-sort --radix=d --demangle` avec déduplication adresse/taille pour ne pas compter deux fois les alias de constructeurs.
+
+- ILI9341_T4 **1.7.0** : 32856 B de symboles de méthodes du driver ; quatre polices OpenSans liées, tables comprises : **30245 B**. Une taille de symbole seule ne prouve pas qu'il est supprimable.
+- `objdump -h` sur `ILI9341Driver.cpp.o` montre une unique section `.flashmem` de **31380 B**. Les relocations de cette section référencent les quatre polices ; les fonctions ne sont pas éliminables séparément dans cette section malgré `--gc-sections`.
+- Principaux symboles Core Flash repérés : `SequencerOverlayPresenter::bind` 7750 B, `SequencerView::bindGridState` 6652 B, `macro_overlay_invalidation::Bindings::bind` 5996 B, `StandaloneUiAssembly::bindGlobalTrackStrip` 5808 B. Aucun n'est déclaré superflu sur ce seul critère.
+
+**Expérience réversible, non intégrée au produit** : uniquement dans le `.cpp` généré du driver, après ses includes, remplacement temporaire de `FLASHMEM` par une section `.flashmem.ili9341.<counter>` par fonction, en conservant `noinline`. Le linker produit accepte déjà `.flashmem*`. Aucun changement de seuil ni de fréquence CPU.
+
+| Mesure post-link (octets) | Original | Expérience | Réduction |
+| --- | ---: | ---: | ---: |
+| Flash code | 1221892 | 1209820 | 12072 |
+| Flash données | 267272 | 236984 | 30288 |
+| Flash headers | 8944 | 8296 | 648 |
+| Total Flash | 1498108 | 1455100 | **43008** |
+| ITCM | 310040 | 309512 | 528 |
+| RAM1 libre | 157024 | 157024 | 0 |
+| RAM2 libre | 336192 | 336192 | 0 |
+| PSRAM libre | 7165600 | 7165600 | 0 |
+
+Build expérimental réussi ; zéro symbole OpenSans dans le nouvel ELF. Advisory code encore présent : **1500 B** au-dessus du seuil. Il ne faut pas confondre les 43 Ko de réduction totale avec la réduction de 12 Ko du code. Aucun gain de temps d'exécution ni équivalence physique d'affichage démontrés.
+
+ELF expérimental SHA-256 `94e6ea69e223236ac3bfcdf68fad7efd5364350da80c59c5507466a7a11f3411`. Sources du driver restaurées **octet pour octet**, SHA-256 `111c7289ba64b59bfc262ed7c4d1aa476ac98f20f3ff684aa6ad91080f0ef3b2` ; rebuild après retrait de la modification retrouve les tailles originales. Aucune modification de dépendance générée à conserver. Artefacts locaux : `.tmp/core-release-before-sections.elf`, `.tmp/core-release-experimental-sections.elf`, `.tmp/core-release-symbols.txt`, `.tmp/core-driver-relocations.txt`, `.tmp/core-flash-sections-experiment.log`, `.tmp/core-flash-restored-build.log`.
+
+**Prochain lot borné** : porter la granularité des sections dans une révision versionnée du driver, plutôt que patcher `.pio/libdeps` à chaque build ; vérifier dev/release/diagnostics et consommateurs device-support, ainsi que DMA/VSync et affichage sur le contrôleur. Ne pas toucher aux fonctions ISR ni déplacer du code chaud vers Flash pour satisfaire le seuil. La cause de rétention et le gain de taille sont établis ; la promotion et la qualification physique restent ouvertes. Le seuil advisory restant mérite une attribution complémentaire, pas un relèvement automatique.
 
 ### Exécution autonome — 2026-10-02
 
