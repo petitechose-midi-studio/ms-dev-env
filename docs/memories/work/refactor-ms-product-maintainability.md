@@ -18,6 +18,33 @@
 
 ### Diagnostic Flash et matériel — 2026-10-03
 
+#### Qualification réelle — blocage série levé le 2026-10-03
+
+**État courant (remplace le blocage HELLO décrit plus bas)** : flash ciblé effectué avec autorisation utilisateur sur `18040250` / COM4. Le bridge `8001` libère correctement le port via `ctl pause` (`serial_open=false`), puis le reprend via `ctl resume`. Le loader utilise `--device serial:COM4 --no-bridge-control`, dans un `try/finally` assurant la reprise du bridge. Inventaire loader contrôlé avant chaque flash : COM3 est l'autre serial `17081760` et n'a pas été flashé. Deux flashs réussis, aucun retry. Le premier HELLO lancé pendant le boot expirait ; les logs ont ensuite confirmé `stage=ready` et le HELLO a répondu. Il fallait provisionner le benchmark et attendre sa disponibilité, pas prendre le port série en concurrence avec le bridge.
+
+**Qualification logicielle distante** : Core #188 tête `0395476f465b016be8efd6af40f2d4f8d5b5c899`, CI `37119032572` entièrement verte après correction de l'empreinte `platformio.ini` du snapshot. ms-dev-env #148 tête `4e213e5` : CI `37118609351` et Release Alignment `37118609347` verts.
+
+**Campagne MCU** : Core `0395476f`, 450 MHz, fixture `bench-macro-v1`, RAM-only. Candidat `hardware_flash_candidate` puis original `dev_hardware_benchmark`, trois répétitions avec reboot par scénario : idle 10 s / 11 événements, transitions 20 s / 108 événements, édition 20 s / 67 événements. **18/18 résumés `completed`, `ok=true`**. Budget d'acceptation du retard script : 1000000 µs ; maxima réellement observés ci-dessous. Aucun polling pendant les captures. Bitwig était ouvert, mais zéro entrée MIDI, entrée physique ou requête étrangère observée pendant les essais.
+
+| Profil / scénario | Retard script max µs | Boucle max µs | Refresh LVGL max µs | Flush ILI9341 max µs | Timer max µs | Intervalle timer max µs | Âge queue USB max µs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Original / idle | 644 | 4052 | 3566 | 1655 | 783 | 1088 | 801 |
+| Candidat / idle | 772 | 6982 | 6277 | 1360 | 802 | 1052 | 821 |
+| Original / transitions | 1733 | 34042 | 33125 | 9659 | 801 | 1067 | 820 |
+| Candidat / transitions | 1600 | 34367 | 33055 | 9587 | 791 | 1079 | 810 |
+| Original / édition | 1773 | 34284 | 33249 | 9743 | 797 | 1069 | 817 |
+| Candidat / édition | 1958 | 36760 | 34481 | 9532 | 786 | 1057 | 804 |
+
+Chaque cellule est le maximum sur trois essais, pas une moyenne ni un percentile. Aucune accélération ni non-régression temporelle stricte démontrée : pointes idle et édition plus élevées pour le candidat ; ordre candidat→original non randomisé. Les états/transitions et le fonctionnement instrumenté du pilote passent sur le MCU. Cela ne prouve pas l'absence de tearing ou la qualité optique de l'affichage ; inspection visuelle et capture externe DMA/VSync/MIDI restent distinctes.
+
+**Pertes et mémoire** : zéro `drop-late-note-on`, `late-send`, `transport-rejected`, `usb-admission-refused`, `usb-rejections` dans les 18 essais ; zéro erreur LVGL, overflow notification, échec d'allocation ou overflow du tracker. Après cleanup : PSRAM libre 6004884–6011568 B, RAM2 tail 61392 B, LVGL utilisé 286340–287016 B. Les compteurs internes ne qualifient pas les pertes/jitter bout-en-bout côté DAW. Aucun workload SD ni graphe DAHDSR maximal dans cette fixture.
+
+**Identités et preuves** : `.tmp/hardware-qualification-20261003/` conserve HEX/ELF candidat et baseline, logs build/flash, six groupes de trois essais (manifeste, résumé, NDJSON), `analyze.py` et `comparison.json`. Copie durable de la comparaison : `docs/memories/work/evidence/ili9341-hardware-20261003.json`.
+
+- HEX candidat SHA-256 `693819f797d3d7ee29ce544e57425d8b1512b37fae6e529a941636b6a89bda34` ; HELLO build ID `cacb6523631cd71330cae565b7788bace5799e1ff55e4b9857f0b16ebe24c931`.
+- HEX original benchmark SHA-256 `25912d6e5b8c8180769a47dc1893a5c2629409c95375aac3cac01e6d614346c7` ; HELLO build ID `12533c7e89412b0f7371126a2448dc9868531cfcb44dcba39300c0f0e87dec17`.
+- **État matériel laissé après les essais** : firmware **benchmark original RAM-only**, dernier run terminé, transport musical arrêté par le scénario, bridge repris et connecté sur COM4. Le firmware de production antérieurement chargé n'était pas identifié et n'a pas été restauré ; une image release connue est archivée séparément, sans prétendre être l'image antérieure.
+
 #### Pilote versionné et qualification des consommateurs
 
 - Fork `open-control/ILI9341_T4`, correctif épinglé à `95be8e9487442230d9bcb45d23ffba72f6070c85`, basé exactement sur le tag upstream `1.7.0`. PR : https://github.com/open-control/ILI9341_T4/pull/1 ; tête avec fixture/documentation `a52c6ac`. Override `FLASHMEM` limité au `.cpp`, après les headers, macro restaurée à la fin ; fonctions non annotées et définitions inline publiques conservées.
