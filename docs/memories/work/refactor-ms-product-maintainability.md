@@ -4,7 +4,7 @@
 **Status** : Core jusqu'à #186 et Java Bitwig #31 intégrés et qualifiés ; migrations L6 restantes et qualification physique ouvertes
 
 **Created** : 2026-09-26  
-**Updated** : 2026-10-02
+**Updated** : 2026-10-03
 **Nature** : feuille de route d'exécution et passation. Le tableau de la section 5 fait autorité pour l'état courant ; les entrées du journal conservent les preuves historiques.
 
 ## 1. Cap et résultat attendu
@@ -15,6 +15,74 @@
 - Mutation : remplacer « Save project » par « Autosave » fait échouer l'assertion comportementale ; mutation annulée avant qualification.
 - Bench `.tmp/settlement-contract-bench` : `ms test core` **206/206**, architecture **OK**, build Teensy `dev` **OK** (88 s ; RAM1 358/512 Ko, RAM2 183/512 Ko, PSRAM 1194/8192 Ko). Aucun essai matériel réalisé dans ce lot.
 - [PR Core #186](https://github.com/petitechose-midi-studio/core/pull/186) fusionnée le 2026-09-30 : `ac74efb0381fd6a9483a3d798be981e8ae7801d8`. [CI post-fusion](https://github.com/petitechose-midi-studio/core/actions/runs/36655720063) verte : architecture/tests natifs, firmware release, SDL WASM, SDL natif sous AddressSanitizer et parcours UX de durée de vie. Ce lot retire uniquement les contrôles hérités décrits ci-dessus ; les autres familles de contrats Core restent à migrer.
+
+### Diagnostic Flash et matériel — 2026-10-03
+
+#### Qualification réelle — blocage série levé le 2026-10-03
+
+**État courant (remplace le blocage HELLO décrit plus bas)** : flash ciblé effectué avec autorisation utilisateur sur `18040250` / COM4. Le bridge `8001` libère correctement le port via `ctl pause` (`serial_open=false`), puis le reprend via `ctl resume`. Le loader utilise `--device serial:COM4 --no-bridge-control`, dans un `try/finally` assurant la reprise du bridge. Inventaire loader contrôlé avant chaque flash : COM3 est l'autre serial `17081760` et n'a pas été flashé. Deux flashs réussis, aucun retry. Le premier HELLO lancé pendant le boot expirait ; les logs ont ensuite confirmé `stage=ready` et le HELLO a répondu. Il fallait provisionner le benchmark et attendre sa disponibilité, pas prendre le port série en concurrence avec le bridge.
+
+**Qualification logicielle distante** : Core #188 tête `0395476f465b016be8efd6af40f2d4f8d5b5c899`, CI `37119032572` entièrement verte après correction de l'empreinte `platformio.ini` du snapshot. ms-dev-env #148 tête `4e213e5` : CI `37118609351` et Release Alignment `37118609347` verts.
+
+**Campagne MCU** : Core `0395476f`, 450 MHz, fixture `bench-macro-v1`, RAM-only. Candidat `hardware_flash_candidate` puis original `dev_hardware_benchmark`, trois répétitions avec reboot par scénario : idle 10 s / 11 événements, transitions 20 s / 108 événements, édition 20 s / 67 événements. **18/18 résumés `completed`, `ok=true`**. Budget d'acceptation du retard script : 1000000 µs ; maxima réellement observés ci-dessous. Aucun polling pendant les captures. Bitwig était ouvert, mais zéro entrée MIDI, entrée physique ou requête étrangère observée pendant les essais.
+
+| Profil / scénario | Retard script max µs | Boucle max µs | Refresh LVGL max µs | Flush ILI9341 max µs | Timer max µs | Intervalle timer max µs | Âge queue USB max µs |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Original / idle | 644 | 4052 | 3566 | 1655 | 783 | 1088 | 801 |
+| Candidat / idle | 772 | 6982 | 6277 | 1360 | 802 | 1052 | 821 |
+| Original / transitions | 1733 | 34042 | 33125 | 9659 | 801 | 1067 | 820 |
+| Candidat / transitions | 1600 | 34367 | 33055 | 9587 | 791 | 1079 | 810 |
+| Original / édition | 1773 | 34284 | 33249 | 9743 | 797 | 1069 | 817 |
+| Candidat / édition | 1958 | 36760 | 34481 | 9532 | 786 | 1057 | 804 |
+
+Chaque cellule est le maximum sur trois essais, pas une moyenne ni un percentile. Aucune accélération ni non-régression temporelle stricte démontrée : pointes idle et édition plus élevées pour le candidat ; ordre candidat→original non randomisé. Les états/transitions et le fonctionnement instrumenté du pilote passent sur le MCU. Cela ne prouve pas l'absence de tearing ou la qualité optique de l'affichage ; inspection visuelle et capture externe DMA/VSync/MIDI restent distinctes.
+
+**Pertes et mémoire** : zéro `drop-late-note-on`, `late-send`, `transport-rejected`, `usb-admission-refused`, `usb-rejections` dans les 18 essais ; zéro erreur LVGL, overflow notification, échec d'allocation ou overflow du tracker. Après cleanup : PSRAM libre 6004884–6011568 B, RAM2 tail 61392 B, LVGL utilisé 286340–287016 B. Les compteurs internes ne qualifient pas les pertes/jitter bout-en-bout côté DAW. Aucun workload SD ni graphe DAHDSR maximal dans cette fixture.
+
+**Identités et preuves** : `.tmp/hardware-qualification-20261003/` conserve HEX/ELF candidat et baseline, logs build/flash, six groupes de trois essais (manifeste, résumé, NDJSON), `analyze.py` et `comparison.json`. Copie durable de la comparaison : `docs/memories/work/evidence/ili9341-hardware-20261003.json`.
+
+- HEX candidat SHA-256 `693819f797d3d7ee29ce544e57425d8b1512b37fae6e529a941636b6a89bda34` ; HELLO build ID `cacb6523631cd71330cae565b7788bace5799e1ff55e4b9857f0b16ebe24c931`.
+- HEX original benchmark SHA-256 `25912d6e5b8c8180769a47dc1893a5c2629409c95375aac3cac01e6d614346c7` ; HELLO build ID `12533c7e89412b0f7371126a2448dc9868531cfcb44dcba39300c0f0e87dec17`.
+- **État matériel laissé après les essais** : firmware **benchmark original RAM-only**, dernier run terminé, transport musical arrêté par le scénario, bridge repris et connecté sur COM4. Le firmware de production antérieurement chargé n'était pas identifié et n'a pas été restauré ; une image release connue est archivée séparément, sans prétendre être l'image antérieure.
+
+#### Pilote versionné et qualification des consommateurs
+
+- Fork `open-control/ILI9341_T4`, correctif épinglé à `95be8e9487442230d9bcb45d23ffba72f6070c85`, basé exactement sur le tag upstream `1.7.0`. PR : https://github.com/open-control/ILI9341_T4/pull/1 ; tête avec fixture/documentation `a52c6ac`. Override `FLASHMEM` limité au `.cpp`, après les headers, macro restaurée à la fin ; fonctions non annotées et définitions inline publiques conservées.
+- Builds Core avec surcharge Git explicite : `release_flash_candidate`, `dev_flash_candidate`, `hardware_flash_candidate` réussis. Code release **1209820 B**, dev **1209868 B** ; marges mémoire produit inchangées. Total Flash release **1455100 B**, soit **43008 B** de moins que l'original. La ventilation données/headers dépend de l'environnement : 237064/8216 B pour ce build release versionné.
+- Profils reproductibles et procédure poussés dans **Core #188** (draft, `5f92a7b7`). Contrôle de l'ELF release versionné : `begin`/`update` présents, OpenSans absent. ELF conservé `.tmp/core-versioned-driver-release.elf`, SHA-256 `9d94ea0e55a08e6185e341ac997d379d63747ff77e85e65cd67ef3e94cd05a38`.
+- Benchmark candidat : code/données/headers **1210560/252992/8960 B**, RAM1/RAM2/PSRAM libres **155744/322496/7153184 B**. Gates benchmark passent ; advisory code diagnostics encore dépassé de **2240 B**. Architecture Core : OK.
+- Fixture link-only durable dans le fork, `qualification/flash-sections`, construite avec Teensy PlatformIO 5.2.0 et le linker standard. Contrôle ELF réussi : `overlayText`, `overlayFPS`, `calibrateTouch` et données OpenSans 16 présents lorsqu'appelés. Les broches de cette fixture sont fictives : elle ne sert pas à une qualification physique.
+- Logs : `.tmp/core-versioned-driver-release.log`, `.tmp/core-versioned-driver-dev.log`, `.tmp/core-versioned-driver-hardware.log`, `.tmp/ili9341-api-link.log`. Les ELF précédents peuvent être nettoyés dans le workspace ; conserver explicitement l'ELF immédiatement après le build. L'ELF benchmark n'a pas pu être conservé lors de cette passe ; son résultat post-link est disponible dans le log.
+- Bridge revérifié : même serial/instance/COM4 ; HELLO benchmark toujours en timeout. Équivalence physique DMA/VSync/affichage encore non mesurée. Les dépendances produit normales ne sont pas promues à ce stade ; les profils candidats rendent la qualification reproductible. Le HAL et device-support sont compilés via les consommateurs Core ; cela ne constitue pas une qualification exhaustive de Bitwig ou des autres firmwares.
+
+**État intégré** : Core #187 → `fc38d9888619e5eba9d99e6e39f68986abd7e5f5`, CI post-fusion `37059274358` verte ; outillage/docs #147 → `c5375d670abce60ff8cda483e7603b14dde15d45`, CI `37060158567` et Release Alignment `37060158627` verts.
+
+**Matériel** : le bridge port 8001 confirme toujours `serial_open=true`, serial `18040250`, instance `bitwig-hardware-18040250`, COM4. La lecture HELLO benchmark expire (`controller rpc timeout`). Cela ne permet pas de déterminer la version ni le profil du firmware actif. Aucun accès série concurrent, flash ou reboot effectué. Pour poursuivre : identifier/provisionner le profil `dev_hardware_benchmark` par le workflow MS Manager ciblant ce serial, puis exiger le HELLO compatible avant toute mesure. Le protocole benchmark ne fournit aucune identification lorsque ce HELLO ne répond pas.
+
+**ELF et attribution** : reconstruction release sur Core `ca67f7bf` (contenu intégré par #187), dépendances PlatformIO épinglées. Dépassement code reproduit : 1221892 B pour 1208320 B (+13572 B). ELF SHA-256 `2016ec41ae857b585641c60a5728b7ab573ab8a90e5e4152886b74cb9d946592`. Analyse `arm-none-eabi-nm --print-size --size-sort --radix=d --demangle` avec déduplication adresse/taille pour ne pas compter deux fois les alias de constructeurs.
+
+- ILI9341_T4 **1.7.0** : 32856 B de symboles de méthodes du driver ; quatre polices OpenSans liées, tables comprises : **30245 B**. Une taille de symbole seule ne prouve pas qu'il est supprimable.
+- `objdump -h` sur `ILI9341Driver.cpp.o` montre une unique section `.flashmem` de **31380 B**. Les relocations de cette section référencent les quatre polices ; les fonctions ne sont pas éliminables séparément dans cette section malgré `--gc-sections`.
+- Principaux symboles Core Flash repérés : `SequencerOverlayPresenter::bind` 7750 B, `SequencerView::bindGridState` 6652 B, `macro_overlay_invalidation::Bindings::bind` 5996 B, `StandaloneUiAssembly::bindGlobalTrackStrip` 5808 B. Aucun n'est déclaré superflu sur ce seul critère.
+
+**Expérience réversible, non intégrée au produit** : uniquement dans le `.cpp` généré du driver, après ses includes, remplacement temporaire de `FLASHMEM` par une section `.flashmem.ili9341.<counter>` par fonction, en conservant `noinline`. Le linker produit accepte déjà `.flashmem*`. Aucun changement de seuil ni de fréquence CPU.
+
+| Mesure post-link (octets) | Original | Expérience | Réduction |
+| --- | ---: | ---: | ---: |
+| Flash code | 1221892 | 1209820 | 12072 |
+| Flash données | 267272 | 236984 | 30288 |
+| Flash headers | 8944 | 8296 | 648 |
+| Total Flash | 1498108 | 1455100 | **43008** |
+| ITCM | 310040 | 309512 | 528 |
+| RAM1 libre | 157024 | 157024 | 0 |
+| RAM2 libre | 336192 | 336192 | 0 |
+| PSRAM libre | 7165600 | 7165600 | 0 |
+
+Build expérimental réussi ; zéro symbole OpenSans dans le nouvel ELF. Advisory code encore présent : **1500 B** au-dessus du seuil. Il ne faut pas confondre les 43 Ko de réduction totale avec la réduction de 12 Ko du code. Aucun gain de temps d'exécution ni équivalence physique d'affichage démontrés.
+
+ELF expérimental SHA-256 `94e6ea69e223236ac3bfcdf68fad7efd5364350da80c59c5507466a7a11f3411`. Sources du driver restaurées **octet pour octet**, SHA-256 `111c7289ba64b59bfc262ed7c4d1aa476ac98f20f3ff684aa6ad91080f0ef3b2` ; rebuild après retrait de la modification retrouve les tailles originales. Aucune modification de dépendance générée à conserver. Artefacts locaux : `.tmp/core-release-before-sections.elf`, `.tmp/core-release-experimental-sections.elf`, `.tmp/core-release-symbols.txt`, `.tmp/core-driver-relocations.txt`, `.tmp/core-flash-sections-experiment.log`, `.tmp/core-flash-restored-build.log`.
+
+**Prochain lot borné** : porter la granularité des sections dans une révision versionnée du driver, plutôt que patcher `.pio/libdeps` à chaque build ; vérifier dev/release/diagnostics et consommateurs device-support, ainsi que DMA/VSync et affichage sur le contrôleur. Ne pas toucher aux fonctions ISR ni déplacer du code chaud vers Flash pour satisfaire le seuil. La cause de rétention et le gain de taille sont établis ; la promotion et la qualification physique restent ouvertes. Le seuil advisory restant mérite une attribution complémentaire, pas un relèvement automatique.
 
 ### Exécution autonome — 2026-10-02
 
